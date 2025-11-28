@@ -1,0 +1,76 @@
+name: build
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main", "rel-*", "ci/*"]
+    tags:
+      - "**"
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rustc: stable
+          - os: ubuntu-latest
+            rustc: nightly
+          - os: macos-latest
+            rustc: stable
+          - os: windows-latest
+            rustc: stable
+          - os: ubuntu-24.04-arm
+            rustc: stable
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install ${{ matrix.rustc }} toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rustc }}
+
+      - name: Build (debug)
+        run: cargo build --locked
+      - name: Run tests (debug)
+        run: cargo test --locked
+
+      - name: Build (release)
+        run: cargo build --locked --release
+      - name: Run tests (release)
+        run: cargo test --locked --release
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install MSRV toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.85"
+
+      - name: Check MSRV
+        run: cargo check --locked --all-features
