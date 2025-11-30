@@ -1,0 +1,51 @@
+name: update mirror
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0,6,12,18 * * *"
+
+jobs:
+  generate:
+    name: Generate backend files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Generate backend files
+        run: |
+          mkdir tmp/
+          cargo run --locked --release --bin upki-mirror -- tmp/ production --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
+
+      - name: Package and upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./tmp/
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    if: github.repository == 'rustls/upki' && github.ref == 'refs/heads/main'
+    needs: generate
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
