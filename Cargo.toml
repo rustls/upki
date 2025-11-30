@@ -5,6 +5,7 @@ resolver = "3"
 [workspace.package]
 rust-version = "1.85"
 edition = "2024"
+repository = "https://github.com/rustls/upki"
 
 [workspace.lints.clippy]
 alloc_instead_of_core = "warn"
