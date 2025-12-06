@@ -8,7 +8,9 @@ edition = "2024"
 repository = "https://github.com/rustls/upki"
 
 [workspace.dependencies]
+chrono = { version = "0.4.42", features = ["alloc"], default-features = false }
 clap = { version = "4.5", features = ["derive"] }
+directories = "6"
 eyre = "0.6"
 hex = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["charset", "h2", "http2", "json", "rustls-tls"] }
@@ -16,6 +18,8 @@ ring = "0.17"
 serde = "1"
 serde_json = "1"
 tokio = { version = "1.47", features = ["io-util", "macros", "net", "rt"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [workspace.lints.clippy]
 alloc_instead_of_core = "warn"

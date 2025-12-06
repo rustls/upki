@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The structure contained in a manifest.json
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Manifest {
     /// When this file was generated.
     ///
@@ -15,7 +15,7 @@ pub struct Manifest {
     pub filters: Vec<Filter>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Filter {
     /// Relative filename.
     ///
