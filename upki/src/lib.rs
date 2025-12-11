@@ -1,3 +1,4 @@
+use clubcard_crlite::{CRLiteKey, CRLiteStatus};
 use serde::{Deserialize, Serialize};
 
 pub mod cache;
@@ -30,4 +31,72 @@ pub struct Filter {
     /// SHA256 hash of file contents.
     #[serde(with = "hex::serde")]
     pub hash: Vec<u8>,
+}
+
+/// This function does a low-level revocation check.
+///
+/// It is assumed the caller has already done a path verification, and now wants to
+/// check the revocation status of the end-entity certificate.
+///
+/// - `filters` is the raw filter data.
+/// - `cert_serial` is the big-endian bytes encoding of the end-entity certificate
+///   serial number.
+/// - `issuer_spki_hash` is the SHA256 hash of the `SubjectPublicKeyInfo` of the issuer
+///   of the end-entity certificate.
+/// - `sct_timestamps` is a list of the CT log IDs and inclusion timestamps present in
+///   the end-entity certificate.
+///
+/// On success, this returns a [`RevocationStatus`] saying whether the certificate
+/// is revoked, not revoked, or whether the data set cannot make that determination.
+pub fn revocation_check<'a>(
+    filters: impl Iterator<Item = &'a [u8]>,
+    cert_serial: &[u8],
+    issuer_spki_hash: [u8; 32],
+    sct_timestamps: &[([u8; 32], u64)],
+) -> Result<RevocationStatus, Error> {
+    let crlite_key = CRLiteKey::new(&issuer_spki_hash, cert_serial);
+
+    for filter in filters {
+        let filter = clubcard_crlite::CRLiteClubcard::from_bytes(filter)
+            .map_err(|_| Error::CorruptCrliteFilter)?;
+
+        match filter.contains(
+            &crlite_key,
+            sct_timestamps
+                .iter()
+                .map(|(log_id, ts)| (log_id, *ts)),
+        ) {
+            CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
+            CRLiteStatus::Good => return Ok(RevocationStatus::NotRevoked),
+            CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => {
+                continue;
+            }
+        }
+    }
+
+    Ok(RevocationStatus::NotCoveredByRevocationData)
+}
+
+/// The successful outcome of a revocation check.
+///
+/// Look at a value of this type to determine whether a certificate was revoked or not.
+#[derive(Debug, PartialEq)]
+#[must_use]
+pub enum RevocationStatus {
+    /// We couldn't determine the revocation status.
+    ///
+    /// Most likely, this certificate is very new and is not covered by the current filter dataset.
+    NotCoveredByRevocationData,
+
+    /// This certificate has been revoked.
+    CertainlyRevoked,
+
+    /// This certificate was covered by revocation data, and it is not currently revoked.
+    NotRevoked,
+}
+
+#[derive(Debug)]
+pub enum Error {
+    /// `crlite_clubcard::CRLiteClubcard` couldn't deserialize the filter data.
+    CorruptCrliteFilter,
 }

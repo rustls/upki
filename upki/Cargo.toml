@@ -8,6 +8,7 @@ repository.workspace = true
 [dependencies]
 chrono.workspace = true
 clap.workspace = true
+clubcard-crlite.workspace = true
 directories.workspace = true
 eyre.workspace = true
 hex.workspace = true
