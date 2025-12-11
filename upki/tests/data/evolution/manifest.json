@@ -1,0 +1,21 @@
+{
+  "generated_at": 1765446031,
+  "comment": "evolution from typical test manifest",
+  "filters": [
+    {
+      "filename": "filter1.filter",
+      "size": 11,
+      "hash": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    },
+    {
+      "filename": "filter3.delta",
+      "size": 10,
+      "hash": "91db9aeaa71dcdce8b94c793a2c0028513ae55ced477ababa097b702fe3daacc"
+    },
+    {
+      "filename": "filter4.delta",
+      "size": 14,
+      "hash": "11507a0e2f5e69d5dfa40a62a1bd7b6ee57e6bcd85c67c9b8431b36fff21c437"
+    }
+  ]
+}
