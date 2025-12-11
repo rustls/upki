@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use chrono::{DateTime, Utc};
 use eyre::{Context, Report, eyre};
 use ring::digest;
+use tempfile::NamedTempFile;
 use tracing::{debug, info};
 use upki::{Filter, Manifest};
 
@@ -148,14 +149,14 @@ impl Plan {
             steps.push(PlanStep::download(filter, remote_url, local));
         }
 
+        steps.push(PlanStep::SaveManifest {
+            manifest: manifest.clone(),
+            local_dir: local.to_owned(),
+        });
+
         for filename in unwanted_files {
             steps.push(PlanStep::Delete(local.join(filename)));
         }
-
-        steps.push(PlanStep::SaveManifest {
-            manifest: manifest.clone(),
-            local: local.join(MANIFEST_JSON),
-        });
 
         Ok(Self { steps })
     }
@@ -191,7 +192,7 @@ enum PlanStep {
     /// Save the manifest structure
     SaveManifest {
         manifest: Manifest,
-        local: PathBuf,
+        local_dir: PathBuf,
     },
 }
 
@@ -235,10 +236,19 @@ impl PlanStep {
                 debug!("deleting unreferenced file {target:?}");
                 fs::remove_file(&target).wrap_err("failed to delete file")?;
             }
-            Self::SaveManifest { manifest, local } => {
+            Self::SaveManifest {
+                manifest,
+                local_dir,
+            } => {
                 debug!("saving manifest");
-                let file = File::create(local).wrap_err("failed to create manifest file")?;
-                serde_json::to_writer(file, &manifest).wrap_err("failed to write manifest")?;
+
+                let mut local_temp = NamedTempFile::with_suffix_in(".new", &local_dir)
+                    .wrap_err("failed to create temporary manifest file")?;
+                serde_json::to_writer(local_temp.as_file_mut(), &manifest)
+                    .wrap_err("failed to write manifest")?;
+                local_temp
+                    .persist(local_dir.join(MANIFEST_JSON))
+                    .wrap_err("failed to move new manifest into place")?;
             }
         }
 
@@ -268,8 +278,8 @@ impl fmt::Display for PlanStep {
                 filter.size
             ),
             Self::Delete(path) => write!(f, "delete stale file {path:?}"),
-            Self::SaveManifest { local, .. } => {
-                write!(f, "save new manifest to {local:?}")
+            Self::SaveManifest { local_dir, .. } => {
+                write!(f, "save new manifest into {local_dir:?}")
             }
         }
     }

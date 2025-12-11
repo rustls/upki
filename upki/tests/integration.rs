@@ -317,7 +317,7 @@ fn typical_incremental_fetch_dry_run() {
     ----- stdout -----
     2 steps required (14 bytes to download)
     - download 14 bytes from http://127.0.0.1:[PORT]/filter2.delta to "[TEMPDIR]/filter2.delta"
-    - save new manifest to "[TEMPDIR]/manifest.json"
+    - save new manifest into "[TEMPDIR]"
 
     ----- stderr -----
     "#);
