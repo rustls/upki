@@ -145,11 +145,7 @@ impl Plan {
             if exists_locally(filter, &local.join(&filter.filename))? {
                 continue;
             }
-            steps.push(PlanStep::Download {
-                filter: filter.clone(),
-                remote_url: format!("{remote_url}{}", filter.filename),
-                local: local.join(&filter.filename),
-            });
+            steps.push(PlanStep::download(filter, remote_url, local));
         }
 
         for filename in unwanted_files {
@@ -247,6 +243,14 @@ impl PlanStep {
         }
 
         Ok(())
+    }
+
+    fn download(filter: &Filter, remote_url: &str, local: &Path) -> Self {
+        Self::Download {
+            filter: filter.clone(),
+            remote_url: format!("{remote_url}{}", filter.filename),
+            local: local.join(&filter.filename),
+        }
     }
 }
 
