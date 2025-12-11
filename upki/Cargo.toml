@@ -9,6 +9,7 @@ repository.workspace = true
 aws-lc-rs.workspace = true
 chrono.workspace = true
 clap.workspace = true
+clubcard-crlite.workspace = true
 eyre.workspace = true
 hex.workspace = true
 reqwest.workspace = true
