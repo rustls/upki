@@ -1861,6 +1861,7 @@ name = "upki"
 version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "clubcard-crlite",
