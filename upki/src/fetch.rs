@@ -148,14 +148,14 @@ impl Plan {
             steps.push(PlanStep::download(filter, remote_url, local));
         }
 
-        for filename in unwanted_files {
-            steps.push(PlanStep::Delete(local.join(filename)));
-        }
-
         steps.push(PlanStep::SaveManifest {
             manifest: manifest.clone(),
             local: local.join(MANIFEST_JSON),
         });
+
+        for filename in unwanted_files {
+            steps.push(PlanStep::Delete(local.join(filename)));
+        }
 
         Ok(Self { steps })
     }
@@ -237,8 +237,12 @@ impl PlanStep {
             }
             Self::SaveManifest { manifest, local } => {
                 debug!("saving manifest");
-                let file = File::create(local).wrap_err("failed to create manifest file")?;
+
+                let local_temp = local.with_extension(".tmp");
+                let file = File::create(&local_temp)
+                    .wrap_err("failed to create temporary manifest file")?;
                 serde_json::to_writer(file, &manifest).wrap_err("failed to write manifest")?;
+                fs::rename(local_temp, local).wrap_err("failed to move new manifest into place")?;
             }
         }
 
