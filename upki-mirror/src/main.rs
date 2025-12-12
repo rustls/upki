@@ -7,7 +7,8 @@ use std::time::SystemTime;
 use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
 use ring::digest::{SHA256, digest};
-use serde::Serialize;
+use upki::{Filter, Manifest};
+
 mod mozilla;
 
 #[tokio::main(flavor = "current_thread")]
@@ -143,35 +144,6 @@ struct Opts {
     /// Comment included in output manifest.
     #[clap(long, default_value = "")]
     manifest_comment: String,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct Manifest {
-    /// When this file was generated.
-    ///
-    /// UNIX timestamp in seconds.
-    generated_at: u64,
-
-    /// Some human-readable text.
-    comment: String,
-
-    /// List of filter files.
-    filters: Vec<Filter>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct Filter {
-    /// Relative filename.
-    ///
-    /// This is also the suggested local filename.
-    filename: String,
-
-    /// File size, indicative.  Allows a fetcher to predict data usage.
-    size: usize,
-
-    /// SHA256 hash of file contents.
-    #[serde(with = "hex::serde")]
-    hash: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]

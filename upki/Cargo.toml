@@ -1,0 +1,31 @@
+[package]
+name = "upki"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+chrono.workspace = true
+clap.workspace = true
+directories.workspace = true
+eyre.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+insta-cmd.workspace = true
+rand.workspace = true
+regex.workspace = true
+tempfile.workspace = true
+tiny_http.workspace = true
+
+[lints]
+workspace = true
