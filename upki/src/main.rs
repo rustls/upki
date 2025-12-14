@@ -3,7 +3,8 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use eyre::{Report, eyre};
+use eyre::{Context, Report};
+use upki::config::{Config, ConfigPath};
 
 mod fetch;
 
@@ -18,21 +19,27 @@ async fn main() -> Result<(), Report> {
             .init();
     }
 
-    let local = match args.cache_dir {
-        Some(dir) => dir,
-        None => match directories::ProjectDirs::from("dev", "rustls", "upki") {
-            Some(dirs) => dirs.data_local_dir().to_owned(),
-            None => return Err(eyre!("cannot determine home directory")),
-        },
-    };
-    tracing::info!("local directory is {local:?}");
+    let config_path =
+        ConfigPath::new(args.config_file).wrap_err("cannot find configuration path")?;
 
-    match args.command {
-        Command::Fetch { url, dry_run } => fetch::fetch(&local, &url, dry_run).await?,
-        Command::Verify => fetch::verify(&local)?,
-        Command::ShowCacheDir => println!("{}", local.display()),
+    if let Command::ShowConfigPath = args.command {
+        println!("{}", config_path.as_ref().display());
+        return Ok(());
     }
 
+    let config = Config::from_file_or_default(&config_path)?;
+
+    match args.command {
+        Command::Fetch { dry_run } => fetch::fetch(&config.revocation, dry_run).await?,
+        Command::Verify => fetch::verify(&config.revocation.cache_dir)?,
+        Command::ShowConfigPath => unreachable!(),
+        Command::ShowConfig => {
+            print!(
+                "{}",
+                toml::to_string_pretty(&config).wrap_err("cannot format configuration")?
+            )
+        }
+    };
     Ok(())
 }
 
@@ -42,11 +49,11 @@ struct Args {
     #[command(subcommand)]
     command: Command,
 
-    /// Where to find and save the local files.
+    /// Use this specific configuration file.  This must exist.
     ///
-    /// If not specified, this tool uses a platform-standard, local data directory.
+    /// If not specified, this tool looks for its configuration file in a platform-standard local directory.
     #[arg(long)]
-    cache_dir: Option<PathBuf>,
+    config_file: Option<PathBuf>,
 
     /// Emit logging output.
     #[arg(long)]
@@ -57,14 +64,10 @@ struct Args {
 enum Command {
     /// Update the local cache of crlite filters, downloading them as needed.
     ///
-    /// If the `--cache-dir` path does not exist, this tool creates it and parent directories.
+    /// If the `revocation.cache_dir` path does not exist, this tool creates it and parent directories.
     ///
     /// This also deletes filters that become unreferenced.
     Fetch {
-        /// The remote URL.
-        #[arg(default_value = "https://upki.rustls.dev/")]
-        url: String,
-
         /// Download the new manifest, and then describe what actions are needed to
         /// synchronize with the remote server.
         #[arg(long)]
@@ -80,6 +83,9 @@ enum Command {
     /// This command does no network I/O.  It does not say anything whether the files are up-to-date or recent.
     Verify,
 
-    /// Print the location of the local cache directory.
-    ShowCacheDir,
+    /// Print the location of the configuration file.
+    ShowConfigPath,
+
+    /// Print the configuration that will be used.
+    ShowConfig,
 }

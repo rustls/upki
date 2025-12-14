@@ -19,10 +19,17 @@ use eyre::{Context, Report, eyre};
 use ring::digest;
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
+use upki::config::RevocationConfig;
 use upki::{Filter, Manifest};
 
-pub(super) async fn fetch(local: &Path, remote_url: &str, dry_run: bool) -> Result<(), Report> {
-    info!("fetching {remote_url} into {local:?}...");
+pub(super) async fn fetch(
+    RevocationConfig {
+        cache_dir,
+        fetch_url,
+    }: &RevocationConfig,
+    dry_run: bool,
+) -> Result<(), Report> {
+    info!("fetching {fetch_url} into {cache_dir:?}...");
 
     let client = reqwest::Client::builder()
         .use_rustls_tls()
@@ -36,7 +43,7 @@ pub(super) async fn fetch(local: &Path, remote_url: &str, dry_run: bool) -> Resu
         .build()
         .wrap_err("failed to create HTTP client")?;
 
-    let manifest_url = format!("{remote_url}{MANIFEST_JSON}");
+    let manifest_url = format!("{fetch_url}{MANIFEST_JSON}");
     let response = client
         .get(&manifest_url)
         .send()
@@ -52,7 +59,7 @@ pub(super) async fn fetch(local: &Path, remote_url: &str, dry_run: bool) -> Resu
 
     introduce_manifest(&manifest)?;
 
-    let plan = Plan::construct(&manifest, remote_url, local)?;
+    let plan = Plan::construct(&manifest, fetch_url, cache_dir)?;
 
     if dry_run {
         println!(

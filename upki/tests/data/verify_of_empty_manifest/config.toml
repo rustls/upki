@@ -1,0 +1,3 @@
+[revocation]
+cache_dir = "tests/data/verify_of_empty_manifest/"
+fetch_url = ""
