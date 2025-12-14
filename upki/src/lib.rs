@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub mod config;
+
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Manifest {
