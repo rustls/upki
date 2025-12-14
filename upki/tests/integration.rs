@@ -43,6 +43,20 @@ fn show_cache_dir_fixpoint() {
 
     ----- stderr -----
     ");
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--cache-dir")
+            .arg("/home/example/not-exist/")
+            .arg("show-cache-dir")
+            .arg("--read"),
+        @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    /home/example/not-exist/
+
+    ----- stderr -----
+    ");
 }
 
 #[test]

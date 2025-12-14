@@ -18,18 +18,26 @@ async fn main() -> Result<(), Report> {
             .init();
     }
 
+    let command_wants_to_write_cache = matches!(
+        args.command,
+        Command::Fetch { .. } | Command::ShowCacheDir { read: false }
+    );
+
     let local = match args.cache_dir {
         Some(dir) => dir,
-        None => upki::cache::writable_default_dir()
-            .map_err(|e| eyre!(e))
-            .wrap_err("cannot determine default cache directory")?,
+        None => match command_wants_to_write_cache {
+            true => upki::cache::writable_default_dir(),
+            false => upki::cache::readable_default_dir(),
+        }
+        .map_err(|e| eyre!(e))
+        .wrap_err("cannot determine default cache directory")?,
     };
     tracing::info!("local directory is {local:?}");
 
     match args.command {
         Command::Fetch { url, dry_run } => fetch::fetch(&local, &url, dry_run).await?,
         Command::Verify => fetch::verify(&local)?,
-        Command::ShowCacheDir => println!("{}", local.display()),
+        Command::ShowCacheDir { .. } => println!("{}", local.display()),
     }
 
     Ok(())
@@ -80,5 +88,9 @@ enum Command {
     Verify,
 
     /// Print the location of the local cache directory.
-    ShowCacheDir,
+    ShowCacheDir {
+        /// Assuming we're only going to read files.
+        #[arg(long)]
+        read: bool,
+    },
 }
