@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use eyre::{Report, eyre};
+use eyre::{Context, Report, eyre};
 
 mod fetch;
 
@@ -20,10 +20,9 @@ async fn main() -> Result<(), Report> {
 
     let local = match args.cache_dir {
         Some(dir) => dir,
-        None => match directories::ProjectDirs::from("dev", "rustls", "upki") {
-            Some(dirs) => dirs.data_local_dir().to_owned(),
-            None => return Err(eyre!("cannot determine home directory")),
-        },
+        None => upki::cache::writable_default_dir()
+            .map_err(|e| eyre!(e))
+            .wrap_err("cannot determine default cache directory")?,
     };
     tracing::info!("local directory is {local:?}");
 
