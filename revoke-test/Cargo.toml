@@ -1,0 +1,16 @@
+[package]
+name = "revoke-test"
+version = "0.1.0"
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+eyre.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+webpki-ccadb = { git = "https://github.com/rustls/webpki-roots" }
+
+[lints]
+workspace = true

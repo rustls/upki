@@ -1,5 +1,5 @@
 [workspace]
-members = ["upki", "upki-mirror", "rustls-upki"]
+members = ["upki", "upki-mirror", "revoke-test", "rustls-upki"]
 resolver = "3"
 
 [workspace.package]
