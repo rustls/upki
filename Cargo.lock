@@ -1447,6 +1447,7 @@ dependencies = [
  "base64 0.22.1",
  "eyre",
  "http",
+ "insta-cmd",
  "serde",
  "serde_json",
  "tokio",

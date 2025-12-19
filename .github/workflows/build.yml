@@ -59,6 +59,9 @@ jobs:
       - name: Run tests (release)
         run: cargo test --locked --release
 
+      - name: Run system tests (release)
+        run: cargo test --locked --release --test system_tests -- --ignored --nocapture
+
   msrv:
     runs-on: ubuntu-latest
     steps:
