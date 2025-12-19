@@ -18,5 +18,8 @@ webpki-ccadb = { git = "https://github.com/rustls/webpki-roots" }
 webpki-roots.workspace = true
 x509-parser.workspace = true
 
+[dev-dependencies]
+insta-cmd.workspace = true
+
 [lints]
 workspace = true
