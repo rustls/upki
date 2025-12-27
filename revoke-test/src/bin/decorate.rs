@@ -114,22 +114,24 @@ async fn dissect(url: &str, tls_connector: &TlsConnector) -> Result<CertificateD
         .ok_or_else(|| eyre::eyre!("missing from ct"))?;
 
     let sct_list = parse_octet_string(sct_ext.value)?;
-
     if sct_list.len() < 2 {
         let len = sct_list.len();
         eyre::bail!("SCT list too short: {len} bytes");
     }
 
-    let list_len = u16::from_be_bytes([sct_list[0], sct_list[1]]) as usize;
+    let list_len = u16::from_be_bytes(sct_list[0..2].try_into().unwrap()) as usize;
     let mut offset = 2;
     let mut scts = Vec::new();
-
     while offset < sct_list.len() && offset < list_len + 2 {
         if offset + 2 > sct_list.len() {
             break;
         }
 
-        let sct_len = u16::from_be_bytes([sct_list[offset], sct_list[offset + 1]]) as usize;
+        let sct_len = u16::from_be_bytes(
+            sct_list[offset..offset + 2]
+                .try_into()
+                .unwrap(),
+        ) as usize;
         offset += 2;
 
         if offset + sct_len > sct_list.len() {
@@ -140,28 +142,13 @@ async fn dissect(url: &str, tls_connector: &TlsConnector) -> Result<CertificateD
         }
 
         let sct_data = &sct_list[offset..offset + sct_len];
-
         if sct_data.len() < 41 {
             eyre::bail!("SCT too short");
         }
 
-        let _version = sct_data[0];
-        let log_id = &sct_data[1..33];
-        let timestamp_bytes = &sct_data[33..41];
-        let timestamp = i64::from_be_bytes([
-            timestamp_bytes[0],
-            timestamp_bytes[1],
-            timestamp_bytes[2],
-            timestamp_bytes[3],
-            timestamp_bytes[4],
-            timestamp_bytes[5],
-            timestamp_bytes[6],
-            timestamp_bytes[7],
-        ]);
-
         scts.push(Sct {
-            log_id: BASE64_STANDARD.encode(log_id),
-            timestamp,
+            log_id: BASE64_STANDARD.encode(&sct_data[1..33]),
+            timestamp: i64::from_be_bytes(sct_data[33..41].try_into().unwrap()),
         });
 
         offset += sct_len;
