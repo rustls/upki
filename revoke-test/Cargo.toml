@@ -6,11 +6,17 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
+base64 = "0.22"
 eyre.workspace = true
+reqwest.workspace = true
+ring.workspace = true
+rustls = { version = "0.23", features = ["ring"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 webpki-ccadb = { git = "https://github.com/rustls/webpki-roots" }
+webpki-roots = "0.26"
+x509-parser = "0.16"
 
 [lints]
 workspace = true
