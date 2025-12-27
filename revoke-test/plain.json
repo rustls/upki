@@ -1,0 +1,714 @@
+{
+  "sites": [
+    {
+      "ca_sha256_fingerprint": "018E13F0772532CF809BD1B17281867283FC48C6E13BE9C69812854A490C1B05",
+      "ca_label": "DigiCert TLS ECC P384 Root G5",
+      "test_website_revoked": "https://digicert-tls-ecc-p384-root-g5-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "02ED0EB28C14DA45165C566791700D6451D7FB56F0B2AB1D3B8EB070E56EDFF5",
+      "ca_label": "Entrust Root Certification Authority - EC1",
+      "test_website_revoked": "https://entrustrootcertificationauthorityec1.sectigo.com:444"
+    },
+    {
+      "ca_sha256_fingerprint": "0376AB1D54C5F9803CE4B2E201A0EE7EEF7B57B636E8A93C9B8D4860C96F5FA7",
+      "ca_label": "AffirmTrust Commercial",
+      "test_website_revoked": "https://revokedcommercial.affirmtrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "0552E6F83FDF65E8FA9670E666DF28A4E21340B510CBE52566F97C4FB94B2BD1",
+      "ca_label": "D-TRUST BR Root CA 2 2023",
+      "test_website_revoked": "https://certdemo-dv-revoked-rsa.tls.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "06C08D7DAFD876971EB1124FE67F847EC0C7A158D3EA53CBE940E2EA9791F4C3",
+      "ca_label": "TrustAsia TLS RSA Root CA",
+      "test_website_revoked": "https://ev-rsatls-revoked.trustasia.com"
+    },
+    {
+      "ca_sha256_fingerprint": "08170D1AA36453901A2F959245E347DB0C8D37ABAABC56B81AA100DC958970DB",
+      "ca_label": "D-TRUST EV Root CA 1 2020",
+      "test_website_revoked": "https://certdemo-ev-revoked.tls.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "0A81EC5A929777F145904AF38D5D509F66B5E2C58FCDB531058B0E17F3F0B41B",
+      "ca_label": "AffirmTrust Networking",
+      "test_website_revoked": "https://revokednetworking.affirmtrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "0C2CD63DF7806FA399EDE809116B575BF87989F06518F9808C860503178BAF66",
+      "ca_label": "COMODO Certification Authority",
+      "test_website_revoked": "https://comodocertificationauthority-ev.comodoca.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "125609AA301DA0A249B97A8239CB6A34216F44DCAC9F3954B14292F2E8C8608F",
+      "ca_label": "emSign Root CA - C1",
+      "test_website_revoked": "https://testevc1r.emsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "1793927A0614549789ADCE2F8F34F7F0B66D0F3AE3A3B84D21EC15DBBA4FADC7",
+      "ca_label": "COMODO ECC Certification Authority",
+      "test_website_revoked": "https://comodoecccertificationauthority-ev.comodoca.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "179FBC148A3DD00FD24EA13458CC43BFA7F59C8182D783A513F6EBEC100C8924",
+      "ca_label": "GlobalSign",
+      "test_website_revoked": "https://revoked.r5.roots.globalsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "18CE6CFE7BF14E60B2E347B8DFE868CB31D02EBB3ADA271569F50343B46DB3A4",
+      "ca_label": "Amazon Root CA 3",
+      "test_website_revoked": "https://revoked.sca3a.amazontrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "18F1FC7F205DF8ADDDEB7FE007DD57E3AF375A9C4D8D73546BF4F1FED1E18D35",
+      "ca_label": "QuoVadis Root CA 3",
+      "test_website_revoked": "https://quovadis-root-ca-3-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "193144F431E0FDDB740717D4DE926A571133884B4360D30E272913CBE660CE41",
+      "ca_label": "SwissSign RSA TLS Root CA 2022 - 1",
+      "test_website_revoked": "https://ev-rsa-tls-2022-1-revoked-cert-demo.swisssign.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "1BA5B2AA8C65401A82960118F80BEC4F62304D83CEC4713A19C39C011EA46DB4",
+      "ca_label": "Amazon Root CA 2",
+      "test_website_revoked": "https://revoked.sca2a.amazontrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "22A2C1F7BDED704CC1E701B5F408C310880FE956B5DE2A4A44F99C873A25A7C8",
+      "ca_label": "SSL.com EV Root Certification Authority ECC",
+      "test_website_revoked": "https://revoked-ecc-ev.ssl.com"
+    },
+    {
+      "ca_sha256_fingerprint": "242B69742FCB1E5B2ABF98898B94572187544E5B4D9911786573621F6A74B82C",
+      "ca_label": "Telia Root CA v2",
+      "test_website_revoked": "https://juolukka.cover.telia.fi:10601/"
+    },
+    {
+      "ca_sha256_fingerprint": "2530CC8E98321502BAD96F9B1FBA1B099E2D299E0F4548BB914F363BC0D4531F",
+      "ca_label": "Izenpe.com",
+      "test_website_revoked": "https://test-revoked-ev.izenpe.eus"
+    },
+    {
+      "ca_sha256_fingerprint": "2CABEAFE37D06CA22ABA7391C0033D25982952C453647349763A3AB5AD6CCF69",
+      "ca_label": "GlobalSign",
+      "test_website_revoked": "https://revoked.r6.roots.globalsign.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "2CE1CB0BF9D2F9E102993FBE215152C3B2DD0CABDE1C68E5319B839154DBB7F5",
+      "ca_label": "Starfield Root Certificate Authority - G2",
+      "test_website_revoked": "https://revoked.sfig2.catest.starfieldtech.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "2E44102AB58CB85419451C8E19D9ACF3662CAFBC614B6A53960A30F7D0E2EB41",
+      "ca_label": "TunTrust Root CA",
+      "test_website_revoked": "https://revokedovssl.tuntrust.tn"
+    },
+    {
+      "ca_sha256_fingerprint": "2E7BF16CC22485A7BBE2AA8696750761B0AE39BE3B2FE9D0CC6D4EF73491425C",
+      "ca_label": "SSL.com EV Root Certification Authority RSA R2",
+      "test_website_revoked": "https://revoked-rsa-ev.ssl.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "30D0895A9A448A262091635522D1F52010B5867ACAE12C78EF958FD4F4389F2F",
+      "ca_label": "IdenTrust Public Sector Root CA 1",
+      "test_website_revoked": "https://identrust-public-ov-revoked.identrustssl.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "30FBBA2C32238E2A98547AF97931E550428B9B3F1C8EEB6633DCFA86C5B27DD3",
+      "ca_label": "vTrus ECC Root CA",
+      "test_website_revoked": "https://revokeecc.itrus.cn/"
+    },
+    {
+      "ca_sha256_fingerprint": "31AD6648F8104138C738F39EA4320133393E3A18CC02296EF97C2AC9EF6731D0",
+      "ca_label": "DigiCert Global Root G3",
+      "test_website_revoked": "https://global-root-g3-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "3417BB06CC6007DA1B961C920B8AB4CE3FAD820E4AA30B9ACBC4A74EBDCEBC65",
+      "ca_label": "SSL.com Root Certification Authority ECC",
+      "test_website_revoked": "https://revoked-ecc-dv.ssl.com"
+    },
+    {
+      "ca_sha256_fingerprint": "349DFA4058C5E263123B398AE795573C4E1313C83FE68F93556CD5E8031B3C7D",
+      "ca_label": "GTS Root R4",
+      "test_website_revoked": "https://revoked.gtsr4.demosite.pki.goog"
+    },
+    {
+      "ca_sha256_fingerprint": "34D8A73EE208D9BCDB0D956520934B4E40E69482596E8B6F73C8426B010A6F48",
+      "ca_label": "GTS Root R3",
+      "test_website_revoked": "https://revoked.gtsr3.demosite.pki.goog"
+    },
+    {
+      "ca_sha256_fingerprint": "358DF39D764AF9E1B766E9C972DF352EE15CFAC227AF6AD1D70E8E4A6EDCBA02",
+      "ca_label": "Microsoft ECC Root Certificate Authority 2017",
+      "test_website_revoked": "https://rvkeccroot2017.pki.microsoft.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "371A00DC0533B3721A7EEB40E8419E70799D2B0A0F2C1D80693165F7CEC4AD75",
+      "ca_label": "DigiCert TLS RSA4096 Root G5",
+      "test_website_revoked": "https://digicert-tls-rsa4096-root-g5-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "3C5F81FEA5FAB82C64BFA2EAECAFCDE8E077FC8620A7CAE537163DF36EDBF378",
+      "ca_label": "Microsec e-Szigno Root CA 2009",
+      "test_website_revoked": "https://qtlsca2018-revoked.e-szigno.hu/"
+    },
+    {
+      "ca_sha256_fingerprint": "3E9099B5015E8F486C00BCEA9D111EE721FABA355A89BCF1DF69561E3DC6325C",
+      "ca_label": "DigiCert Assured ID Root CA",
+      "test_website_revoked": "https://assured-id-root-ca-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "3F034BB5704D44B2D08545A02057DE93EBF3905FCE721ACBC730C06DDAEE904E",
+      "ca_label": "SecureSign Root CA12",
+      "test_website_revoked": "https://ss12-revoked.managedpki.ne.jp"
+    },
+    {
+      "ca_sha256_fingerprint": "3F63BB2814BE174EC8B6439CF08D6D56F0B7C405883A5648A334424D6B3EC558",
+      "ca_label": "TWCA CYBER Root CA",
+      "test_website_revoked": "https://cyberevrevoked.twca.com.tw/"
+    },
+    {
+      "ca_sha256_fingerprint": "3F99CC474ACFCE4DFED58794665E478D1547739F2E780F1BB4CA9B133097D401",
+      "ca_label": "HARICA TLS ECC Root CA 2021",
+      "test_website_revoked": "https://tls-ecc-revoked-ev.root2021.harica.gr"
+    },
+    {
+      "ca_sha256_fingerprint": "40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367",
+      "ca_label": "emSign Root CA - G1",
+      "test_website_revoked": "https://testevg1r.emsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "4200F5043AC8590EBB527D209ED1503029FBCBD41CA1B506EC27F15ADE7DAC69",
+      "ca_label": "Secure Global CA",
+      "test_website_revoked": "https://sgcatest-revoked.vikingcloud.com"
+    },
+    {
+      "ca_sha256_fingerprint": "4348A0E9444C78CB265E058D5E8944B4D84F9662BD26DB257F8934A443C70161",
+      "ca_label": "DigiCert Global Root CA",
+      "test_website_revoked": "https://global-root-ca-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "43DF5774B03E7FEF5FE40D931A7BEDF1BB2E6B42738C4E6D3841103D3AA7F339",
+      "ca_label": "Entrust Root Certification Authority - G2",
+      "test_website_revoked": "https://entrustrootcertificationauthorityg2.sectigo.com:444"
+    },
+    {
+      "ca_sha256_fingerprint": "44B545AA8A25E65A73CA15DC27FC36D24C1CB9953A066539B11582DC487B4833",
+      "ca_label": "Hellenic Academic and Research Institutions ECC RootCA 2015",
+      "test_website_revoked": "https://haricaeccrootca2015-revoked-ev.harica.gr"
+    },
+    {
+      "ca_sha256_fingerprint": "45140B3247EB9CC8C5B4F0D7B53091F73292089E6E5A63E2749DD3ACA9198EDA",
+      "ca_label": "Go Daddy Root Certificate Authority - G2",
+      "test_website_revoked": "https://revoked.gdig2.catest.godaddy.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "46EDC3689046D53A453FB3104AB80DCAEC658B2660EA1629DD7E867990648716",
+      "ca_label": "TUBITAK Kamu SM SSL Kok Sertifikasi - Surum 1",
+      "test_website_revoked": "https://testsslrevoked.kamusm.gov.tr/"
+    },
+    {
+      "ca_sha256_fingerprint": "49E7A442ACF0EA6287050054B52564B650E4F49E42E348D6AA38E039E957B1C1",
+      "ca_label": "D-TRUST Root Class 3 CA 2 2009",
+      "test_website_revoked": "https://certdemo-ov-revoked.ssl.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "4B009C1034494F9AB56BBA3BA1D62731FC4D20D8955ADCEC10A925607261E338",
+      "ca_label": "SecureSign Root CA14",
+      "test_website_revoked": "https://ss14-revoked.managedpki.ne.jp"
+    },
+    {
+      "ca_sha256_fingerprint": "4FA3126D8D3A11D1C4855A4F807CBAD6CF919D3A5A88B03BEA2C6372D93C40C9",
+      "ca_label": "GlobalSign Root R46",
+      "test_website_revoked": "https://revoked.r46.roots.globalsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "4FF460D54B9C86DABFBCFC5712E0400D2BED3FBC4D4FBDAA86E06ADCD2A9AD7A",
+      "ca_label": "USERTrust ECC Certification Authority",
+      "test_website_revoked": "https://usertrustecccertificationauthority-ev.comodoca.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "513B2CECB810D4CDE5DD85391ADFC6C2DD60D87BB736D2B521484AA47A0EBEF6",
+      "ca_label": "Security Communication RootCA2",
+      "test_website_revoked": "https://ev2r.secomtrust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "52F0E1C4E58EC629291B60317F074671B85D7EA80D5B07273463534B32B40234",
+      "ca_label": "COMODO RSA Certification Authority",
+      "test_website_revoked": "https://comodorsacertificationauthority-ev.comodoca.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "552F7BDCF1A7AF9E6CE672017F4F12ABF77240C78E761AC203D1D9D20AC89988",
+      "ca_label": "DigiCert Trusted Root G4",
+      "test_website_revoked": "https://trusted-root-g4-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "554153B13D2CF9DDB753BFBE1A4E0AE08D0AA4187058FE60A2B862B2E4B87BCB",
+      "ca_label": "AC RAIZ FNMT-RCM SERVIDORES SEGUROS",
+      "test_website_revoked": "https://testrevokedtipo1.cert.fnmt.es/"
+    },
+    {
+      "ca_sha256_fingerprint": "55903859C8C0C3EBB8759ECE4E2557225FF5758BBD38EBD48276601E1BD58097",
+      "ca_label": "Trustwave Global ECC P384 Certification Authority",
+      "test_website_revoked": "https://twgp384catest-revoked.vikingcloud.com"
+    },
+    {
+      "ca_sha256_fingerprint": "55926084EC963A64B96E2ABE01CE0BA86A64FBFEBCC7AAB5AFC155B37FD76066",
+      "ca_label": "Actalis Authentication Root CA",
+      "test_website_revoked": "https://ssltest-revoked.actalis.it/"
+    },
+    {
+      "ca_sha256_fingerprint": "568D6905A2C88708A4B3025190EDCFEDB1974A606A13C6E5290FCB2AE63EDAB5",
+      "ca_label": "Starfield Services Root Certificate Authority - G2",
+      "test_website_revoked": "https://revoked.sca0a.amazontrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "574DF6931E278039667B720AFDC1600FC27EB66DD3092979FB73856487212882",
+      "ca_label": "BJCA Global Root CA2",
+      "test_website_revoked": "https://demossl-ecc-revoked.bjca.org.cn"
+    },
+    {
+      "ca_sha256_fingerprint": "578AF4DED0853F4E5998DB4AEAF9CBEA8D945F60B620A38D1A3C13B2BC7BA8E1",
+      "ca_label": "Telekom Security TLS ECC Root 2020",
+      "test_website_revoked": "https://revoked.tstlser20.test.telesec.de/"
+    },
+    {
+      "ca_sha256_fingerprint": "57DE0583EFD2B26E0361DA99DA9DF4648DEF7EE8441C3B728AFA9BCDE0F9B26A",
+      "ca_label": "Autoridad de Certificacion Firmaprofesional CIF A62634068",
+      "test_website_revoked": "https://testrevokedsslev.firmaprofesional.com"
+    },
+    {
+      "ca_sha256_fingerprint": "59769007F7685D0FCD50872F9F95D5755A5B2B457D81F3692B610A98672F0E1B",
+      "ca_label": "TWCA Global Root CA",
+      "test_website_revoked": "https://evssldemo7.twca.com.tw/"
+    },
+    {
+      "ca_sha256_fingerprint": "5A2FC03F0C83B090BBFA40604B0988446C7636183DF9846E17101A447FB8EFD6",
+      "ca_label": "Hongkong Post Root CA 3",
+      "test_website_revoked": "https://revoked-ev.ecert.gov.hk/"
+    },
+    {
+      "ca_sha256_fingerprint": "5C58468D55F58E497E743982D2B50010B6D165374ACF83A7D4A32DB768C4408E",
+      "ca_label": "Certum Trusted Network CA",
+      "test_website_revoked": "https://revoked-certum-ctnca.certificates.certum.pl"
+    },
+    {
+      "ca_sha256_fingerprint": "5CC3D78E4E1D5E45547A04E6873E64F90CF9536D1CCC2EF800F355C4C5FD70FD",
+      "ca_label": "CFCA EV ROOT",
+      "test_website_revoked": "https://rev.cebnet.com.cn/"
+    },
+    {
+      "ca_sha256_fingerprint": "5D56499BE4D2E08BCFCAD08A3E38723D50503BDE706948E42F55603019E528AE",
+      "ca_label": "IdenTrust Commercial Root CA 1",
+      "test_website_revoked": "https://identrust-commercial-ov-revoked.identrustssl.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "62DD0BE9B9F50A163EA0F8E75C053B1ECA57EA55C8688F647C6881F2C8357B95",
+      "ca_label": "SwissSign Gold CA - G2",
+      "test_website_revoked": "https://ev-rsa-tls-2022-revoked-cert-demo.swisssign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "657CFE2FA73FAA38462571F332A2363A46FCE7020951710702CDFBB6EEDA3305",
+      "ca_label": "certSIGN ROOT CA G2",
+      "test_website_revoked": "https://testssl-revoked-evcp.certsign.ro/"
+    },
+    {
+      "ca_sha256_fingerprint": "69729B8E15A86EFC177A57AFB7171DFC64ADD28C2FCA8CF1507E34453CCB1470",
+      "ca_label": "ISRG Root X2",
+      "test_website_revoked": "https://revoked-isrgrootx2.letsencrypt.org"
+    },
+    {
+      "ca_sha256_fingerprint": "6B328085625318AA50D173C98D8BDA09D57E27413D114CF787A0F5D06C030CF6",
+      "ca_label": "Certum EC-384 CA",
+      "test_website_revoked": "https://revoked-cec384ca.certificates.certum.pl"
+    },
+    {
+      "ca_sha256_fingerprint": "6B9C08E86EB0F767CFAD65CD98B62149E5494A67F5845E7BD1ED019F27B86BD6",
+      "ca_label": "OISTE WISeKey Global Root GB CA",
+      "test_website_revoked": "https://gbrevokedssl.hightrusted.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "6C61DAC3A2DEF031506BE036D2A6FE401994FBD13DF9C8D466599274C446EC98",
+      "ca_label": "NetLock Arany (Class Gold) Főtanúsítvány",
+      "test_website_revoked": "https://revoked.ev.tanusitvany.hu"
+    },
+    {
+      "ca_sha256_fingerprint": "70A73F7F376B60074248904534B11482D5BF0E698ECC498DF52577EBF2E93B9A",
+      "ca_label": "AffirmTrust Premium",
+      "test_website_revoked": "https://revokedpremium.affirmtrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "73C176434F1BC6D5ADF45B0E76E727287C8DE57616C1E6E6141A2B2CBC7D8E4C",
+      "ca_label": "Entrust Root Certification Authority",
+      "test_website_revoked": "https://entrustrootcertificationauthority.sectigo.com:444"
+    },
+    {
+      "ca_sha256_fingerprint": "7431E5F4C3C1CE4690774F0B61E05440883BA9A01ED00BA6ABD7806ED3B118CF",
+      "ca_label": "DigiCert High Assurance EV Root CA",
+      "test_website_revoked": "https://ev-root-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "77B82CD8644C4305F7ACC5CB156B45675004033D51C60C6202A8E0C33467D3A0",
+      "ca_label": "Certainly Root R1",
+      "test_website_revoked": "https://revoked.root-r1.certainly.com"
+    },
+    {
+      "ca_sha256_fingerprint": "7BB647A62AEEAC88BF257AA522D01FFEA395E0AB45C73F93F65654EC38F25A06",
+      "ca_label": "Sectigo Public Server Authentication Root R46",
+      "test_website_revoked": "https://sectigopublicserverauthenticationrootr46-ev.sectigo.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "7D05EBB682339F8C9451EE094EEBFEFA7953A114EDB2F44949452FAB7D2FC185",
+      "ca_label": "DigiCert Assured ID Root G2",
+      "test_website_revoked": "https://assured-id-root-g2-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "7E37CB8B4C47090CAB36551BA6F45DB840680FBA166A952DB100717F43053FC2",
+      "ca_label": "DigiCert Assured ID Root G3",
+      "test_website_revoked": "https://assured-id-root-g3-revoked.chain-demos.digicert.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "81A9088EA59FB364C548A6F85559099B6F0405EFBF18E5324EC9F457BA00112F",
+      "ca_label": "Atos TrustedRoot Root CA RSA TLS 2021",
+      "test_website_revoked": "https://tls-rsa-root-2021-pki-revoked.atos.net"
+    },
+    {
+      "ca_sha256_fingerprint": "8560F91C3624DABA9570B5FEA0DBE36FF11A8323BE9486854FB3F34A5571198D",
+      "ca_label": "OISTE WISeKey Global Root GC CA",
+      "test_website_revoked": "https://gcrevokedssl.hightrusted.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "85666A562EE0BE5CE925C1D8890A6F76A87EC16D4D7D5F29EA7419CF20123B69",
+      "ca_label": "SSL.com Root Certification Authority RSA",
+      "test_website_revoked": "https://revoked-rsa-dv.ssl.com"
+    },
+    {
+      "ca_sha256_fingerprint": "85A0DD7DD720ADB7FF05F83D542B209DC7FF4528F7D677B18389FEA5E5C49E86",
+      "ca_label": "QuoVadis Root CA 2",
+      "test_website_revoked": "https://quovadis-root-ca-2-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B",
+      "ca_label": "emSign ECC Root CA - G3",
+      "test_website_revoked": "https://testevg3r.emsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "88EF81DE202EB018452E43F864725CEA5FBD1FC2D9D205730709C5D8B8690F46",
+      "ca_label": "QuoVadis Root CA 3 G3",
+      "test_website_revoked": "https://quovadis-root-ca-3-g3-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "88F438DCF8FFD1FA8F429115FFE5F82AE1E06E0C70C375FAAD717B34A49E7265",
+      "ca_label": "NAVER Global Root Certification Authority",
+      "test_website_revoked": "https://test1-certificate.naver.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "8A71DE6559336F426C26E53880D00D88A18DA4C6A91F0DCB6194E206C5C96387",
+      "ca_label": "vTrus Root CA",
+      "test_website_revoked": "https://revokersa.itrus.cn/"
+    },
+    {
+      "ca_sha256_fingerprint": "8A866FD1B276B57E578E921C65828A2BED58E9F2F288054134B7F1F4BFC9CC74",
+      "ca_label": "QuoVadis Root CA 1 G3",
+      "test_website_revoked": "https://quovadis-root-ca-1-g3-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "8D25CD97229DBF70356BDA4EB3CC734031E24CF00FAFCFD32DC76EB5841C7EA8",
+      "ca_label": "GTS Root R2",
+      "test_website_revoked": "https://revoked.gtsr2.demosite.pki.goog"
+    },
+    {
+      "ca_sha256_fingerprint": "8E8221B2E7D4007836A1672F0DCC299C33BC07D316F132FA1A206D587150F1CE",
+      "ca_label": "D-TRUST EV Root CA 2 2023",
+      "test_website_revoked": "https://certdemo-ev-revoked-rsa.tls.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "8ECDE6884F3D87B1125BA31AC3FCB13D7016DE7F57CC904FE1CB97C6AE98196E",
+      "ca_label": "Amazon Root CA 1",
+      "test_website_revoked": "https://revoked.sca1a.amazontrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "8FAF7D2E2CB4709BB8E0B33666BF75A5DD45B5DE480F8EA8D4BFE6BEBC17F2ED",
+      "ca_label": "SSL.com TLS RSA Root CA 2022",
+      "test_website_revoked": "https://revoked-root-2022-rsa.ssl.com"
+    },
+    {
+      "ca_sha256_fingerprint": "8FE4FB0AF93A4D0D67DB0BEBB23E37C71BF325DCBCDD240EA04DAF58B47E1840",
+      "ca_label": "QuoVadis Root CA 2 G3",
+      "test_website_revoked": "https://quovadis-root-ca-2-g3-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "91E2F5788D5810EBA7BA58737DE1548A8ECACD014598BC0B143E041B17052552",
+      "ca_label": "T-TeleSec GlobalRoot Class 2",
+      "test_website_revoked": "https://root-class2-revoked.test.telesec.de/"
+    },
+    {
+      "ca_sha256_fingerprint": "945BBC825EA554F489D1FD51A73DDF2EA624AC7019A05205225C22A78CCFA8B4",
+      "ca_label": "Trustwave Global ECC P256 Certification Authority",
+      "test_website_revoked": "https://twgp256catest-revoked.vikingcloud.com"
+    },
+    {
+      "ca_sha256_fingerprint": "96BCEC06264976F37460779ACF28C5A7CFE8A3C0AAE11A8FFCEE05C0BDDF08C6",
+      "ca_label": "ISRG Root X1",
+      "test_website_revoked": "https://revoked-isrgrootx1.letsencrypt.org/"
+    },
+    {
+      "ca_sha256_fingerprint": "97552015F5DDFC3C8788C006944555408894450084F100867086BC1A2BB58DC8",
+      "ca_label": "Trustwave Global Certification Authority",
+      "test_website_revoked": "https://twgcatest-revoked.vikingcloud.com"
+    },
+    {
+      "ca_sha256_fingerprint": "9A114025197C5BB95D94E63D55CD43790847B646B23CDF11ADA4A00EFF15FB48",
+      "ca_label": "Buypass Class 2 Root CA",
+      "test_website_revoked": "https://revoked.business.ca22.ssl.buypass.no"
+    },
+    {
+      "ca_sha256_fingerprint": "9A6EC012E1A7DA9DBE34194D478AD7C0DB1822FB071DF12981496ED104384113",
+      "ca_label": "ACCVRAIZ1",
+      "test_website_revoked": "https://revocado.accv.es:442/test/hola.html"
+    },
+    {
+      "ca_sha256_fingerprint": "9AE36232A5189FFDDB353DFD26520C015395D22777DAC59DB57B98C089A651E6",
+      "ca_label": "OISTE Server Root RSA G1",
+      "test_website_revoked": "https://rsag1revokedssl.hightrusted.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "9BEA11C976FE014764C1BE56A6F914B5A560317ABD9988393382E5161AA0493C",
+      "ca_label": "UCA Global G2 Root",
+      "test_website_revoked": "https://rsaovg5.revoked.sheca.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "A040929A02CE53B4ACF4F2FFC6981CE4496F755E6D45FE0B2A692BCD52523F36",
+      "ca_label": "Hellenic Academic and Research Institutions RootCA 2015",
+      "test_website_revoked": "https://haricarootca2015-revoked-ev.harica.gr"
+    },
+    {
+      "ca_sha256_fingerprint": "A1339D33281A0B56E557D3D32B1CE7F9367EB094BD5FA72A7E5004C8DED7CAFE",
+      "ca_label": "SZAFIR ROOT CA2",
+      "test_website_revoked": "https://revoked.elektronicznypodpis.pl/"
+    },
+    {
+      "ca_sha256_fingerprint": "B085D70B964F191A73E4AF0D54AE7A0E07AAFDAF9B71DD0862138AB7325A24A2",
+      "ca_label": "GlobalSign",
+      "test_website_revoked": "https://revoked.gsr4.demosite.pki.goog"
+    },
+    {
+      "ca_sha256_fingerprint": "B2FAE53E14CCD7AB9212064701AE279C1D8988FACB775FA8A008914E663988A8",
+      "ca_label": "Atos TrustedRoot Root CA ECC TLS 2021",
+      "test_website_revoked": "https://tls-ecc-root-2021-pki-revoked.atos.net"
+    },
+    {
+      "ca_sha256_fingerprint": "B4585F22E4AC756A4E8612A1361C5D9D031A93FD84FEBB778FA3068B0FC42DC2",
+      "ca_label": "Certainly Root E1",
+      "test_website_revoked": "https://revoked.root-e1.certainly.com"
+    },
+    {
+      "ca_sha256_fingerprint": "B676F2EDDAE8775CD36CB0F63CD1D4603961F49E6265BA013A2F0307B6D0B804",
+      "ca_label": "Certum Trusted Network CA 2",
+      "test_website_revoked": "https://revoked-certum-ctnca2.certificates.certum.pl"
+    },
+    {
+      "ca_sha256_fingerprint": "BC4D809B15189D78DB3E1D8CF4F9726A795DA1643CA5F1358E1DDB0EDC0D7EB3",
+      "ca_label": "emSign ECC Root CA - C3",
+      "test_website_revoked": "https://testevc3r.emsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "BD71FDF6DA97E4CF62D1647ADD2581B07D79ADF8397EB4ECBA9C5E8488821423",
+      "ca_label": "AffirmTrust Premium ECC",
+      "test_website_revoked": "https://revokedpremiumecc.affirmtrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "BE4B56CB5056C0136A526DF444508DAA36A0B54F42E4AC38F72AF470E479654C",
+      "ca_label": "TrustAsia Global Root CA G4",
+      "test_website_revoked": "https://ev-eccg4-revoked.trustasia.com"
+    },
+    {
+      "ca_sha256_fingerprint": "BEB00B30839B9BC32C32E4447905950641F26421B15ED089198B518AE2EA1B99",
+      "ca_label": "e-Szigno Root CA 2017",
+      "test_website_revoked": "https://eqtlsca2018-revoked.e-szigno.hu"
+    },
+    {
+      "ca_sha256_fingerprint": "BEF256DAF26E9C69BDEC1602359798F3CAF71821A03E018257C53C65617F3D4A",
+      "ca_label": "FIRMAPROFESIONAL CA ROOT-A WEB",
+      "test_website_revoked": "https://testrevokedsslev2022ec.firmaprofesional.com"
+    },
+    {
+      "ca_sha256_fingerprint": "BFD88FE1101C41AE3E801BF8BE56350EE9BAD1A6B9BD515EDC5C6D5B8711AC44",
+      "ca_label": "TWCA Root Certification Authority",
+      "test_website_revoked": "https://evssldemo4.twca.com.tw/"
+    },
+    {
+      "ca_sha256_fingerprint": "BFFF8FD04433487D6A8AA60C1A29767A9FC2BBB05E420F713A13B992891D3893",
+      "ca_label": "GDCA TrustAUTH R5 ROOT",
+      "test_website_revoked": "https://ev-ssl-test-2.95105813.cn/"
+    },
+    {
+      "ca_sha256_fingerprint": "C0076B9EF0531FB1A656D67C4EBE97CD5DBAA41EF44598ACC2489878C92D8711",
+      "ca_label": "TrustAsia TLS ECC Root CA",
+      "test_website_revoked": "https://ev-ecctls-revoked.trustasia.com"
+    },
+    {
+      "ca_sha256_fingerprint": "C32FFD9F46F936D16C3673990959434B9AD60AAFBB9E7CF33654F144CC1BA143",
+      "ca_label": "SSL.com TLS ECC Root CA 2022",
+      "test_website_revoked": "https://revoked-root-2022-ecc.ssl.com"
+    },
+    {
+      "ca_sha256_fingerprint": "C741F70F4B2A8D88BF2E71C14122EF53EF10EBA0CFA5E64CFA20F418853073E0",
+      "ca_label": "Microsoft RSA Root Certificate Authority 2017",
+      "test_website_revoked": "https://rvkrsaroot2017.pki.microsoft.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "C90F26F0FB1B4018B22227519B5CA2B53E2CA5B3BE5CF18EFE1BEF47380C5383",
+      "ca_label": "Sectigo Public Server Authentication Root E46",
+      "test_website_revoked": "https://sectigopublicserverauthenticationroote46-ev.sectigo.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "CB3CCBB76031E5E0138F8DD39A23F9DE47FFC35E43C1144CEA27D46A5AB1CB5F",
+      "ca_label": "DigiCert Global Root G2",
+      "test_website_revoked": "https://global-root-g2-revoked.chain-demos.digicert.com"
+    },
+    {
+      "ca_sha256_fingerprint": "CBB522D7B7F127AD6A0113865BDF1CD4102E7D0759AF635A7CF4720DC963C53B",
+      "ca_label": "GlobalSign",
+      "test_website_revoked": "https://revoked.r3.roots.globalsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "CBB9C44D84B8043E1050EA31A69F514955D7BFD2E2C6B49301019AD61D9F5058",
+      "ca_label": "GlobalSign Root E46",
+      "test_website_revoked": "https://revoked.e46.roots.globalsign.com"
+    },
+    {
+      "ca_sha256_fingerprint": "D43AF9B35473755C9684FC06D7D8CB70EE5C28E773FB294EB41EE71722924D24",
+      "ca_label": "UCA Extended Validation Root",
+      "test_website_revoked": "https://rsaevg3.revoked.sheca.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "D48D3D23EEDB50A459E55197601C27774B9D7B18C94D5A059511A10250B93168",
+      "ca_label": "Certigna Root CA",
+      "test_website_revoked": "https://revoked.servicesca.dhimyotis.com"
+    },
+    {
+      "ca_sha256_fingerprint": "D947432ABDE7B7FA90FC2E6B59101B1280E0E1C7E4E40FA3C6887FFF57A7F4CF",
+      "ca_label": "GTS Root R1",
+      "test_website_revoked": "https://revoked.gtsr1.demosite.pki.goog"
+    },
+    {
+      "ca_sha256_fingerprint": "D95D0E8EDA79525BF9BEB11B14D2100D3294985F0C62D9FABD9CD999ECCB7B1D",
+      "ca_label": "HARICA TLS RSA Root CA 2021",
+      "test_website_revoked": "https://tls-rsa-revoked-ev.root2021.harica.gr"
+    },
+    {
+      "ca_sha256_fingerprint": "DD6936FE21F8F077C123A1A521C12224F72255B73E03A7260693E8A24B0FA389",
+      "ca_label": "TeliaSonera Root CA v1",
+      "test_website_revoked": "https://juolukka.cover.telia.fi:10444/"
+    },
+    {
+      "ca_sha256_fingerprint": "E0D3226AEB1163C2E48FF9BE3B50B4C6431BE7BB1EACC5C36B5D5EC509039A08",
+      "ca_label": "TrustAsia Global Root CA G3",
+      "test_website_revoked": "https://ev-rsag3-revoked.trustasia.com"
+    },
+    {
+      "ca_sha256_fingerprint": "E23D4A036D7B70E9F595B1422079D2B91EDFBB1FB651A0633EAA8A9DC5F80703",
+      "ca_label": "CA Disig Root R2",
+      "test_website_revoked": "https://testssl-revoked-r2i2.disig.sk/"
+    },
+    {
+      "ca_sha256_fingerprint": "E35D28419ED02025CFA69038CD623962458DA5C695FBDEA3C22B0BFB25897092",
+      "ca_label": "Amazon Root CA 4",
+      "test_website_revoked": "https://revoked.sca4a.amazontrust.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "E3B6A2DB2ED7CE48842F7AC53241C7B71D54144BFB40C11F3F1D0B42F5EEA12D",
+      "ca_label": "Certigna",
+      "test_website_revoked": "https://revoked.servicesca-racine.dhimyotis.com"
+    },
+    {
+      "ca_sha256_fingerprint": "E59AAA816009C22BFF5B25BAD37DF306F049797C1F81D85AB089E657BD8F0044",
+      "ca_label": "D-TRUST BR Root CA 1 2020",
+      "test_website_revoked": "https://certdemo-ov-revoked.tls.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "E74FBDA55BD564C473A36B441AA799C8A68E077440E8288B9FA1E50E4BBACA11",
+      "ca_label": "Security Communication ECC RootCA1",
+      "test_website_revoked": "https://sr5r.secom-cert.jp/"
+    },
+    {
+      "ca_sha256_fingerprint": "E778F0F095FE843729CD1A0082179E5314A9C291442805E1FB1D8FB6B8886C3A",
+      "ca_label": "SecureSign Root CA15",
+      "test_website_revoked": "https://ss15-revoked.managedpki.ne.jp"
+    },
+    {
+      "ca_sha256_fingerprint": "E793C9B02FD8AA13E21C31228ACCB08119643B749C898964B1746D46C3D4CBD2",
+      "ca_label": "USERTrust RSA Certification Authority",
+      "test_website_revoked": "https://usertrustrsacertificationauthority-ev.comodoca.com:444/"
+    },
+    {
+      "ca_sha256_fingerprint": "EAA962C4FA4A6BAFEBE415196D351CCD888D4F53F3FA8AE6D7C466A94E6042BB",
+      "ca_label": "certSIGN ROOT CA",
+      "test_website_revoked": "https://testssl-revoked.certsign.ro/"
+    },
+    {
+      "ca_sha256_fingerprint": "EBC5570C29018C4D67B1AA127BAF12F703B4611EBC17B7DAB5573894179B93FA",
+      "ca_label": "AC RAIZ FNMT-RCM",
+      "test_website_revoked": "https://testrevoked.cert.fnmt.es"
+    },
+    {
+      "ca_sha256_fingerprint": "EDF7EBBCA27A2A384D387B7D4010C666E2EDB4843E4C29B4AE1D5B9332E6B24D",
+      "ca_label": "Buypass Class 3 Root CA",
+      "test_website_revoked": "https://revoked.evident.ca23.ssl.buypass.no"
+    },
+    {
+      "ca_sha256_fingerprint": "EEC5496B988CE98625B934092EEC2908BED0B0F316C2D4730C84EAF1F3D34881",
+      "ca_label": "D-TRUST Root Class 3 CA 2 EV 2009",
+      "test_website_revoked": "https://certdemo-ev-revoked.ssl.d-trust.net/"
+    },
+    {
+      "ca_sha256_fingerprint": "EEC997C0C30F216F7E3B8B307D2BAE42412D753FC8219DAFD1520B2572850F49",
+      "ca_label": "OISTE Server Root ECC G1",
+      "test_website_revoked": "https://eccg1revokedssl.hightrusted.com/"
+    },
+    {
+      "ca_sha256_fingerprint": "EFC65CADBB59ADB6EFE84DA22311B35624B71B3B1EA0DA8B6655174EC8978646",
+      "ca_label": "Telekom Security TLS RSA Root 2023",
+      "test_website_revoked": "https://revoked.tstlsrr23.test.telesec.de/"
+    },
+    {
+      "ca_sha256_fingerprint": "F015CE3CC239BFEF064BE9F1D2C417E1A0264A0A94BE1F0C8D121864EB6949CC",
+      "ca_label": "HiPKI Root CA - G1",
+      "test_website_revoked": "https://revoked.hipkig1ov.hinet.net"
+    },
+    {
+      "ca_sha256_fingerprint": "F1C1B50AE5A20DD8030EC9F6BC24823DD367B5255759B4E71B61FCE9F7375D73",
+      "ca_label": "SecureTrust CA",
+      "test_website_revoked": "https://stcatest-revoked.vikingcloud.com"
+    },
+    {
+      "ca_sha256_fingerprint": "F356BEA244B7A91EB35D53CA9AD7864ACE018E2D35D5F8F96DDF68A6F41AA474",
+      "ca_label": "Atos TrustedRoot 2011",
+      "test_website_revoked": "https://pki-revoked.atos.net"
+    },
+    {
+      "ca_sha256_fingerprint": "F3896F88FE7C0A882766A7FA6AD2749FB57A7F3E98FB769C1FA7B09C2C44D5AE",
+      "ca_label": "BJCA Global Root CA1",
+      "test_website_revoked": "https://demossl-rsa-revoked.bjca.org.cn"
+    },
+    {
+      "ca_sha256_fingerprint": "FB8FEC759169B9106B1E511644C618C51304373F6C0643088D8BEFFD1B997599",
+      "ca_label": "ANF Secure Server Root CA",
+      "test_website_revoked": "https://testrevokedsslev.anf.es"
+    },
+    {
+      "ca_sha256_fingerprint": "FD73DAD31C644FF1B43BEF0CCDDA96710B9CD9875ECA7E31707AF3E96D522BBD",
+      "ca_label": "T-TeleSec GlobalRoot Class 3",
+      "test_website_revoked": "https://root-class3-revoked.test.telesec.de/"
+    },
+    {
+      "ca_sha256_fingerprint": "FE7696573855773E37A95E7AD4D9CC96C30157C15D31765BA9B15704E1AE78FD",
+      "ca_label": "Certum Trusted Root CA",
+      "test_website_revoked": "https://revoked-ctrca.certificates.certum.pl/"
+    }
+  ]
+}

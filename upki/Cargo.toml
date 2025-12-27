@@ -6,8 +6,10 @@ edition.workspace = true
 repository.workspace = true
 
 [dependencies]
+base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
+clubcard-crlite.workspace = true
 eyre.workspace = true
 hex.workspace = true
 reqwest.workspace = true
