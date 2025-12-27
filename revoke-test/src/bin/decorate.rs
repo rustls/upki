@@ -1,18 +1,20 @@
+use core::str::FromStr;
 use std::borrow::Cow;
-use std::fmt;
 use std::fs::File;
 use std::io::BufReader;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use eyre::{Report, Result};
+use http::Uri;
 use ring::digest::{SHA256, digest};
-use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::client::{Resumption, WebPkiServerVerifier};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{ClientConfig, DigitallySignedStruct, RootCertStore, SignatureScheme};
+use rustls::client::Resumption;
+use rustls::pki_types::ServerName;
+use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
+use tokio::net::TcpStream;
+use tokio_rustls::TlsConnector;
 use x509_parser::certificate::X509Certificate;
 use x509_parser::der_parser::Oid;
 use x509_parser::oid_registry::asn1_rs::oid;
@@ -28,29 +30,14 @@ async fn main() -> Result<(), Report> {
     );
 
     let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let chain = Arc::new(Mutex::new(Vec::new()));
-    let verifier = Arc::new(CaptureVerifier {
-        chain: chain.clone(),
-        verifier: WebPkiServerVerifier::builder_with_provider(
-            Arc::new(root_store),
-            provider.clone(),
-        )
-        .build()
-        .map_err(|e| eyre::eyre!("failed to build verifier: {e}"))?,
-    });
-
     let mut tls_config = ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|e| eyre::eyre!("failed to set protocol versions: {e}"))?
-        .dangerous()
-        .with_custom_certificate_verifier(verifier)
+        .with_root_certificates(root_store)
         .with_no_client_auth();
 
     tls_config.resumption = Resumption::disabled();
-
-    let client = reqwest::Client::builder()
-        .use_preconfigured_tls(tls_config)
-        .build()?;
+    let tls_connector = TlsConnector::from(Arc::new(tls_config));
 
     let file = File::open("plain.json")?;
     let reader = BufReader::new(file);
@@ -68,7 +55,7 @@ async fn main() -> Result<(), Report> {
 
         let url = &input.test_website_revoked;
         println!("processing URL: {url}");
-        match dissect(url, &client, &chain).await {
+        match dissect(url, &tls_connector).await {
             Ok(detail) => site.detail = Some(detail),
             Err(e) => site.error = Some(e.to_string()),
         };
@@ -85,22 +72,41 @@ async fn main() -> Result<(), Report> {
     Ok(())
 }
 
-async fn dissect(
-    url: &str,
-    client: &reqwest::Client,
-    cert_chain: &Arc<Mutex<Vec<Vec<u8>>>>,
-) -> Result<CertificateDetail> {
+async fn dissect(url: &str, tls_connector: &TlsConnector) -> Result<CertificateDetail> {
     if ENTRUST_SUCKS.contains(&url) {
         eyre::bail!("entrust cannot run a website");
     }
 
-    let _response = client.get(url).send().await?;
-    let certs = cert_chain.lock().unwrap().clone();
-    if certs.len() < 2 {
+    // Parse URL to extract host and port
+    let url_parsed = Uri::from_str(url)?;
+    let host = url_parsed
+        .host()
+        .ok_or_else(|| eyre::eyre!("no host in URL"))?;
+    let port = match url_parsed.port() {
+        Some(port) => port.as_u16(),
+        None => 443,
+    };
+
+    // Connect via TCP
+    let tcp_stream = TcpStream::connect(format!("{host}:{port}")).await?;
+
+    // Perform TLS handshake
+    let server_name = ServerName::try_from(host.to_owned())
+        .map_err(|e| eyre::eyre!("invalid server name: {e}"))?;
+    let tls_stream = tls_connector
+        .connect(server_name, tcp_stream)
+        .await?;
+
+    // Get peer certificates from the connection
+    let (_io, conn) = tls_stream.get_ref();
+    let peer_certs = conn
+        .peer_certificates()
+        .ok_or_else(|| eyre::eyre!("no peer certificates"))?;
+
+    if peer_certs.len() < 2 {
         eyre::bail!("no issuer");
     }
-
-    let (_, end_entity) = X509Certificate::from_der(&certs[0])?;
+    let (_, end_entity) = X509Certificate::from_der(&peer_certs[0])?;
     let sct_ext = end_entity
         .extensions()
         .iter()
@@ -161,10 +167,10 @@ async fn dissect(
         offset += sct_len;
     }
 
-    let (_, issuer) = X509Certificate::from_der(&certs[1])?;
+    let (_, issuer) = X509Certificate::from_der(&peer_certs[1])?;
     Ok(CertificateDetail {
-        end_entity_cert: BASE64_STANDARD.encode(&certs[0]),
-        issuer_cert: BASE64_STANDARD.encode(&certs[1]),
+        end_entity_cert: BASE64_STANDARD.encode(&peer_certs[0]),
+        issuer_cert: BASE64_STANDARD.encode(&peer_certs[1]),
         serial: BASE64_STANDARD.encode(end_entity.serial.to_bytes_be()),
         issuer_spki_sha256: BASE64_STANDARD
             .encode(digest(&SHA256, issuer.public_key().raw).as_ref()),
@@ -209,71 +215,6 @@ fn parse_asn1_length(data: &[u8]) -> Result<(usize, usize)> {
     }
 
     Ok((length, 1 + num_octets))
-}
-
-struct CaptureVerifier {
-    chain: Arc<Mutex<Vec<Vec<u8>>>>,
-    verifier: Arc<WebPkiServerVerifier>,
-}
-
-impl ServerCertVerifier for CaptureVerifier {
-    fn verify_server_cert(
-        &self,
-        end_entity: &CertificateDer<'_>,
-        intermediates: &[CertificateDer<'_>],
-        server_name: &ServerName<'_>,
-        ocsp_response: &[u8],
-        now: UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
-        let result = self.verifier.verify_server_cert(
-            end_entity,
-            intermediates,
-            server_name,
-            ocsp_response,
-            now,
-        )?;
-
-        let mut chain = self.chain.lock().unwrap();
-        chain.clear();
-        chain.push(end_entity.to_vec());
-        for cert in intermediates {
-            chain.push(cert.to_vec());
-        }
-
-        Ok(result)
-    }
-
-    fn verify_tls12_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        self.verifier
-            .verify_tls12_signature(message, cert, dss)
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        self.verifier
-            .verify_tls13_signature(message, cert, dss)
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.verifier.supported_verify_schemes()
-    }
-}
-
-impl fmt::Debug for CaptureVerifier {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CaptureVerifier")
-            .field("chain", &self.chain)
-            .finish_non_exhaustive()
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
