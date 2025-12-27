@@ -1,0 +1,51 @@
+name: bench
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    permissions:
+      contents: read
+      id-token: write # required for OIDC authentication with CodSpeed
+
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install cargo-codspeed
+        run: cargo binstall -y cargo-codspeed
+
+      - name: Set up upki
+        # ensure there is a config file, and a filled cache.
+        run: |
+          cargo run --release -p upki show-config > config.toml
+          target=$(cargo run --release -p upki show-config-path)
+          mkdir --parents $(dirname $target)
+          mv config.toml $target
+          cargo run --release -p upki -- fetch
+
+      - name: Build benchmarks
+        run: cargo codspeed build -p revoke-test --features __bench_codspeed
+
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v3
+        with:
+          run: cargo codspeed run
