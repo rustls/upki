@@ -9,12 +9,12 @@ use base64::prelude::BASE64_STANDARD;
 use eyre::{Report, Result};
 use http::Uri;
 use ring::digest::{SHA256, digest};
-use rustls::client::Resumption;
-use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, RootCertStore};
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
+use tokio_rustls::rustls::client::Resumption;
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::{ClientConfig, RootCertStore, crypto};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::der_parser::Oid;
 use x509_parser::oid_registry::asn1_rs::oid;
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Report> {
             .cloned(),
     );
 
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let provider = Arc::new(crypto::ring::default_provider());
     let mut tls_config = ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|e| eyre::eyre!("failed to set protocol versions: {e}"))?
