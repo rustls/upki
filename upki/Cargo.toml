@@ -10,6 +10,7 @@ base64.workspace = true
 chrono.workspace = true
 clap.workspace = true
 clubcard-crlite.workspace = true
+codspeed-criterion-compat = { optional = true, version = "3" }
 eyre.workspace = true
 hex.workspace = true
 reqwest.workspace = true
@@ -29,12 +30,20 @@ xdg.workspace = true
 directories.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
 insta.workspace = true
 insta-cmd.workspace = true
 rand.workspace = true
 regex.workspace = true
 tempfile.workspace = true
 tiny_http.workspace = true
+
+[features]
+__bench_codspeed = ["dep:codspeed-criterion-compat"]
+
+[[bench]]
+name = "bench"
+harness = false
 
 [lints]
 workspace = true
