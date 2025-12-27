@@ -3,7 +3,7 @@
 #![cfg(not(target_os = "windows"))]
 
 use core::error::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use std::{fs, thread};
@@ -28,21 +28,41 @@ fn version() {
 }
 
 #[test]
-fn show_cache_dir_fixpoint() {
+fn show_config_path_fixpoint() {
     let _filters = apply_common_filters();
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg("/home/example/not-exist/")
-            .arg("show-cache-dir"),
+            .arg("--config-file")
+            .arg("/home/example/not-exist/yo.txt")
+            .arg("show-config-path"),
         @r"
     success: true
     exit_code: 0
     ----- stdout -----
-    /home/example/not-exist/
+    /home/example/not-exist/yo.txt
 
     ----- stderr -----
     ");
+}
+
+#[test]
+fn show_config_fixpoint() {
+    let _filters = apply_common_filters();
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--config-file")
+            .arg("tests/data/verify_non_existent_dir/config.toml")
+            .arg("show-config"),
+        @r#"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    [revocation]
+    cache_dir = "not-exist/"
+    fetch_url = ""
+
+    ----- stderr -----
+    "#);
 }
 
 #[test]
@@ -50,8 +70,8 @@ fn verify_of_non_existent_dir() {
     let _filters = apply_common_filters();
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg("not-exist/")
+            .arg("--config-file")
+            .arg("tests/data/verify_non_existent_dir/config.toml")
             .arg("verify"),
         @r#"
     success: false
@@ -72,16 +92,10 @@ fn verify_of_non_existent_dir() {
 #[test]
 fn verify_of_empty_manifest() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
-    fs::write(
-        temp.path().join("manifest.json"),
-        include_bytes!("data/empty/manifest.json"),
-    )
-    .unwrap();
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
+            .arg("--config-file")
+            .arg("tests/data/verify_of_empty_manifest/config.toml")
             .arg("verify"),
         @r"
     success: true
@@ -95,15 +109,14 @@ fn verify_of_empty_manifest() {
 #[test]
 fn fetch_of_empty_manifest() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
-    let (server, _filters) = http_server("tests/data/empty/");
+    let (server, _filters) = http_server("tests/data/verify_of_empty_manifest/");
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
-            .arg("fetch")
-            .arg(server.url()),
+            .arg("--config-file")
+            .arg(config_file)
+            .arg("fetch"),
         @r"
     success: true
     exit_code: 0
@@ -115,21 +128,20 @@ fn fetch_of_empty_manifest() {
         server.into_log(),
         @"GET /manifest.json  ->  200 OK (81 bytes)"
     );
-    assert_eq!(list_dir(temp.path()), vec!["manifest.json"]);
+    assert_eq!(list_dir(temp.path()), vec!["config.toml", "manifest.json"]);
 }
 
 #[test]
 fn full_fetch() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
     let (server, _filters) = http_server("tests/data/typical/");
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
-            .arg("fetch")
-            .arg(server.url()),
+            .arg("--config-file")
+            .arg(config_file)
+            .arg("fetch"),
         @r"
     success: true
     exit_code: 0
@@ -148,6 +160,7 @@ fn full_fetch() {
     assert_eq!(
         list_dir(temp.path()),
         vec![
+            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
@@ -159,15 +172,14 @@ fn full_fetch() {
 #[test]
 fn full_fetch_and_incremental_update() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
     let (server, _filters) = http_server("tests/data/typical/");
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
-            .arg("fetch")
-            .arg(server.url()),
+            .arg("--config-file")
+            .arg(&config_file)
+            .arg("fetch"),
         @r"
     success: true
     exit_code: 0
@@ -186,6 +198,7 @@ fn full_fetch_and_incremental_update() {
     assert_eq!(
         list_dir(temp.path()),
         vec![
+            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
@@ -196,12 +209,12 @@ fn full_fetch_and_incremental_update() {
     // now server is updated to "evolution" which requires a partial update
     // compared to "typical"
     let (server, _filters) = http_server("tests/data/evolution/");
+    write_config(&temp, server.url());
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
-            .arg("fetch")
-            .arg(server.url()),
+            .arg("--config-file")
+            .arg(&config_file)
+            .arg("fetch"),
         @r"
     success: true
     exit_code: 0
@@ -219,6 +232,7 @@ fn full_fetch_and_incremental_update() {
     assert_eq!(
         list_dir(temp.path()),
         vec![
+            "config.toml",
             "filter1.filter",
             "filter3.delta",
             "filter4.delta",
@@ -230,7 +244,9 @@ fn full_fetch_and_incremental_update() {
 #[test]
 fn typical_incremental_fetch() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
+    let (server, _filters) = http_server("tests/data/typical/");
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+
     fs::copy(
         "tests/data/typical/manifest.json",
         temp.path().join("manifest.json"),
@@ -247,14 +263,11 @@ fn typical_incremental_fetch() {
     )
     .unwrap();
 
-    let (server, _filters) = http_server("tests/data/typical/");
-
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
-            .arg("fetch")
-            .arg(server.url()),
+            .arg("--config-file")
+            .arg(config_file)
+            .arg("fetch"),
         @r"
     success: true
     exit_code: 0
@@ -274,6 +287,7 @@ fn typical_incremental_fetch() {
     assert_eq!(
         list_dir(temp.path()),
         vec![
+            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
@@ -285,7 +299,8 @@ fn typical_incremental_fetch() {
 #[test]
 fn typical_incremental_fetch_dry_run() {
     let _filters = apply_common_filters();
-    let (temp, _filters) = temp_dir();
+    let (server, _filters) = http_server("tests/data/typical/");
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
     fs::copy(
         "tests/data/typical/manifest.json",
         temp.path().join("manifest.json"),
@@ -302,15 +317,12 @@ fn typical_incremental_fetch_dry_run() {
     )
     .unwrap();
 
-    let (server, _filters) = http_server("tests/data/typical/");
-
     assert_cmd_snapshot!(
         upki()
-            .arg("--cache-dir")
-            .arg(temp.path())
+            .arg("--config-file")
+            .arg(config_file)
             .arg("fetch")
-            .arg("--dry-run")
-            .arg(server.url()),
+            .arg("--dry-run"),
         @r#"
     success: true
     exit_code: 0
@@ -329,7 +341,12 @@ fn typical_incremental_fetch_dry_run() {
 
     assert_eq!(
         list_dir(temp.path()),
-        vec!["filter1.filter", "filter3.delta", "manifest.json"]
+        vec![
+            "config.toml",
+            "filter1.filter",
+            "filter3.delta",
+            "manifest.json"
+        ]
     );
 }
 
@@ -364,8 +381,9 @@ fn list_dir(path: &Path) -> Vec<String> {
     list
 }
 
-fn temp_dir() -> (TempDir, SettingsBindDropGuard) {
+fn temp_dir_and_config(fetch_url: &str) -> (TempDir, PathBuf, SettingsBindDropGuard) {
     let temp = TempDir::new().unwrap();
+    write_config(&temp, fetch_url);
 
     let mut settings = insta::Settings::clone_current();
     // remove tempdirs references
@@ -374,7 +392,23 @@ fn temp_dir() -> (TempDir, SettingsBindDropGuard) {
         "[TEMPDIR]",
     );
 
-    (temp, settings.bind_to_scope())
+    let config_file = temp.path().join("config.toml");
+
+    (temp, config_file, settings.bind_to_scope())
+}
+
+fn write_config(temp: &TempDir, fetch_url: &str) {
+    fs::write(
+        temp.path().join("config.toml"),
+        format!(
+            "[revocation]\n\
+            cache_dir=\"{}\"\n\
+            fetch_url=\"{fetch_url}\"\n",
+            temp.path().display(),
+        )
+        .as_bytes(),
+    )
+    .unwrap();
 }
 
 fn apply_common_filters() -> SettingsBindDropGuard {
