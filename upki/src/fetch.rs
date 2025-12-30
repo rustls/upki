@@ -14,9 +14,9 @@ use std::fs::{self, File};
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use aws_lc_rs::digest;
 use chrono::{DateTime, Utc};
 use eyre::{Context, Report, eyre};
-use ring::digest;
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
 use upki::config::RevocationConfig;

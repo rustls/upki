@@ -4,9 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use aws_lc_rs::digest::{SHA256, digest};
 use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
-use ring::digest::{SHA256, digest};
 use upki::{Filter, Manifest};
 
 mod mozilla;

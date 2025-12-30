@@ -6,11 +6,11 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+aws-lc-rs.workspace = true
 clap.workspace = true
 eyre.workspace = true
 hex.workspace = true
 reqwest.workspace = true
-ring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
