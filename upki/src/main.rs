@@ -1,13 +1,12 @@
 //! upki command-line entrypoint.
 
-use std::fs::{self, File};
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::fs;
+use std::path::PathBuf;
 use std::process::exit;
 
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
-use upki::config::{Config, ConfigPath};
+use upki::config::{Config, ConfigPath, RevocationConfig};
 use upki::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationStatus};
 
 mod fetch;
@@ -48,7 +47,7 @@ async fn main() -> Result<(), Report> {
             issuer_spki_hash,
             ct_timestamps,
         } => {
-            let filters = load_filters(&config.revocation.cache_dir)?;
+            let filters = load_filters(&config.revocation)?;
             let ct_timestamps = ct_timestamps
                 .into_iter()
                 .map(|item| (item.log_id, item.timestamp))
@@ -80,19 +79,13 @@ async fn main() -> Result<(), Report> {
     Ok(())
 }
 
-fn load_filters(local: &Path) -> Result<Vec<Vec<u8>>, Report> {
-    let file_name = local.join("manifest.json");
-    let manifest = serde_json::from_reader::<_, upki::Manifest>(
-        File::open(&file_name)
-            .map(BufReader::new)
-            .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
-    )
-    .wrap_err("cannot parse manifest JSON")?;
+fn load_filters(config: &RevocationConfig) -> Result<Vec<Vec<u8>>, Report> {
+    let manifest = config.manifest()?;
 
     let mut filters = vec![];
     for f in manifest.filters {
         filters.push(
-            fs::read(local.join(&f.filename))
+            fs::read(config.cache_dir.join(&f.filename))
                 .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
         );
     }
