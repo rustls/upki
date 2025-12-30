@@ -28,23 +28,40 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// This function does a low-level revocation check.
+    ///
+    /// It is assumed the caller has already done a path verification, and now wants to
+    /// check the revocation status of the end-entity certificate.
+    ///
+    /// On success, this returns a [`RevocationStatus`] saying whether the certificate
+    /// is revoked, not revoked, or whether the data set cannot make that determination.
     pub fn check(
         &self,
         input: &RevocationCheckInput,
         config: &RevocationConfig,
     ) -> Result<RevocationStatus, Report> {
-        let mut filters = vec![];
+        let key = input.key();
         for f in &self.filters {
-            filters.push(
-                fs::read(config.cache_dir.join(&f.filename))
-                    .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
-            );
+            let bytes = fs::read(config.cache_dir.join(&f.filename))
+                .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?;
+
+            let filter =
+                CRLiteClubcard::from_bytes(&bytes).map_err(|_| Error::CorruptCrliteFilter)?;
+
+            match filter.contains(
+                &key,
+                input
+                    .sct_timestamps
+                    .iter()
+                    .map(|ct_ts| (&ct_ts.log_id, ct_ts.timestamp)),
+            ) {
+                CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
+                CRLiteStatus::Good => return Ok(RevocationStatus::NotRevoked),
+                CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => continue,
+            }
         }
 
-        Ok(revocation_check(
-            input,
-            filters.iter().map(|f| f.as_slice()),
-        )?)
+        Ok(RevocationStatus::NotCoveredByRevocationData)
     }
 }
 
@@ -61,38 +78,6 @@ pub struct Filter {
     /// SHA256 hash of file contents.
     #[serde(with = "hex::serde")]
     pub hash: Vec<u8>,
-}
-
-/// This function does a low-level revocation check.
-///
-/// It is assumed the caller has already done a path verification, and now wants to
-/// check the revocation status of the end-entity certificate.
-///
-/// On success, this returns a [`RevocationStatus`] saying whether the certificate
-/// is revoked, not revoked, or whether the data set cannot make that determination.
-pub fn revocation_check<'a>(
-    input: &RevocationCheckInput,
-    filters: impl Iterator<Item = &'a [u8]>,
-) -> Result<RevocationStatus, Error> {
-    let key = input.key();
-    for filter in filters {
-        let filter = CRLiteClubcard::from_bytes(filter).map_err(|_| Error::CorruptCrliteFilter)?;
-        match filter.contains(
-            &key,
-            input
-                .sct_timestamps
-                .iter()
-                .map(|ct_ts| (&ct_ts.log_id, ct_ts.timestamp)),
-        ) {
-            CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
-            CRLiteStatus::Good => return Ok(RevocationStatus::NotRevoked),
-            CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => {
-                continue;
-            }
-        }
-    }
-
-    Ok(RevocationStatus::NotCoveredByRevocationData)
 }
 
 /// Input parameters for a revocation check.
