@@ -19,8 +19,7 @@ use chrono::{DateTime, Utc};
 use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
-use upki::config::RevocationConfig;
-use upki::{Filter, Manifest};
+use upki::{Filter, Manifest, RevocationConfig};
 
 pub(super) async fn fetch(
     RevocationConfig {
