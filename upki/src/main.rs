@@ -65,7 +65,7 @@ async fn main() -> Result<(), Report> {
             ) {
                 Ok(status @ RevocationStatus::CertainlyRevoked) => {
                     println!("{status:?}");
-                    exit(EXITCODE_REVOCATION_REVOKED)
+                    exit(EXIT_CODE_REVOCATION_REVOKED)
                 }
                 Ok(
                     status @ (RevocationStatus::NotRevoked
@@ -75,7 +75,7 @@ async fn main() -> Result<(), Report> {
                 }
                 Err(e) => {
                     println!("{e:?}");
-                    exit(EXITCODE_REVOCATION_ERROR);
+                    exit(EXIT_CODE_REVOCATION_ERROR);
                 }
             }
         }
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Report> {
 
 fn load_filters(local: &Path) -> Result<Vec<Vec<u8>>, Report> {
     let file_name = local.join("manifest.json");
-    let manifest: upki::Manifest = serde_json::from_reader(
+    let manifest = serde_json::from_reader::<_, upki::Manifest>(
         File::open(&file_name)
             .map(BufReader::new)
             .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
@@ -186,10 +186,10 @@ impl FromStr for CertSerial {
     type Err = Report;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        BASE64_STANDARD
-            .decode(value)
-            .wrap_err("cannot parse serial number")
-            .map(Self)
+        match BASE64_STANDARD.decode(value) {
+            Ok(bytes) => Ok(Self(bytes)),
+            Err(e) => Err(e).wrap_err("cannot parse base64 serial number"),
+        }
     }
 }
 
@@ -200,12 +200,15 @@ impl FromStr for IssuerSpkiHash {
     type Err = Report;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let bytes = BASE64_STANDARD
-            .decode(value)
-            .wrap_err("cannot parse issuer SPKI hash")?;
-        Ok(Self(bytes.try_into().map_err(|b: Vec<u8>| {
-            eyre!("issuer SPKI hash is wrong length (was {} bytes)", b.len())
-        })?))
+        Ok(Self(
+            BASE64_STANDARD
+                .decode(value)
+                .wrap_err("cannot parse issuer SPKI hash")?
+                .try_into()
+                .map_err(|b: Vec<u8>| {
+                    eyre!("issuer SPKI hash is wrong length (was {} bytes)", b.len())
+                })?,
+        ))
     }
 }
 
@@ -223,21 +226,20 @@ impl FromStr for CtTimestamp {
             return Err(eyre!("missing colon in CT timestamp"));
         };
 
-        let log_id = BASE64_STANDARD
-            .decode(log_id)
-            .wrap_err("cannot parse CT log ID")?
-            .try_into()
-            .map_err(|wrong: Vec<u8>| {
-                eyre!("CT log ID is wrong length (was {} bytes)", wrong.len())
-            })?;
-
-        let timestamp = issuance_timestamp
-            .parse()
-            .wrap_err("cannot parse CT timestamp")?;
-
-        Ok(Self { log_id, timestamp })
+        Ok(Self {
+            log_id: BASE64_STANDARD
+                .decode(log_id)
+                .wrap_err("cannot parse CT log ID")?
+                .try_into()
+                .map_err(|wrong: Vec<u8>| {
+                    eyre!("CT log ID is wrong length (was {} bytes)", wrong.len())
+                })?,
+            timestamp: issuance_timestamp
+                .parse()
+                .wrap_err("cannot parse CT timestamp")?,
+        })
     }
 }
 
-const EXITCODE_REVOCATION_REVOKED: i32 = 1;
-const EXITCODE_REVOCATION_ERROR: i32 = 2;
+const EXIT_CODE_REVOCATION_REVOKED: i32 = 1;
+const EXIT_CODE_REVOCATION_ERROR: i32 = 2;

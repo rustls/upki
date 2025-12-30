@@ -1,4 +1,4 @@
-use clubcard_crlite::{CRLiteKey, CRLiteStatus};
+use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
 use serde::{Deserialize, Serialize};
 
 pub mod config;
@@ -57,9 +57,7 @@ pub fn revocation_check<'a>(
     let crlite_key = CRLiteKey::new(&issuer_spki_hash, cert_serial);
 
     for filter in filters {
-        let filter = clubcard_crlite::CRLiteClubcard::from_bytes(filter)
-            .map_err(|_| Error::CorruptCrliteFilter)?;
-
+        let filter = CRLiteClubcard::from_bytes(filter).map_err(|_| Error::CorruptCrliteFilter)?;
         match filter.contains(
             &crlite_key,
             sct_timestamps
