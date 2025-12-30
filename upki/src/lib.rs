@@ -1,4 +1,7 @@
+use core::error::Error as StdError;
+use core::fmt;
 use core::str::FromStr;
+use std::fs;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -7,6 +10,7 @@ use eyre::{Context, Report, eyre};
 use serde::{Deserialize, Serialize};
 
 pub mod config;
+use config::RevocationConfig;
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -21,6 +25,27 @@ pub struct Manifest {
 
     /// List of filter files.
     pub filters: Vec<Filter>,
+}
+
+impl Manifest {
+    pub fn check(
+        &self,
+        input: &RevocationCheckInput,
+        config: &RevocationConfig,
+    ) -> Result<RevocationStatus, Report> {
+        let mut filters = vec![];
+        for f in &self.filters {
+            filters.push(
+                fs::read(config.cache_dir.join(&f.filename))
+                    .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
+            );
+        }
+
+        Ok(revocation_check(
+            input,
+            filters.iter().map(|f| f.as_slice()),
+        )?)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -172,3 +197,13 @@ pub enum Error {
     /// `crlite_clubcard::CRLiteClubcard` couldn't deserialize the filter data.
     CorruptCrliteFilter,
 }
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CorruptCrliteFilter => write!(f, "corrupt CRLite filter data"),
+        }
+    }
+}
+
+impl StdError for Error {}

@@ -1,6 +1,5 @@
 //! upki command-line entrypoint.
 
-use std::fs;
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -48,27 +47,13 @@ async fn main() -> Result<(), Report> {
             sct_timestamps,
         } => {
             let manifest = config.revocation.manifest()?;
-
-            let mut filters = vec![];
-            for f in manifest.filters {
-                filters.push(
-                    fs::read(
-                        config
-                            .revocation
-                            .cache_dir
-                            .join(&f.filename),
-                    )
-                    .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
-                );
-            }
-
             let input = RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
                 sct_timestamps,
             };
 
-            match upki::revocation_check(&input, filters.iter().map(|f| f.as_slice())) {
+            match manifest.check(&input, &config.revocation) {
                 Ok(status @ RevocationStatus::CertainlyRevoked) => {
                     println!("{status:?}");
                     exit(EXIT_CODE_REVOCATION_REVOKED)
