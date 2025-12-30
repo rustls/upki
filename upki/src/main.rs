@@ -6,7 +6,7 @@ use std::process::exit;
 
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
-use upki::config::{Config, ConfigPath, RevocationConfig};
+use upki::config::{Config, ConfigPath};
 use upki::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus};
 
 mod fetch;
@@ -47,7 +47,21 @@ async fn main() -> Result<(), Report> {
             issuer_spki_hash,
             sct_timestamps,
         } => {
-            let filters = load_filters(&config.revocation)?;
+            let manifest = config.revocation.manifest()?;
+
+            let mut filters = vec![];
+            for f in manifest.filters {
+                filters.push(
+                    fs::read(
+                        config
+                            .revocation
+                            .cache_dir
+                            .join(&f.filename),
+                    )
+                    .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
+                );
+            }
+
             let input = RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
@@ -73,19 +87,6 @@ async fn main() -> Result<(), Report> {
         }
     };
     Ok(())
-}
-
-fn load_filters(config: &RevocationConfig) -> Result<Vec<Vec<u8>>, Report> {
-    let manifest = config.manifest()?;
-
-    let mut filters = vec![];
-    for f in manifest.filters {
-        filters.push(
-            fs::read(config.cache_dir.join(&f.filename))
-                .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?,
-        );
-    }
-    Ok(filters)
 }
 
 #[derive(Debug, Parser)]
