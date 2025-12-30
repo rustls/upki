@@ -49,12 +49,11 @@ pub fn revocation_check<'a>(
     input: &RevocationCheckInput,
     filters: impl Iterator<Item = &'a [u8]>,
 ) -> Result<RevocationStatus, Error> {
-    let crlite_key = CRLiteKey::new(&input.issuer_spki_hash.0, &input.cert_serial.0);
-
+    let key = input.key();
     for filter in filters {
         let filter = CRLiteClubcard::from_bytes(filter).map_err(|_| Error::CorruptCrliteFilter)?;
         match filter.contains(
-            &crlite_key,
+            &key,
             input
                 .sct_timestamps
                 .iter()
@@ -80,6 +79,12 @@ pub struct RevocationCheckInput {
     pub issuer_spki_hash: IssuerSpkiHash,
     /// CT log IDs and inclusion timestamps present in the end-entity certificate.
     pub sct_timestamps: Vec<CtTimestamp>,
+}
+
+impl RevocationCheckInput {
+    fn key(&self) -> CRLiteKey<'_> {
+        CRLiteKey::new(&self.issuer_spki_hash.0, &self.cert_serial.0)
+    }
 }
 
 #[derive(Clone, Debug)]
