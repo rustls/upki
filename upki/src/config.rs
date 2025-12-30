@@ -1,8 +1,11 @@
-use std::fs;
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use eyre::{Context, Report};
 use serde::{Deserialize, Serialize};
+
+use crate::Manifest;
 
 /// `upki` configuration.
 #[derive(Debug, Deserialize, Serialize)]
@@ -50,6 +53,18 @@ pub struct RevocationConfig {
 
     /// Where to fetch revocation data files.
     pub fetch_url: String,
+}
+
+impl RevocationConfig {
+    pub fn manifest(&self) -> Result<Manifest, Report> {
+        let file_name = self.cache_dir.join("manifest.json");
+        serde_json::from_reader(
+            File::open(&file_name)
+                .map(BufReader::new)
+                .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
+        )
+        .wrap_err("cannot parse manifest JSON")
+    }
 }
 
 pub enum ConfigPath {
