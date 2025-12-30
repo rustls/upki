@@ -1,4 +1,9 @@
+use std::str::FromStr;
+
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
+use eyre::{Context, Report, eyre};
 use serde::{Deserialize, Serialize};
 
 pub mod config;
@@ -73,6 +78,68 @@ pub fn revocation_check<'a>(
     }
 
     Ok(RevocationStatus::NotCoveredByRevocationData)
+}
+
+#[derive(Clone, Debug)]
+pub struct CertSerial(pub Vec<u8>);
+
+impl FromStr for CertSerial {
+    type Err = Report;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match BASE64_STANDARD.decode(value) {
+            Ok(bytes) => Ok(Self(bytes)),
+            Err(e) => Err(e).wrap_err("cannot parse base64 serial number"),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct IssuerSpkiHash(pub [u8; 32]);
+
+impl FromStr for IssuerSpkiHash {
+    type Err = Report;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(Self(
+            BASE64_STANDARD
+                .decode(value)
+                .wrap_err("cannot parse issuer SPKI hash")?
+                .try_into()
+                .map_err(|b: Vec<u8>| {
+                    eyre!("issuer SPKI hash is wrong length (was {} bytes)", b.len())
+                })?,
+        ))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CtTimestamp {
+    pub log_id: [u8; 32],
+    pub timestamp: u64,
+}
+
+impl FromStr for CtTimestamp {
+    type Err = Report;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some((log_id, issuance_timestamp)) = value.split_once(":") else {
+            return Err(eyre!("missing colon in CT timestamp"));
+        };
+
+        Ok(Self {
+            log_id: BASE64_STANDARD
+                .decode(log_id)
+                .wrap_err("cannot parse CT log ID")?
+                .try_into()
+                .map_err(|wrong: Vec<u8>| {
+                    eyre!("CT log ID is wrong length (was {} bytes)", wrong.len())
+                })?,
+            timestamp: issuance_timestamp
+                .parse()
+                .wrap_err("cannot parse CT timestamp")?,
+        })
+    }
 }
 
 /// The successful outcome of a revocation check.
