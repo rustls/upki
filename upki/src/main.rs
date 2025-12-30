@@ -5,8 +5,10 @@ use std::process::exit;
 
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
-use upki::config::{Config, ConfigPath};
-use upki::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus};
+use upki::{
+    CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, RevocationCheckInput,
+    RevocationStatus,
+};
 
 mod fetch;
 

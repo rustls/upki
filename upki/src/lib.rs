@@ -9,8 +9,8 @@ use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
 use eyre::{Context, Report, eyre};
 use serde::{Deserialize, Serialize};
 
-pub mod config;
-use config::RevocationConfig;
+mod config;
+pub use config::{Config, ConfigPath, RevocationConfig};
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
