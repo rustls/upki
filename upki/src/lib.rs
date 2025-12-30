@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use core::str::FromStr;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -43,31 +43,22 @@ pub struct Filter {
 /// It is assumed the caller has already done a path verification, and now wants to
 /// check the revocation status of the end-entity certificate.
 ///
-/// - `filters` is the raw filter data.
-/// - `cert_serial` is the big-endian bytes encoding of the end-entity certificate
-///   serial number.
-/// - `issuer_spki_hash` is the SHA256 hash of the `SubjectPublicKeyInfo` of the issuer
-///   of the end-entity certificate.
-/// - `sct_timestamps` is a list of the CT log IDs and inclusion timestamps present in
-///   the end-entity certificate.
-///
 /// On success, this returns a [`RevocationStatus`] saying whether the certificate
 /// is revoked, not revoked, or whether the data set cannot make that determination.
 pub fn revocation_check<'a>(
+    input: &RevocationCheckInput,
     filters: impl Iterator<Item = &'a [u8]>,
-    cert_serial: &[u8],
-    issuer_spki_hash: [u8; 32],
-    sct_timestamps: &[([u8; 32], u64)],
 ) -> Result<RevocationStatus, Error> {
-    let crlite_key = CRLiteKey::new(&issuer_spki_hash, cert_serial);
+    let crlite_key = CRLiteKey::new(&input.issuer_spki_hash.0, &input.cert_serial.0);
 
     for filter in filters {
         let filter = CRLiteClubcard::from_bytes(filter).map_err(|_| Error::CorruptCrliteFilter)?;
         match filter.contains(
             &crlite_key,
-            sct_timestamps
+            input
+                .sct_timestamps
                 .iter()
-                .map(|(log_id, ts)| (log_id, *ts)),
+                .map(|ct_ts| (&ct_ts.log_id, ct_ts.timestamp)),
         ) {
             CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
             CRLiteStatus::Good => return Ok(RevocationStatus::NotRevoked),
@@ -78,6 +69,17 @@ pub fn revocation_check<'a>(
     }
 
     Ok(RevocationStatus::NotCoveredByRevocationData)
+}
+
+/// Input parameters for a revocation check.
+#[derive(Debug)]
+pub struct RevocationCheckInput {
+    /// Big-endian bytes encoding of the end-entity certificate serial number.
+    pub cert_serial: CertSerial,
+    /// SHA256 hash of the `SubjectPublicKeyInfo` of the issuer of the end-entity certificate.
+    pub issuer_spki_hash: IssuerSpkiHash,
+    /// CT log IDs and inclusion timestamps present in the end-entity certificate.
+    pub sct_timestamps: Vec<CtTimestamp>,
 }
 
 #[derive(Clone, Debug)]
