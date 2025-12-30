@@ -7,7 +7,7 @@ use std::process::exit;
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use upki::config::{Config, ConfigPath, RevocationConfig};
-use upki::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationStatus};
+use upki::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus};
 
 mod fetch;
 
@@ -45,20 +45,16 @@ async fn main() -> Result<(), Report> {
         Command::RevocationCheck {
             cert_serial,
             issuer_spki_hash,
-            ct_timestamps,
+            sct_timestamps,
         } => {
             let filters = load_filters(&config.revocation)?;
-            let ct_timestamps = ct_timestamps
-                .into_iter()
-                .map(|item| (item.log_id, item.timestamp))
-                .collect::<Vec<_>>();
+            let input = RevocationCheckInput {
+                cert_serial,
+                issuer_spki_hash,
+                sct_timestamps,
+            };
 
-            match upki::revocation_check(
-                filters.iter().map(|f| f.as_slice()),
-                &cert_serial.0,
-                issuer_spki_hash.0,
-                &ct_timestamps,
-            ) {
+            match upki::revocation_check(&input, filters.iter().map(|f| f.as_slice())) {
                 Ok(status @ RevocationStatus::CertainlyRevoked) => {
                     println!("{status:?}");
                     exit(EXIT_CODE_REVOCATION_REVOKED)
@@ -160,7 +156,7 @@ enum Command {
         ///
         /// The format should be the base64 encoding of the CT log id, followed by
         /// a colon, followed by the decimal encoding of the timestamp.
-        ct_timestamps: Vec<CtTimestamp>,
+        sct_timestamps: Vec<CtTimestamp>,
     },
     /// Print the location of the configuration file.
     ShowConfigPath,
