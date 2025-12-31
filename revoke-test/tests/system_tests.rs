@@ -3,8 +3,9 @@
 //! empty directory and so do significant network IO.
 
 use std::fs::{self, File};
+use std::io::Write;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use insta_cmd::get_cargo_bin;
@@ -34,7 +35,8 @@ fn real_world_system_tests() {
     )
     .expect("cannot parse test-sites.json");
 
-    test_low_level_cli(tests.sites.into_owned());
+    test_low_level_cli(tests.sites.clone().into_owned());
+    test_high_level_cli(tests.sites.into_owned());
 }
 
 fn test_low_level_cli(sites: Vec<RevocationTestSite>) {
@@ -66,6 +68,81 @@ fn test_low_level_cli(sites: Vec<RevocationTestSite>) {
             )
             .output()
             .expect("cannot run upki");
+        let time_taken = start.elapsed().unwrap();
+        println!("duration: {time_taken:?}");
+
+        match e.status.code() {
+            Some(1) => {
+                assert_eq!(e.stdout, b"CertainlyRevoked\n");
+                correctly_revoked += 1;
+            }
+            Some(0) => {
+                assert!(matches!(
+                    e.stdout.as_slice(),
+                    b"NotCoveredByRevocationData\n" | b"NotRevoked\n"
+                ));
+                incorrectly_not_revoked += 1;
+                println!("Incorrectly not revoked: {}", t.ca_label);
+            }
+            _ => {
+                println!("unexpected stdout {}", String::from_utf8_lossy(&e.stdout));
+                panic!("unexpected error");
+            }
+        };
+    }
+
+    println!("summary:");
+    println!("       correctly revoked: {correctly_revoked}");
+    println!(" incorrectly not revoked: {incorrectly_not_revoked}");
+    println!("        test case absent: {decorate_failed}");
+
+    assert!(correctly_revoked > 0);
+    assert!(correctly_revoked > incorrectly_not_revoked);
+}
+
+fn test_high_level_cli(sites: Vec<RevocationTestSite>) {
+    let mut correctly_revoked = 0;
+    let mut incorrectly_not_revoked = 0;
+    let mut decorate_failed = 0;
+
+    for t in sites {
+        println!("testing {}... ", t.test_website_revoked);
+
+        let Some(detail) = t.detail else {
+            decorate_failed += 1;
+            println!("Decorate failed: {}", t.error.unwrap());
+            continue;
+        };
+        let start = SystemTime::now();
+        let mut c = Command::new(get_cargo_bin("upki"))
+            .arg("--config-file")
+            .arg(TEST_CONFIG_PATH)
+            .arg("revocation-check")
+            .arg("high")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("cannot run upki");
+
+        let mut stdin = c
+            .stdin
+            .take()
+            .expect("cannot get stdin");
+        for base64 in [detail.end_entity_cert, detail.issuer_cert] {
+            stdin
+                .write_all(b"-----BEGIN CERTIFICATE-----\r\n")
+                .unwrap();
+            stdin
+                .write_all(base64.as_bytes())
+                .unwrap();
+            stdin
+                .write_all(b"\r\n-----END CERTIFICATE-----\r\n")
+                .unwrap();
+        }
+        stdin.flush().unwrap();
+        drop(stdin);
+        let e = c.wait_with_output().unwrap();
+
         let time_taken = start.elapsed().unwrap();
         println!("duration: {time_taken:?}");
 
