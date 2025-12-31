@@ -55,6 +55,7 @@ fn test_low_level_cli(sites: Vec<RevocationTestSite>) {
             .arg("--config-file")
             .arg(TEST_CONFIG_PATH)
             .arg("revocation-check")
+            .arg("detail")
             .arg(&detail.serial)
             .arg(&detail.issuer_spki_sha256)
             .args(

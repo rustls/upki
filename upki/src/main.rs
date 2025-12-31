@@ -1,10 +1,14 @@
 //! upki command-line entrypoint.
 
+use std::io::{BufReader, stdin};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use aws_lc_rs::digest;
 use clap::{Parser, Subcommand};
-use eyre::{Context, Report};
+use eyre::{Context, ContextCompat, Report, eyre};
+use rustls_pki_types::pem::PemObject;
+use rustls_pki_types::{CertificateDer, TrustAnchor};
 use upki::revocation::{
     CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
     fetch,
@@ -43,11 +47,52 @@ async fn main() -> Result<ExitCode, Report> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Command::RevocationCheck {
+        Command::RevocationCheck(RevocationCheck::High) => {
+            let mut certs = vec![];
+
+            for cert in CertificateDer::pem_reader_iter(&mut BufReader::new(stdin())) {
+                certs.push(cert.wrap_err("cannot read certificate from stdin")?);
+            }
+
+            let (end_entity, rest) = certs
+                .split_first()
+                .wrap_err("not enough certificates received in stdin")?;
+            let end_entity = webpki::EndEntityCert::try_from(end_entity)
+                .wrap_err("cannot parse end-entity certificate")?;
+            let issuer = find_issuer(rest.iter(), end_entity.issuer())?;
+            let issuer_spki_hash = IssuerSpkiHash(
+                digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
+                    .as_ref()
+                    .try_into()
+                    .expect("sha256 output must be [u8;32]"),
+            );
+
+            let mut sct_timestamps = vec![];
+            for ts in end_entity
+                .sct_log_timestamps()
+                .map_err(|e| eyre!("error decoding sct: {e:?}"))?
+            {
+                let ts = ts.map_err(|e| eyre!("decoding error sct: {e:?}"))?;
+                sct_timestamps.push(CtTimestamp {
+                    log_id: ts.log_id,
+                    timestamp: ts.timestamp_ms,
+                });
+            }
+
+            revocation_check(
+                &RevocationCheckInput {
+                    cert_serial: CertSerial(end_entity.serial().into()),
+                    issuer_spki_hash,
+                    sct_timestamps,
+                },
+                &config,
+            )
+        }
+        Command::RevocationCheck(RevocationCheck::Detail {
             cert_serial,
             issuer_spki_hash,
             sct_timestamps,
-        } => revocation_check(
+        }) => revocation_check(
             &RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
@@ -121,14 +166,40 @@ enum Command {
 
     /// Checks the revocation status of a certificate.
     ///
-    /// This is the low-level API, assuming the caller has the ability to parse the
-    /// below fields.
-    ///
     /// # Exit codes
     /// - `0`: the certificate is not revoked.
     /// - `1`: the revocation check completed and the certificate is revoked.
     /// - `2`: an error prevented the revocation check.
-    RevocationCheck {
+    #[clap(subcommand)]
+    RevocationCheck(RevocationCheck),
+
+    /// Print the location of the configuration file.
+    ShowConfigPath,
+
+    /// Print the configuration that will be used.
+    ShowConfig,
+}
+
+#[derive(Debug, Subcommand)]
+enum RevocationCheck {
+    /// A "high-level" revocation check operation.
+    ///
+    /// This interface reads a sequence of PEM-encoded certificates from standard input.
+    /// The first **must** be the end-entity certificate.  The end-entity certificate's issuer
+    /// **must** be present in the other certificates (but does not need to be in any specific
+    /// position).
+    ///
+    /// Note this interface **only** checks the end-entity certificate for revocation.  It does
+    /// **not** check any of the certificates for validity: it assumes the caller has done any
+    /// required checks **before** calling this interface (path building, naming validation,
+    /// expiry checking, etc.).
+    High,
+
+    /// A "low-level" revocation check operation.
+    ///
+    /// This interface requires the callers to have an X509 parser that can extract
+    /// all the required details.  In exchange, it is faster because it involves less IO.
+    Detail {
         /// The serial number of the end-entity certificate to check.
         ///
         /// This must be the base64 encoding of a big-endian integer, with
@@ -149,11 +220,23 @@ enum Command {
         /// a colon, followed by the decimal encoding of the timestamp.
         sct_timestamps: Vec<CtTimestamp>,
     },
-    /// Print the location of the configuration file.
-    ShowConfigPath,
+}
 
-    /// Print the configuration that will be used.
-    ShowConfig,
+fn find_issuer<'a>(
+    candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
+    name: &[u8],
+) -> Result<TrustAnchor<'a>, Report> {
+    for (i, c) in candidates.enumerate() {
+        // nb. do not copy this code. it is not correct to treat intermediate certificates
+        // as trust anchors.
+        let root = webpki::anchor_from_trusted_cert(c).wrap_err_with(|| {
+            format!("cannot parse potential intermediate certificate {}", i + 1)
+        })?;
+        if root.subject.as_ref() == name {
+            return Ok(root);
+        }
+    }
+    Err(eyre::eyre!("cannot find issuer certificate"))
 }
 
 const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
