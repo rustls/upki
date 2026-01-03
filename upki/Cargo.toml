@@ -14,6 +14,8 @@ clubcard-crlite.workspace = true
 eyre.workspace = true
 hex.workspace = true
 reqwest.workspace = true
+rustls-pki-types.workspace = true
+rustls-webpki = { git = "https://github.com/rustls/webpki.git", branch = "jbp-sct" }
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
