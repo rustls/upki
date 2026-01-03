@@ -47,31 +47,34 @@ async fn main() -> Result<ExitCode, Report> {
             cert_serial,
             issuer_spki_hash,
             sct_timestamps,
-        } => {
-            let manifest = Manifest::from_config(&config)?;
-            let input = RevocationCheckInput {
+        } => revocation_check(
+            &RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
                 sct_timestamps,
-            };
+            },
+            &config,
+        ),
+    }
+}
 
-            match manifest.check(&input, &config) {
-                Ok(status @ RevocationStatus::CertainlyRevoked) => {
-                    println!("{status:?}");
-                    Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
-                }
-                Ok(
-                    status @ (RevocationStatus::NotRevoked
-                    | RevocationStatus::NotCoveredByRevocationData),
-                ) => {
-                    println!("{status:?}");
-                    Ok(ExitCode::SUCCESS)
-                }
-                Err(e) => {
-                    println!("{e:?}");
-                    Ok(ExitCode::from(EXIT_CODE_REVOCATION_ERROR))
-                }
-            }
+fn revocation_check(input: &RevocationCheckInput, config: &Config) -> Result<ExitCode, Report> {
+    let manifest = Manifest::from_config(config)?;
+
+    match manifest.check(input, config) {
+        Ok(status @ RevocationStatus::CertainlyRevoked) => {
+            println!("{status:?}");
+            Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
+        }
+        Ok(
+            status @ (RevocationStatus::NotRevoked | RevocationStatus::NotCoveredByRevocationData),
+        ) => {
+            println!("{status:?}");
+            Ok(ExitCode::SUCCESS)
+        }
+        Err(e) => {
+            println!("{e:?}");
+            Ok(ExitCode::from(EXIT_CODE_REVOCATION_ERROR))
         }
     }
 }
