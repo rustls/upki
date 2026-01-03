@@ -1,7 +1,7 @@
 //! upki command-line entrypoint.
 
 use std::path::PathBuf;
-use std::process::exit;
+use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
@@ -13,7 +13,7 @@ use upki::{
 mod fetch;
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Report> {
+async fn main() -> Result<ExitCode, Report> {
     let args = Args::parse();
     if args.verbose {
         tracing_subscriber::fmt()
@@ -28,20 +28,21 @@ async fn main() -> Result<(), Report> {
 
     if let Command::ShowConfigPath = args.command {
         println!("{}", config_path.as_ref().display());
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     let config = Config::from_file_or_default(&config_path)?;
 
     match args.command {
-        Command::Fetch { dry_run } => fetch::fetch(&config.revocation, dry_run).await?,
-        Command::Verify => fetch::verify(&config.revocation.cache_dir)?,
+        Command::Fetch { dry_run } => fetch::fetch(&config.revocation, dry_run).await,
+        Command::Verify => fetch::verify(&config.revocation.cache_dir),
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(
                 "{}",
                 toml::to_string_pretty(&config).wrap_err("cannot format configuration")?
-            )
+            );
+            Ok(ExitCode::SUCCESS)
         }
         Command::RevocationCheck {
             cert_serial,
@@ -58,22 +59,22 @@ async fn main() -> Result<(), Report> {
             match manifest.check(&input, &config.revocation) {
                 Ok(status @ RevocationStatus::CertainlyRevoked) => {
                     println!("{status:?}");
-                    exit(EXIT_CODE_REVOCATION_REVOKED)
+                    Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
                 }
                 Ok(
                     status @ (RevocationStatus::NotRevoked
                     | RevocationStatus::NotCoveredByRevocationData),
                 ) => {
                     println!("{status:?}");
+                    Ok(ExitCode::SUCCESS)
                 }
                 Err(e) => {
                     println!("{e:?}");
-                    exit(EXIT_CODE_REVOCATION_ERROR);
+                    Ok(ExitCode::from(EXIT_CODE_REVOCATION_ERROR))
                 }
             }
         }
-    };
-    Ok(())
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -153,5 +154,5 @@ enum Command {
     ShowConfig,
 }
 
-const EXIT_CODE_REVOCATION_REVOKED: i32 = 1;
-const EXIT_CODE_REVOCATION_ERROR: i32 = 2;
+const EXIT_CODE_REVOCATION_REVOKED: u8 = 1;
+const EXIT_CODE_REVOCATION_ERROR: u8 = 2;
