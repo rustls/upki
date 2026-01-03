@@ -13,6 +13,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use aws_lc_rs::digest;
 use chrono::{DateTime, Utc};
@@ -27,7 +28,7 @@ pub(super) async fn fetch(
         fetch_url,
     }: &RevocationConfig,
     dry_run: bool,
-) -> Result<(), Report> {
+) -> Result<ExitCode, Report> {
     info!("fetching {fetch_url} into {cache_dir:?}...");
 
     let client = reqwest::Client::builder()
@@ -69,7 +70,7 @@ pub(super) async fn fetch(
         for step in plan.steps {
             println!("- {step}");
         }
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     info!(
@@ -83,10 +84,10 @@ pub(super) async fn fetch(
     }
 
     info!("success");
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
-pub(super) fn verify(local: &Path) -> Result<(), Report> {
+pub(super) fn verify(local: &Path) -> Result<ExitCode, Report> {
     let file_name = local.join(MANIFEST_JSON);
     let manifest = serde_json::from_reader(
         File::open(&file_name)
@@ -99,7 +100,7 @@ pub(super) fn verify(local: &Path) -> Result<(), Report> {
     let plan = Plan::construct(&manifest, "https://.../", local)?;
 
     match plan.download_bytes() {
-        0 => Ok(()),
+        0 => Ok(ExitCode::SUCCESS),
         bytes => Err(eyre!(
             "fixing the local cache requires downloading {bytes} bytes"
         )),
