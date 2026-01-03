@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use upki::{
     CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, RevocationCheckInput,
-    RevocationStatus,
+    RevocationConfig, RevocationStatus,
 };
 
 mod fetch;
@@ -47,33 +47,37 @@ async fn main() -> Result<(), Report> {
             cert_serial,
             issuer_spki_hash,
             sct_timestamps,
-        } => {
-            let manifest = config.revocation.manifest()?;
-            let input = RevocationCheckInput {
+        } => revocation_check(
+            &RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
                 sct_timestamps,
-            };
-
-            match manifest.check(&input, &config.revocation) {
-                Ok(status @ RevocationStatus::CertainlyRevoked) => {
-                    println!("{status:?}");
-                    exit(EXIT_CODE_REVOCATION_REVOKED)
-                }
-                Ok(
-                    status @ (RevocationStatus::NotRevoked
-                    | RevocationStatus::NotCoveredByRevocationData),
-                ) => {
-                    println!("{status:?}");
-                }
-                Err(e) => {
-                    println!("{e:?}");
-                    exit(EXIT_CODE_REVOCATION_ERROR);
-                }
-            }
-        }
+            },
+            &config.revocation,
+        )?,
     };
     Ok(())
+}
+
+fn revocation_check(input: &RevocationCheckInput, config: &RevocationConfig) -> Result<(), Report> {
+    let manifest = config.manifest()?;
+
+    match manifest.check(input, config) {
+        Ok(status @ RevocationStatus::CertainlyRevoked) => {
+            println!("{status:?}");
+            exit(EXIT_CODE_REVOCATION_REVOKED)
+        }
+        Ok(
+            status @ (RevocationStatus::NotRevoked | RevocationStatus::NotCoveredByRevocationData),
+        ) => {
+            println!("{status:?}");
+            Ok(())
+        }
+        Err(e) => {
+            println!("{e:?}");
+            exit(EXIT_CODE_REVOCATION_ERROR);
+        }
+    }
 }
 
 #[derive(Debug, Parser)]
