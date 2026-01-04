@@ -1,7 +1,8 @@
 use core::error::Error as StdError;
 use core::fmt;
 use core::str::FromStr;
-use std::fs;
+use std::fs::{self, File};
+use std::io::BufReader;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -28,6 +29,16 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    pub fn from_config(config: &RevocationConfig) -> Result<Self, Report> {
+        let file_name = config.cache_dir.join("manifest.json");
+        serde_json::from_reader(
+            File::open(&file_name)
+                .map(BufReader::new)
+                .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
+        )
+        .wrap_err("cannot parse manifest JSON")
+    }
+
     /// This function does a low-level revocation check.
     ///
     /// It is assumed the caller has already done a path verification, and now wants to

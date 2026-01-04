@@ -6,7 +6,7 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use upki::{
-    CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, RevocationCheckInput,
+    CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput,
     RevocationStatus,
 };
 
@@ -49,7 +49,7 @@ async fn main() -> Result<ExitCode, Report> {
             issuer_spki_hash,
             sct_timestamps,
         } => {
-            let manifest = config.revocation.manifest()?;
+            let manifest = Manifest::from_config(&config.revocation)?;
             let input = RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
