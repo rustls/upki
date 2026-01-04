@@ -69,7 +69,7 @@ fn test_low_level_cli(sites: Vec<RevocationTestSite>) {
         println!("duration: {time_taken:?}");
 
         match e.status.code() {
-            Some(1) => {
+            Some(2) => {
                 assert_eq!(e.stdout, b"CertainlyRevoked\n");
                 correctly_revoked += 1;
             }

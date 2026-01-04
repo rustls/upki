@@ -154,5 +154,5 @@ enum Command {
     ShowConfig,
 }
 
-const EXIT_CODE_REVOCATION_REVOKED: u8 = 1;
-const EXIT_CODE_REVOCATION_ERROR: u8 = 2;
+const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
+const EXIT_CODE_REVOCATION_ERROR: u8 = 1;
