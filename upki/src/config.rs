@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Config {
+    /// Where to store cache files.
+    pub cache_dir: PathBuf,
+
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
 }
@@ -35,8 +38,8 @@ impl Config {
     /// Return a sensible default configuration.
     pub fn try_default() -> Result<Self, Report> {
         Ok(Self {
+            cache_dir: platform::default_cache_dir()?,
             revocation: RevocationConfig {
-                cache_dir: platform::default_cache_dir()?,
                 fetch_url: "https://upki.rustls.dev/".into(),
             },
         })
@@ -47,9 +50,6 @@ impl Config {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RevocationConfig {
-    /// Where to store revocation data files.
-    pub cache_dir: PathBuf,
-
     /// Where to fetch revocation data files.
     pub fetch_url: String,
 }

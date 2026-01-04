@@ -20,14 +20,14 @@ use chrono::{DateTime, Utc};
 use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
-use upki::{Filter, Manifest, RevocationConfig};
+use upki::{Config, Filter, Manifest, RevocationConfig};
 
 pub(super) async fn fetch(
-    RevocationConfig {
-        cache_dir,
-        fetch_url,
-    }: &RevocationConfig,
     dry_run: bool,
+    Config {
+        cache_dir,
+        revocation: RevocationConfig { fetch_url },
+    }: &Config,
 ) -> Result<ExitCode, Report> {
     info!("fetching {fetch_url} into {cache_dir:?}...");
 

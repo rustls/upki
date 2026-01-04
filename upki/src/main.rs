@@ -34,8 +34,8 @@ async fn main() -> Result<ExitCode, Report> {
     let config = Config::from_file_or_default(&config_path)?;
 
     match args.command {
-        Command::Fetch { dry_run } => fetch::fetch(&config.revocation, dry_run).await,
-        Command::Verify => fetch::verify(&config.revocation.cache_dir),
+        Command::Fetch { dry_run } => fetch::fetch(dry_run, &config).await,
+        Command::Verify => fetch::verify(&config.cache_dir),
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(
@@ -49,14 +49,14 @@ async fn main() -> Result<ExitCode, Report> {
             issuer_spki_hash,
             sct_timestamps,
         } => {
-            let manifest = Manifest::from_config(&config.revocation)?;
+            let manifest = Manifest::from_config(&config)?;
             let input = RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
                 sct_timestamps,
             };
 
-            match manifest.check(&input, &config.revocation) {
+            match manifest.check(&input, &config) {
                 Ok(status @ RevocationStatus::CertainlyRevoked) => {
                     println!("{status:?}");
                     Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
