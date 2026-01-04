@@ -99,5 +99,5 @@ fn test_low_level_cli(sites: Vec<RevocationTestSite>) {
 
 const TEST_CONFIG_PATH: &str = "tmp/system-test/config.toml";
 const TEST_CONFIG: &str = "[revocation]\n\
-    cache_dir=\"tmp/system-test\"\n\
-    fetch_url=\"https://upki.rustls.dev/\"\n";
+    cache-dir = \"tmp/system-test\"\n\
+    fetch-url = \"https://upki.rustls.dev/\"\n";

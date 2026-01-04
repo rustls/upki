@@ -58,8 +58,8 @@ fn show_config_fixpoint() {
     exit_code: 0
     ----- stdout -----
     [revocation]
-    cache_dir = "not-exist/"
-    fetch_url = ""
+    cache-dir = "not-exist/"
+    fetch-url = ""
 
     ----- stderr -----
     "#);
@@ -402,8 +402,8 @@ fn write_config(temp: &TempDir, fetch_url: &str) {
         temp.path().join("config.toml"),
         format!(
             "[revocation]\n\
-            cache_dir=\"{}\"\n\
-            fetch_url=\"{fetch_url}\"\n",
+            cache-dir=\"{}\"\n\
+            fetch-url=\"{fetch_url}\"\n",
             temp.path().display(),
         )
         .as_bytes(),
