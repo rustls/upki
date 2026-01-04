@@ -11,7 +11,7 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File};
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -84,17 +84,11 @@ pub(super) async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Re
     Ok(ExitCode::SUCCESS)
 }
 
-pub(super) fn verify(local: &Path) -> Result<ExitCode, Report> {
-    let file_name = local.join(MANIFEST_JSON);
-    let manifest = serde_json::from_reader(
-        File::open(&file_name)
-            .map(BufReader::new)
-            .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
-    )
-    .wrap_err("cannot parse manifest JSON")?;
+pub(super) fn verify(config: &Config) -> Result<ExitCode, Report> {
+    let manifest = Manifest::from_config(&config)?;
     introduce_manifest(&manifest)?;
 
-    let plan = Plan::construct(&manifest, "https://.../", local)?;
+    let plan = Plan::construct(&manifest, "https://.../", &config.cache_dir)?;
 
     match plan.download_bytes() {
         0 => Ok(ExitCode::SUCCESS),

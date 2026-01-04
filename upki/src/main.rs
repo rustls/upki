@@ -35,7 +35,7 @@ async fn main() -> Result<ExitCode, Report> {
 
     match args.command {
         Command::Fetch { dry_run } => fetch::fetch(dry_run, &config).await,
-        Command::Verify => fetch::verify(&config.cache_dir),
+        Command::Verify => fetch::verify(&config),
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(
