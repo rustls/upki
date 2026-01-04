@@ -6,9 +6,11 @@ use std::io::BufReader;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use chrono::{DateTime, Utc};
 use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
 use eyre::{Context, Report, eyre};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 mod config;
 pub use config::{Config, ConfigPath, RevocationConfig};
@@ -73,6 +75,16 @@ impl Manifest {
         }
 
         Ok(RevocationStatus::NotCoveredByRevocationData)
+    }
+
+    pub fn introduce(&self) -> Result<(), Report> {
+        let dt = match DateTime::<Utc>::from_timestamp(self.generated_at as i64, 0) {
+            Some(dt) => dt.to_rfc3339(),
+            None => return Err(eyre!("manifest has invalid timestamp")),
+        };
+
+        info!(comment = self.comment, date = dt, "parsed manifest");
+        Ok(())
     }
 }
 

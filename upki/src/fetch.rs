@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use aws_lc_rs::digest;
-use chrono::{DateTime, Utc};
 use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
@@ -50,11 +49,11 @@ pub(super) async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Re
         .wrap_err("HTTP error while fetching manifest")?;
 
     let manifest = response
-        .json()
+        .json::<Manifest>()
         .await
         .wrap_err("failed to parse manifest JSON")?;
 
-    introduce_manifest(&manifest)?;
+    manifest.introduce()?;
 
     let plan = Plan::construct(&manifest, &config.revocation.fetch_url, &config.cache_dir)?;
 
@@ -86,7 +85,7 @@ pub(super) async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Re
 
 pub(super) fn verify(config: &Config) -> Result<ExitCode, Report> {
     let manifest = Manifest::from_config(&config)?;
-    introduce_manifest(&manifest)?;
+    manifest.introduce()?;
 
     let plan = Plan::construct(&manifest, "https://.../", &config.cache_dir)?;
 
@@ -96,16 +95,6 @@ pub(super) fn verify(config: &Config) -> Result<ExitCode, Report> {
             "fixing the local cache requires downloading {bytes} bytes"
         )),
     }
-}
-
-fn introduce_manifest(manifest: &Manifest) -> Result<(), Report> {
-    let dt = match DateTime::<Utc>::from_timestamp(manifest.generated_at as i64, 0) {
-        Some(dt) => dt.to_rfc3339(),
-        None => return Err(eyre!("manifest has invalid timestamp")),
-    };
-
-    info!(comment = manifest.comment, date = dt, "parsed manifest");
-    Ok(())
 }
 
 struct Plan {
