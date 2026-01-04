@@ -84,21 +84,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn verify(config: &Config) -> Result<ExitCode, Report> {
-    let manifest = Manifest::from_config(&config)?;
-    manifest.introduce()?;
-
-    let plan = Plan::construct(&manifest, "https://.../", &config.cache_dir)?;
-
-    match plan.download_bytes() {
-        0 => Ok(ExitCode::SUCCESS),
-        bytes => Err(eyre!(
-            "fixing the local cache requires downloading {bytes} bytes"
-        )),
-    }
-}
-
-struct Plan {
+pub(crate) struct Plan {
     steps: Vec<PlanStep>,
 }
 
@@ -108,7 +94,11 @@ impl Plan {
     /// - `manifest` describes the contents of the remote server.
     /// - `remote_url` is the base URL.
     /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
-    fn construct(manifest: &Manifest, remote_url: &str, local: &Path) -> Result<Self, Report> {
+    pub(crate) fn construct(
+        manifest: &Manifest,
+        remote_url: &str,
+        local: &Path,
+    ) -> Result<Self, Report> {
         let mut steps = Vec::new();
 
         // Collect unwanted files for deletion
@@ -150,7 +140,7 @@ impl Plan {
     }
 
     /// How many bytes will we download?
-    fn download_bytes(&self) -> usize {
+    pub(crate) fn download_bytes(&self) -> usize {
         self.steps
             .iter()
             .filter_map(|s| match s {

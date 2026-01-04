@@ -3,6 +3,7 @@ use core::fmt;
 use core::str::FromStr;
 use std::fs::{self, File};
 use std::io::BufReader;
+use std::process::ExitCode;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -16,7 +17,9 @@ mod config;
 pub use config::{Config, ConfigPath, RevocationConfig};
 
 mod fetch;
-pub use fetch::{fetch, verify};
+pub use fetch::fetch;
+
+use crate::fetch::Plan;
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -78,6 +81,17 @@ impl Manifest {
         }
 
         Ok(RevocationStatus::NotCoveredByRevocationData)
+    }
+
+    pub fn verify(&self, config: &Config) -> Result<ExitCode, Report> {
+        self.introduce()?;
+        let plan = Plan::construct(self, "https://.../", &config.cache_dir)?;
+        match plan.download_bytes() {
+            0 => Ok(ExitCode::SUCCESS),
+            bytes => Err(eyre!(
+                "fixing the local cache requires downloading {bytes} bytes"
+            )),
+        }
     }
 
     pub fn introduce(&self) -> Result<(), Report> {

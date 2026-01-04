@@ -86,7 +86,7 @@ fn verify_of_non_existent_dir() {
         No such file or directory (os error 2)
 
     Location:
-        upki/src/fetch.rs:[LINE]:[COLUMN]
+        upki/src/lib.rs:[LINE]:[COLUMN]
     "#);
 }
 
