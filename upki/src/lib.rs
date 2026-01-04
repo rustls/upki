@@ -29,7 +29,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn from_config(config: &RevocationConfig) -> Result<Self, Report> {
+    pub fn from_config(config: &Config) -> Result<Self, Report> {
         let file_name = config.cache_dir.join("manifest.json");
         serde_json::from_reader(
             File::open(&file_name)
@@ -49,7 +49,7 @@ impl Manifest {
     pub fn check(
         &self,
         input: &RevocationCheckInput,
-        config: &RevocationConfig,
+        config: &Config,
     ) -> Result<RevocationStatus, Report> {
         let key = input.key();
         for f in &self.filters {

@@ -1,3 +1,4 @@
-[revocation]
 cache-dir = "tests/data/verify_of_empty_manifest/"
+
+[revocation]
 fetch-url = ""
