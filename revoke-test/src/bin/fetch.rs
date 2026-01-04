@@ -21,7 +21,7 @@ async fn main() -> Result<(), Report> {
             .cloned(),
     );
 
-    let provider = Arc::new(crypto::ring::default_provider());
+    let provider = Arc::new(crypto::aws_lc_rs::default_provider());
     let mut tls_config = ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .map_err(|e| eyre::eyre!("failed to set protocol versions: {e}"))?
