@@ -7,10 +7,8 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use upki::{
     CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput,
-    RevocationStatus,
+    RevocationStatus, fetch, verify,
 };
-
-mod fetch;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {
@@ -34,8 +32,8 @@ async fn main() -> Result<ExitCode, Report> {
     let config = Config::from_file_or_default(&config_path)?;
 
     match args.command {
-        Command::Fetch { dry_run } => fetch::fetch(dry_run, &config).await,
-        Command::Verify => fetch::verify(&config),
+        Command::Fetch { dry_run } => fetch(dry_run, &config).await,
+        Command::Verify => verify(&config),
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(

@@ -15,6 +15,9 @@ use tracing::info;
 mod config;
 pub use config::{Config, ConfigPath, RevocationConfig};
 
+mod fetch;
+pub use fetch::{fetch, verify};
+
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Manifest {

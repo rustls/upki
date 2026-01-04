@@ -19,9 +19,10 @@ use aws_lc_rs::digest;
 use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
-use upki::{Config, Filter, Manifest};
 
-pub(super) async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
+use crate::{Config, Filter, Manifest};
+
+pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
     info!(
         "fetching {} into {:?}...",
         &config.revocation.fetch_url, &config.cache_dir
@@ -83,7 +84,7 @@ pub(super) async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Re
     Ok(ExitCode::SUCCESS)
 }
 
-pub(super) fn verify(config: &Config) -> Result<ExitCode, Report> {
+pub fn verify(config: &Config) -> Result<ExitCode, Report> {
     let manifest = Manifest::from_config(&config)?;
     manifest.introduce()?;
 
