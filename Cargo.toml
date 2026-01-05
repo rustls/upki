@@ -3,6 +3,7 @@ members = ["upki", "upki-mirror", "revoke-test", "rustls-upki"]
 resolver = "3"
 
 [workspace.package]
+license = "Apache-2.0 OR MIT"
 rust-version = "1.85"
 edition = "2024"
 repository = "https://github.com/rustls/upki"
