@@ -23,9 +23,10 @@ use tracing::{debug, info};
 use crate::{Config, Filter, Manifest};
 
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
+    let cache_dir = config.revocation_cache_dir();
     info!(
         "fetching {} into {:?}...",
-        &config.revocation.fetch_url, &config.cache_dir
+        &config.revocation.fetch_url, &cache_dir,
     );
 
     let client = reqwest::Client::builder()
@@ -56,7 +57,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
 
     manifest.introduce()?;
 
-    let plan = Plan::construct(&manifest, &config.revocation.fetch_url, &config.cache_dir)?;
+    let plan = Plan::construct(&manifest, &config.revocation.fetch_url, &cache_dir)?;
 
     if dry_run {
         println!(

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "kebab-case")]
 pub struct Config {
     /// Where to store cache files.
-    pub cache_dir: PathBuf,
+    cache_dir: PathBuf,
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
@@ -43,6 +43,10 @@ impl Config {
                 fetch_url: "https://upki.rustls.dev/".into(),
             },
         })
+    }
+
+    pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
+        self.cache_dir.to_owned()
     }
 }
 

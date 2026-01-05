@@ -38,7 +38,8 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn from_config(config: &Config) -> Result<Self, Report> {
-        let file_name = config.cache_dir.join("manifest.json");
+        let mut file_name = config.revocation_cache_dir();
+        file_name.push("manifest.json");
         serde_json::from_reader(
             File::open(&file_name)
                 .map(BufReader::new)
@@ -60,8 +61,9 @@ impl Manifest {
         config: &Config,
     ) -> Result<RevocationStatus, Report> {
         let key = input.key();
+        let cache_dir = config.revocation_cache_dir();
         for f in &self.filters {
-            let bytes = fs::read(config.cache_dir.join(&f.filename))
+            let bytes = fs::read(cache_dir.join(&f.filename))
                 .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?;
 
             let filter =
@@ -85,7 +87,7 @@ impl Manifest {
 
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Report> {
         self.introduce()?;
-        let plan = Plan::construct(self, "https://.../", &config.cache_dir)?;
+        let plan = Plan::construct(self, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
             0 => Ok(ExitCode::SUCCESS),
             bytes => Err(eyre!(
