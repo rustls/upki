@@ -35,6 +35,7 @@ pub struct Manifest {
 }
 
 impl Manifest {
+    /// Load the revocation manifest from the cache directory specified in the configuration.
     pub fn from_config(config: &Config) -> Result<Self, Report> {
         let mut file_name = config.revocation_cache_dir();
         file_name.push("manifest.json");
@@ -83,6 +84,9 @@ impl Manifest {
         Ok(RevocationStatus::NotCoveredByRevocationData)
     }
 
+    /// Verify the current contents of the cache against this manifest.
+    ///
+    /// This performs disk IO but does not perform network IO.
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Report> {
         self.introduce()?;
         let plan = Plan::construct(self, "https://.../", &config.revocation_cache_dir())?;
@@ -94,6 +98,7 @@ impl Manifest {
         }
     }
 
+    /// Logs metadata fields in this manifest.
     pub fn introduce(&self) -> Result<(), Report> {
         let dt = match DateTime::<Utc>::from_timestamp(self.generated_at as i64, 0) {
             Some(dt) => dt.to_rfc3339(),
@@ -105,6 +110,7 @@ impl Manifest {
     }
 }
 
+/// Manifest data for a single crlite filter file.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Filter {
     /// Relative filename.
@@ -137,6 +143,7 @@ impl RevocationCheckInput {
     }
 }
 
+/// A certificate serial number.
 #[derive(Clone, Debug)]
 pub struct CertSerial(pub Vec<u8>);
 
@@ -151,6 +158,7 @@ impl FromStr for CertSerial {
     }
 }
 
+/// The SHA256 hash of a `SubjectPublicKeyInfoDer` belonging to a certificate's issuer.
 #[derive(Clone, Debug)]
 pub struct IssuerSpkiHash(pub [u8; 32]);
 
@@ -170,9 +178,12 @@ impl FromStr for IssuerSpkiHash {
     }
 }
 
+/// An issuance timestamp established in certificate transparency.
 #[derive(Clone, Debug)]
 pub struct CtTimestamp {
+    /// CT log ID
     pub log_id: [u8; 32],
+    /// Issuance timestamp
     pub timestamp: u64,
 }
 

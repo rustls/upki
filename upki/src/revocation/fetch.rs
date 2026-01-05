@@ -23,6 +23,11 @@ use tracing::{debug, info};
 use crate::Config;
 use crate::revocation::{Filter, Manifest};
 
+/// Update the local revocation cache by fetching updates over the network.
+///
+/// `dry_run` means this call fetches the new manifest, but does not fetch any
+/// required files; but the necessary files are printed to stdout.  Therefore
+/// such a call is not completely "dry" -- perhaps "moist".
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
     let cache_dir = config.revocation_cache_dir();
     info!(
