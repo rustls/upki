@@ -1,2 +1,3 @@
 target/
 upki/tmp/
+*.pending-snap
