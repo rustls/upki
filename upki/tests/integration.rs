@@ -28,6 +28,35 @@ fn version() {
 }
 
 #[test]
+fn config_unknown_fields() {
+    let _filters = apply_common_filters();
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--config-file")
+            .arg("tests/data/config_unknown_fields/config.toml")
+            .arg("show-config"),
+        @r#"
+    success: false
+    exit_code: 1
+    ----- stdout -----
+
+    ----- stderr -----
+    Error: cannot parse configuration file at "tests/data/config_unknown_fields/config.toml"
+
+    Caused by:
+        TOML parse error at line 1, column 1
+          |
+        1 | cache_dir = "tests/data/config_unknown_fields/"
+          | ^^^^^^^^^
+        unknown field `cache_dir`, expected `revocation`
+
+
+    Location:
+        upki/src/config.rs:[LINE]:[COLUMN]
+    "#);
+}
+
+#[test]
 fn show_config_path_fixpoint() {
     let _filters = apply_common_filters();
     assert_cmd_snapshot!(

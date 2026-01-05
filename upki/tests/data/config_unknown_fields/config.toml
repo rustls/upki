@@ -1,0 +1,5 @@
+cache_dir = "tests/data/config_unknown_fields/"
+
+[revocation]
+cache-dir = "tests/data/config_unknown_fields/"
+fetch-url = ""

@@ -9,7 +9,7 @@ use crate::Manifest;
 
 /// `upki` configuration.
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Config {
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
@@ -48,7 +48,7 @@ impl Config {
 
 /// Details about crlite-style revocation.
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RevocationConfig {
     /// Where to store revocation data files.
     pub cache_dir: PathBuf,
