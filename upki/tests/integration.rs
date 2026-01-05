@@ -3,6 +3,7 @@
 #![cfg(not(target_os = "windows"))]
 
 use core::error::Error;
+use std::fs::create_dir;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -80,7 +81,7 @@ fn verify_of_non_existent_dir() {
     ----- stdout -----
 
     ----- stderr -----
-    Error: cannot open manifest JSON "not-exist/manifest.json"
+    Error: cannot open manifest JSON "not-exist/revocation/manifest.json"
 
     Caused by:
         No such file or directory (os error 2)
@@ -129,7 +130,10 @@ fn fetch_of_empty_manifest() {
         server.into_log(),
         @"GET /manifest.json  ->  200 OK (81 bytes)"
     );
-    assert_eq!(list_dir(temp.path()), vec!["config.toml", "manifest.json"]);
+    assert_eq!(
+        list_dir(&temp.path().join("revocation")),
+        vec!["manifest.json"],
+    );
 }
 
 #[test]
@@ -159,9 +163,8 @@ fn full_fetch() {
     GET /filter3.delta  ->  200 OK (10 bytes)
     ");
     assert_eq!(
-        list_dir(temp.path()),
+        list_dir(&temp.path().join("revocation")),
         vec![
-            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
@@ -197,14 +200,13 @@ fn full_fetch_and_incremental_update() {
     GET /filter3.delta  ->  200 OK (10 bytes)
     ");
     assert_eq!(
-        list_dir(temp.path()),
+        list_dir(&temp.path().join("revocation")),
         vec![
-            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
             "manifest.json"
-        ]
+        ],
     );
 
     // now server is updated to "evolution" which requires a partial update
@@ -231,9 +233,8 @@ fn full_fetch_and_incremental_update() {
     ");
     // filter2 is deleted, filter4 is new
     assert_eq!(
-        list_dir(temp.path()),
+        list_dir(&temp.path().join("revocation")),
         vec![
-            "config.toml",
             "filter1.filter",
             "filter3.delta",
             "filter4.delta",
@@ -249,18 +250,21 @@ fn typical_incremental_fetch() {
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     fs::copy(
-        "tests/data/typical/manifest.json",
-        temp.path().join("manifest.json"),
+        "tests/data/typical/revocation/manifest.json",
+        temp.path()
+            .join("revocation/manifest.json"),
     )
     .unwrap();
     fs::copy(
-        "tests/data/typical/filter1.filter",
-        temp.path().join("filter1.filter"),
+        "tests/data/typical/revocation/filter1.filter",
+        temp.path()
+            .join("revocation/filter1.filter"),
     )
     .unwrap();
     fs::copy(
-        "tests/data/typical/filter3.delta",
-        temp.path().join("filter3.delta"),
+        "tests/data/typical/revocation/filter3.delta",
+        temp.path()
+            .join("revocation/filter3.delta"),
     )
     .unwrap();
 
@@ -285,10 +289,11 @@ fn typical_incremental_fetch() {
     GET /filter2.delta  ->  200 OK (14 bytes)
     ");
 
+    assert_eq!(list_dir(temp.path()), vec!["config.toml", "revocation",],);
+
     assert_eq!(
-        list_dir(temp.path()),
+        list_dir(&temp.path().join("revocation")),
         vec![
-            "config.toml",
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
@@ -303,18 +308,21 @@ fn typical_incremental_fetch_dry_run() {
     let (server, _filters) = http_server("tests/data/typical/");
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
     fs::copy(
-        "tests/data/typical/manifest.json",
-        temp.path().join("manifest.json"),
+        "tests/data/typical/revocation/manifest.json",
+        temp.path()
+            .join("revocation/manifest.json"),
     )
     .unwrap();
     fs::copy(
-        "tests/data/typical/filter1.filter",
-        temp.path().join("filter1.filter"),
+        "tests/data/typical/revocation/filter1.filter",
+        temp.path()
+            .join("revocation/filter1.filter"),
     )
     .unwrap();
     fs::copy(
-        "tests/data/typical/filter3.delta",
-        temp.path().join("filter3.delta"),
+        "tests/data/typical/revocation/filter3.delta",
+        temp.path()
+            .join("revocation/filter3.delta"),
     )
     .unwrap();
 
@@ -329,25 +337,18 @@ fn typical_incremental_fetch_dry_run() {
     exit_code: 0
     ----- stdout -----
     2 steps required (14 bytes to download)
-    - download 14 bytes from http://127.0.0.1:[PORT]/filter2.delta to "[TEMPDIR]/filter2.delta"
-    - save new manifest into "[TEMPDIR]"
+    - download 14 bytes from http://127.0.0.1:[PORT]/filter2.delta to "[TEMPDIR]/revocation/filter2.delta"
+    - save new manifest into "[TEMPDIR]/revocation"
 
     ----- stderr -----
     "#);
 
     // fetched just the manifest
-    assert_snapshot!(
-        server.into_log(),
-        @"GET /manifest.json  ->  200 OK (532 bytes)");
+    assert_eq!(list_dir(temp.path()), vec!["config.toml", "revocation",],);
 
     assert_eq!(
-        list_dir(temp.path()),
-        vec![
-            "config.toml",
-            "filter1.filter",
-            "filter3.delta",
-            "manifest.json"
-        ]
+        list_dir(&temp.path().join("revocation")),
+        vec!["filter1.filter", "filter3.delta", "manifest.json"]
     );
 }
 
@@ -361,9 +362,11 @@ fn http_server(root: &str) -> (TestHttpServer, SettingsBindDropGuard) {
     // add a filter eliding the (random) port in logs
     let mut current_filters = insta::Settings::clone_current();
     current_filters.add_filter(&format!(":{port}/"), ":[PORT]/");
+    let mut root = PathBuf::from(root);
+    root.push("revocation");
 
     (
-        TestHttpServer::new(("127.0.0.1", port), Path::new(root)).unwrap(),
+        TestHttpServer::new(("127.0.0.1", port), &root).unwrap(),
         current_filters.bind_to_scope(),
     )
 }
@@ -394,6 +397,7 @@ fn temp_dir_and_config(fetch_url: &str) -> (TempDir, PathBuf, SettingsBindDropGu
     );
 
     let config_file = temp.path().join("config.toml");
+    create_dir(temp.path().join("revocation")).unwrap();
 
     (temp, config_file, settings.bind_to_scope())
 }

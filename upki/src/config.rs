@@ -46,7 +46,7 @@ impl Config {
     }
 
     pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
-        self.cache_dir.to_owned()
+        self.cache_dir.join("revocation")
     }
 }
 
