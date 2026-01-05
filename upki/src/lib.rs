@@ -1,3 +1,6 @@
+#![doc = include_str!("../../README.md")]
+#![warn(missing_docs)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -50,8 +53,11 @@ impl Config {
     }
 }
 
+/// How the path to a configuration file was decided upon.
 pub enum ConfigPath {
+    /// The path was directly specified by a user.
     Specified(PathBuf),
+    /// The path was determined automatically.
     Default(PathBuf),
 }
 
@@ -130,4 +136,5 @@ mod platform {
 const PREFIX: &str = "upki";
 const CONFIG_FILE: &str = "config.toml";
 
+/// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
