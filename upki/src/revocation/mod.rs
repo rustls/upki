@@ -13,7 +13,7 @@ use eyre::{Context, Report, eyre};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::config::Config;
+use crate::Config;
 
 mod fetch;
 use fetch::Plan;
