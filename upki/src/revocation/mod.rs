@@ -232,3 +232,11 @@ impl fmt::Display for Error {
 }
 
 impl StdError for Error {}
+
+/// Details about crlite-style revocation.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub struct RevocationConfig {
+    /// Where to fetch revocation data files.
+    pub fetch_url: String,
+}

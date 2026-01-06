@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use eyre::{Context, Report};
 use serde::{Deserialize, Serialize};
 
+use crate::revocation::RevocationConfig;
+
 /// `upki` configuration.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -48,14 +50,6 @@ impl Config {
     pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("revocation")
     }
-}
-
-/// Details about crlite-style revocation.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub struct RevocationConfig {
-    /// Where to fetch revocation data files.
-    pub fetch_url: String,
 }
 
 pub enum ConfigPath {
