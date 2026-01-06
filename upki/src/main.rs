@@ -5,10 +5,10 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
-use upki::{
-    CertSerial, Config, ConfigPath, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput,
-    RevocationStatus, fetch,
+use upki::revocation::{
+    CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
 };
+use upki::{Config, ConfigPath, fetch};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {
