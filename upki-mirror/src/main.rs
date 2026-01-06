@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use aws_lc_rs::digest::{SHA256, digest};
 use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
-use upki::{Filter, Manifest};
+use upki::revocation::{Filter, Manifest};
 
 mod mozilla;
 
