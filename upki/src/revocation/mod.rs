@@ -238,5 +238,13 @@ impl StdError for Error {}
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct RevocationConfig {
     /// Where to fetch revocation data files.
-    pub fetch_url: String,
+    fetch_url: String,
+}
+
+impl Default for RevocationConfig {
+    fn default() -> Self {
+        Self {
+            fetch_url: "https://upki.rustls.dev/".into(),
+        }
+    }
 }

@@ -41,9 +41,7 @@ impl Config {
     pub fn try_default() -> Result<Self, Report> {
         Ok(Self {
             cache_dir: platform::default_cache_dir()?,
-            revocation: RevocationConfig {
-                fetch_url: "https://upki.rustls.dev/".into(),
-            },
+            revocation: RevocationConfig::default(),
         })
     }
 
