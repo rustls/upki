@@ -7,8 +7,9 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use upki::revocation::{
     CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
+    fetch,
 };
-use upki::{Config, ConfigPath, fetch};
+use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {

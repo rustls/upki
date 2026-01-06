@@ -14,7 +14,10 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::config::Config;
-use crate::fetch::Plan;
+
+mod fetch;
+use fetch::Plan;
+pub use fetch::fetch;
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
