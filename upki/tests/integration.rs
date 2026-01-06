@@ -104,7 +104,7 @@ fn verify_of_non_existent_dir() {
             .arg("--config-file")
             .arg("tests/data/verify_non_existent_dir/config.toml")
             .arg("verify"),
-        @r#"
+        @r###"
     success: false
     exit_code: 1
     ----- stdout -----
@@ -116,8 +116,8 @@ fn verify_of_non_existent_dir() {
         No such file or directory (os error 2)
 
     Location:
-        upki/src/lib.rs:[LINE]:[COLUMN]
-    "#);
+        upki/src/revocation/mod.rs:[LINE]:[COLUMN]
+    "###);
 }
 
 #[test]

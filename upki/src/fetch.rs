@@ -20,7 +20,8 @@ use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
 
-use crate::{Config, Filter, Manifest};
+use crate::Config;
+use crate::revocation::{Filter, Manifest};
 
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
     let cache_dir = config.revocation_cache_dir();
