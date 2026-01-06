@@ -53,7 +53,7 @@ fn config_unknown_fields() {
 
 
     Location:
-        upki/src/config.rs:[LINE]:[COLUMN]
+        upki/src/lib.rs:[LINE]:[COLUMN]
     "###);
 }
 
