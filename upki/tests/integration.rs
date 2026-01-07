@@ -36,7 +36,7 @@ fn config_unknown_fields() {
             .arg("--config-file")
             .arg("tests/data/config_unknown_fields/config.toml")
             .arg("show-config"),
-        @r#"
+        @r###"
     success: false
     exit_code: 1
     ----- stdout -----
@@ -49,12 +49,12 @@ fn config_unknown_fields() {
           |
         1 | cache_dir = "tests/data/config_unknown_fields/"
           | ^^^^^^^^^
-        unknown field `cache_dir`, expected `revocation`
+        unknown field `cache_dir`, expected `cache-dir` or `revocation`
 
 
     Location:
         upki/src/config.rs:[LINE]:[COLUMN]
-    "#);
+    "###);
 }
 
 #[test]
