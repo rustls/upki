@@ -6,10 +6,16 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::SystemTime;
 
+use base64::prelude::*;
 use insta_cmd::get_cargo_bin;
 use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites, Sct};
+use rustls::client::danger::ServerCertVerifier;
+use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::{CertificateError, Error, RootCertStore};
+use rustls_upki::{Policy, ServerVerifier};
 
 #[ignore]
 #[test]
@@ -38,16 +44,75 @@ fn real_world_system_tests() {
     let low_level_cli = test_each_site(tests.sites.iter(), low_level_cli);
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli);
 
-    for ((site, low), high) in tests
+    let verifier = ServerVerifier::new(
+        Policy::default(),
+        Some(TEST_CONFIG_PATH.into()),
+        Arc::new(RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        }),
+        Arc::new(rustls::crypto::aws_lc_rs::default_provider()),
+    )
+    .unwrap();
+
+    let rustls_results = test_each_site(tests.sites.iter(), verifier);
+
+    for (((site, low), high), rustls) in tests
         .sites
         .iter()
         .zip(low_level_cli.iter())
         .zip(high_level_cli.iter())
+        .zip(rustls_results.iter())
     {
         assert_eq!(
             low, high,
             "site {site:?} revocation result disagrees between low and high-level APIs"
         );
+        assert_eq!(
+            low, rustls,
+            "site {site:?} revocation result disagrees between low-level API and rustls"
+        );
+    }
+}
+
+impl TestCase for ServerVerifier {
+    fn run(&self, detail: &CertificateDetail, test: &RevocationTestSite) -> TestResult {
+        // Decode certificates from base64
+        let end_entity = CertificateDer::from(
+            BASE64_STANDARD
+                .decode(&detail.end_entity_cert)
+                .expect("cannot decode end_entity_cert"),
+        );
+        let intermediates = [CertificateDer::from(
+            BASE64_STANDARD
+                .decode(&detail.issuer_cert)
+                .expect("cannot decode issuer_cert"),
+        )];
+
+        let url = &test.test_website_revoked;
+        let host = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))
+            .unwrap_or(url)
+            .split('/')
+            .next()
+            .unwrap();
+        // Strip port if present
+        let domain = host.split(':').next().unwrap();
+        let server_name = ServerName::try_from(domain.to_string()).unwrap();
+
+        match self.verify_server_cert(
+            &end_entity,
+            &intermediates,
+            &server_name,
+            &[],
+            UnixTime::now(),
+        ) {
+            Ok(_) => TestResult::IncorrectlyNotRevoked,
+            Err(Error::InvalidCertificate(CertificateError::Revoked)) => {
+                TestResult::CorrectlyRevoked
+            }
+            Err(e) => panic!("unexpected error verifying certificate: {e}"),
+        }
     }
 }
 
@@ -138,7 +203,7 @@ fn high_level_cli(detail: &CertificateDetail) -> TestResult {
 
 fn test_each_site<'a>(
     sites: impl Iterator<Item = &'a RevocationTestSite>,
-    test_one: impl Fn(&CertificateDetail) -> TestResult,
+    test_one: impl TestCase,
 ) -> Vec<TestResult> {
     let mut results = Vec::new();
 
@@ -150,7 +215,7 @@ fn test_each_site<'a>(
             continue;
         };
         let start = SystemTime::now();
-        let result = test_one(detail);
+        let result = test_one.run(detail, t);
         let time_taken = start.elapsed().unwrap();
         println!("duration: {time_taken:?}");
         results.push(result);
@@ -176,6 +241,19 @@ fn test_each_site<'a>(
     assert!(correctly_revoked > 0);
     assert!(correctly_revoked > incorrectly_not_revoked);
     results
+}
+
+impl<F> TestCase for F
+where
+    F: Fn(&CertificateDetail) -> TestResult,
+{
+    fn run(&self, detail: &CertificateDetail, _: &RevocationTestSite) -> TestResult {
+        self(detail)
+    }
+}
+
+trait TestCase {
+    fn run(&self, detail: &CertificateDetail, test: &RevocationTestSite) -> TestResult;
 }
 
 #[derive(Debug, PartialEq)]
