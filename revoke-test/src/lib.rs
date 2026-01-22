@@ -70,7 +70,7 @@ impl CertificateDetail {
         Ok(Self {
             end_entity_cert: BASE64_STANDARD.encode(&certs[0]),
             issuer_cert: BASE64_STANDARD.encode(&certs[1]),
-            serial: BASE64_STANDARD.encode(end_entity.serial.to_bytes_be()),
+            serial: BASE64_STANDARD.encode(end_entity.raw_serial()),
             issuer_spki_sha256: BASE64_STANDARD
                 .encode(digest(&SHA256, issuer.public_key().raw).as_ref()),
             scts,
