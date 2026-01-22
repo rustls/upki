@@ -17,7 +17,7 @@ This is for checking revocation status for certificates issued by publicly-trust
 authorities.  It uses [crlite-clubcard](https://eprint.iacr.org/2025/610).  This requires
 a data set that updates several times per day.  `upki` therefore includes a synchronization
 component, which fetches updated data.  You can run `upki fetch` to do this at any time,
-but ideally it is run system-wide as arranged by packagers.
+but ideally it is run system-wide as [arranged by packagers](PACKAGING.md).
 
 There are a number of interfaces available:
 
@@ -40,6 +40,10 @@ TODO
 ### Rust crate
 
 TODO
+
+# Packaging
+
+See [PACKAGING.md](PACKAGING.md).
 
 # License
 
