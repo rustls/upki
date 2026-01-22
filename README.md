@@ -1,4 +1,45 @@
-# `upki`
+<p align="center">
+  <img width="460" height="300" src="https://raw.githubusercontent.com/rustls/upki/main/admin/upki.png">
+</p>
+
+**upki** brings browser-grade certificate infrastructure to Linux.
+
+The first goal of this project is to provide reliable, privacy-preserving
+and efficient certificate revocation building on foundational work by Mozilla.
+
+Later goals include intermediate preloading, certificate transparency enforcement,
+replicating common root distrust processes, and supporting deployment of
+Merkle Tree Certificates.
+
+## Revocation
+
+This is for checking revocation status for certificates issued by publicly-trusted
+authorities.  It uses [crlite-clubcard](https://eprint.iacr.org/2025/610).  This requires
+a data set that updates several times per day.  `upki` therefore includes a synchronization
+component, which fetches updated data.  You can run `upki fetch` to do this at any time,
+but ideally it is run system-wide as arranged by packagers.
+
+There are a number of interfaces available:
+
+### Command-line interface
+This is useful for monitoring, testing and alerting purposes.
+
+```shell
+$ curl -w '%{certs}' https://google.com | upki revocation-check high
+(...)
+NotRevoked
+```
+
+There is a further, low-level command-line interface -- see `upki revocation detail --help` for
+more.
+
+### C-FFI interface
+
+TODO
+
+### Rust crate
+
+TODO
 
 # License
 
