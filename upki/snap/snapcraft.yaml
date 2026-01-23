@@ -1,0 +1,51 @@
+name: upki
+title: upki
+summary: Browser-grade certificate infrastructure to Linux
+description: |
+  upki brings browser-grade certificate infrastructure to Linux.
+
+  The first goal of this project is to provide reliable, privacy-preserving and
+  efficient certificate revocation building on foundational work by Mozilla.
+
+  Later goals include intermediate preloading, certificate transparency
+  enforcement, replicating common root distrust processes, and supporting
+  deployment of Merkle Tree Certificates.
+
+# Get the version dynamically from the built binary
+adopt-info: upki
+
+license: Apache-2.0
+contact: https://github.com/rustls/upki/issues
+issues: https://github.com/rustls/upki/issues
+source-code: https://github.com/rustls/upki
+website: https://github.com/rustls/upki
+
+base: core24
+confinement: strict
+grade: stable
+compression: lzo
+
+plugs:
+  dot-cache-upki:
+    interface: personal-files
+    write:
+      - $HOME/.cache/upki
+
+apps:
+  upki:
+    command: bin/upki
+    plugs:
+      - network
+      - home
+      - dot-cache-upki
+
+parts:
+  upki:
+    plugin: rust
+    source: https://github.com/rustls/upki.git
+    # We should replace this with source-tag when a release is cut.
+    source-commit: 097c70611ebc09119f27f6d4deb5d8553080e56b
+    source-subdir: upki
+    override-prime: |
+      craftctl default
+      craftctl set version="$($CRAFT_PRIME/bin/upki --version | cut -d" " -f2)"
