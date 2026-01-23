@@ -1,3 +1,4 @@
 target/
 revoke-test/tmp/
 *.pending-snap
+*.snap
