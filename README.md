@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="460" height="300" src="https://raw.githubusercontent.com/rustls/upki/main/admin/upki.png">
+  <img width="460" src="https://raw.githubusercontent.com/rustls/upki/main/admin/upki.png">
 </p>
 
 **upki** brings browser-grade certificate infrastructure to Linux.

@@ -4,11 +4,10 @@ use std::io::{BufReader, stdin};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use aws_lc_rs::digest;
 use clap::{Parser, Subcommand};
-use eyre::{Context, ContextCompat, Report, eyre};
+use eyre::{Context, Report};
+use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
-use rustls_pki_types::{CertificateDer, TrustAnchor};
 use upki::revocation::{
     CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
     fetch,
@@ -54,59 +53,27 @@ async fn main() -> Result<ExitCode, Report> {
                 certs.push(cert.wrap_err("cannot read certificate from stdin")?);
             }
 
-            let (end_entity, rest) = certs
-                .split_first()
-                .wrap_err("not enough certificates received in stdin")?;
-            let end_entity = webpki::EndEntityCert::try_from(end_entity)
-                .wrap_err("cannot parse end-entity certificate")?;
-            let issuer = find_issuer(rest.iter(), end_entity.issuer())?;
-            let issuer_spki_hash = IssuerSpkiHash(
-                digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
-                    .as_ref()
-                    .try_into()
-                    .expect("sha256 output must be [u8;32]"),
-            );
-
-            let mut sct_timestamps = vec![];
-            for ts in end_entity
-                .sct_log_timestamps()
-                .map_err(|e| eyre!("error decoding sct: {e:?}"))?
-            {
-                let ts = ts.map_err(|e| eyre!("decoding error sct: {e:?}"))?;
-                sct_timestamps.push(CtTimestamp {
-                    log_id: ts.log_id,
-                    timestamp: ts.timestamp_ms,
-                });
-            }
-
-            revocation_check(
-                &RevocationCheckInput {
-                    cert_serial: CertSerial(end_entity.serial().into()),
-                    issuer_spki_hash,
-                    sct_timestamps,
-                },
-                &config,
+            revocation_check_to_exit_code(
+                Manifest::from_config(&config)?.check_certificates(&certs, &config),
             )
         }
         Command::RevocationCheck(RevocationCheck::Detail {
             cert_serial,
             issuer_spki_hash,
             sct_timestamps,
-        }) => revocation_check(
+        }) => revocation_check_to_exit_code(Manifest::from_config(&config)?.check(
             &RevocationCheckInput {
                 cert_serial,
                 issuer_spki_hash,
                 sct_timestamps,
             },
             &config,
-        ),
+        )),
     }
 }
 
-fn revocation_check(input: &RevocationCheckInput, config: &Config) -> Result<ExitCode, Report> {
-    let manifest = Manifest::from_config(config)?;
-
-    match manifest.check(input, config) {
+fn revocation_check_to_exit_code(rc: Result<RevocationStatus, Report>) -> Result<ExitCode, Report> {
+    match rc {
         Ok(status @ RevocationStatus::CertainlyRevoked) => {
             println!("{status:?}");
             Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
@@ -220,23 +187,6 @@ enum RevocationCheck {
         /// a colon, followed by the decimal encoding of the timestamp.
         sct_timestamps: Vec<CtTimestamp>,
     },
-}
-
-fn find_issuer<'a>(
-    candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
-    name: &[u8],
-) -> Result<TrustAnchor<'a>, Report> {
-    for (i, c) in candidates.enumerate() {
-        // nb. do not copy this code. it is not correct to treat intermediate certificates
-        // as trust anchors.
-        let root = webpki::anchor_from_trusted_cert(c).wrap_err_with(|| {
-            format!("cannot parse potential intermediate certificate {}", i + 1)
-        })?;
-        if root.subject.as_ref() == name {
-            return Ok(root);
-        }
-    }
-    Err(eyre::eyre!("cannot find issuer certificate"))
 }
 
 const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
