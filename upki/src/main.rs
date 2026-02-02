@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
-use upki::revocation::{Manifest, fetch};
+use upki::revocation::{Manifest, RevocationCheckInput, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -50,8 +50,9 @@ async fn main() -> Result<ExitCode, Report> {
                 certs.push(cert.wrap_err("cannot read certificate from stdin")?);
             }
 
+            let input = RevocationCheckInput::from_certificates(&certs)?;
             Ok(Manifest::from_config(&config)?
-                .check_certificates(&certs, &config)?
+                .check(&input, &config)?
                 .to_cli())
         }
     }

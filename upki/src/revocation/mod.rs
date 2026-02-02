@@ -49,59 +49,6 @@ impl Manifest {
         .wrap_err("cannot parse manifest JSON")
     }
 
-    /// This function does a high-level revocation check.
-    ///
-    /// The first element in `certificates` **must** be the end-entity certificate.  The
-    /// end-entity certificate's issuer **must** be present in the other certificates
-    /// (but does not need to be in any specific position).
-    ///
-    /// Note this interface **only** checks the end-entity certificate for revocation.  It does
-    /// **not** check any of the certificates for validity: it assumes the caller has done any
-    /// required checks before calling this interface (path building, naming validation,
-    /// expiry checking, etc.).
-    ///
-    /// On success, this returns a [`RevocationStatus`] saying whether the certificate
-    /// is revoked, not revoked, or whether the data set cannot make that determination.
-    pub fn check_certificates(
-        &self,
-        certificates: &[CertificateDer<'_>],
-        config: &Config,
-    ) -> Result<RevocationStatus, Report> {
-        let (end_entity, rest) = certificates
-            .split_first()
-            .wrap_err("too few certificates")?;
-        let end_entity = webpki::EndEntityCert::try_from(end_entity)
-            .wrap_err("cannot parse end-entity certificate")?;
-        let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
-        let issuer_spki_hash = IssuerSpkiHash(
-            digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
-                .as_ref()
-                .try_into()
-                .expect("sha256 output must be [u8;32]"),
-        );
-
-        let mut sct_timestamps = vec![];
-        for ts in end_entity
-            .sct_log_timestamps()
-            .map_err(|e| eyre!("error decoding sct: {e:?}"))?
-        {
-            let ts = ts.map_err(|e| eyre!("decoding error sct: {e:?}"))?;
-            sct_timestamps.push(CtTimestamp {
-                log_id: ts.log_id,
-                timestamp: ts.timestamp_ms,
-            });
-        }
-
-        self.check(
-            &RevocationCheckInput {
-                cert_serial: CertSerial(end_entity.serial().into()),
-                issuer_spki_hash,
-                sct_timestamps,
-            },
-            config,
-        )
-    }
-
     /// This function does a low-level revocation check.
     ///
     /// It is assumed the caller has already done a path verification, and now wants to
@@ -193,6 +140,49 @@ pub struct RevocationCheckInput {
 }
 
 impl RevocationCheckInput {
+    /// Construct a `RevocationCheckInput` from a sequence of DER-encoded certificates.
+    ///
+    /// The first element in `certificates` **must** be the end-entity certificate.  The
+    /// end-entity certificate's issuer **must** be present in the other certificates
+    /// (but does not need to be in any specific position).
+    ///
+    /// Note this interface **only** checks the end-entity certificate for revocation.  It does
+    /// **not** check any of the certificates for validity: it assumes the caller has done any
+    /// required checks before calling this interface (path building, naming validation,
+    /// expiry checking, etc.).
+    pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Report> {
+        let (end_entity, rest) = certificates
+            .split_first()
+            .wrap_err("too few certificates")?;
+        let end_entity = webpki::EndEntityCert::try_from(end_entity)
+            .wrap_err("cannot parse end-entity certificate")?;
+        let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
+        let issuer_spki_hash = IssuerSpkiHash(
+            digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
+                .as_ref()
+                .try_into()
+                .expect("sha256 output must be [u8;32]"),
+        );
+
+        let mut sct_timestamps = vec![];
+        for ts in end_entity
+            .sct_log_timestamps()
+            .map_err(|e| eyre!("error decoding sct: {e:?}"))?
+        {
+            let ts = ts.map_err(|e| eyre!("decoding error sct: {e:?}"))?;
+            sct_timestamps.push(CtTimestamp {
+                log_id: ts.log_id,
+                timestamp: ts.timestamp_ms,
+            });
+        }
+
+        Ok(Self {
+            cert_serial: CertSerial(end_entity.serial().into()),
+            issuer_spki_hash,
+            sct_timestamps,
+        })
+    }
+
     fn key(&self) -> CRLiteKey<'_> {
         CRLiteKey::new(&self.issuer_spki_hash.0, &self.cert_serial.0)
     }
