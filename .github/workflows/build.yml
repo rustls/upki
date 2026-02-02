@@ -25,17 +25,19 @@ jobs:
   build:
     strategy:
       matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+          - ubuntu-24.04-arm
+        rustc:
+          - stable
         include:
           - os: ubuntu-latest
-            rustc: stable
-          - os: ubuntu-latest
             rustc: nightly
-          - os: macos-latest
-            rustc: stable
-          - os: windows-latest
-            rustc: stable
-          - os: ubuntu-24.04-arm
-            rustc: stable
+        exclude: # and never use macos/windows for merge checks
+          - os: ${{ github.event_name == 'merge_group' && 'windows-latest' }}
+          - os: ${{ github.event_name == 'merge_group' && 'macos-latest' }}
 
     runs-on: ${{ matrix.os }}
     steps:
