@@ -283,6 +283,21 @@ pub enum RevocationStatus {
     NotRevoked,
 }
 
+impl RevocationStatus {
+    /// Convert this revocation status to an exit code for the CLI.
+    ///
+    /// Also print the status to stdout.
+    pub fn to_cli(&self) -> ExitCode {
+        println!("{self:?}");
+        match self {
+            Self::NotRevoked | Self::NotCoveredByRevocationData => ExitCode::SUCCESS,
+            Self::CertainlyRevoked => ExitCode::from(Self::EXIT_CODE_REVOCATION_REVOKED),
+        }
+    }
+
+    const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
+}
+
 #[derive(Debug)]
 pub(crate) enum Error {
     /// `crlite_clubcard::CRLiteClubcard` couldn't deserialize the filter data.

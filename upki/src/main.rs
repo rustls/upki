@@ -9,8 +9,7 @@ use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
 use upki::revocation::{
-    CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
-    fetch,
+    CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, fetch,
 };
 use upki::{Config, ConfigPath};
 
@@ -53,41 +52,24 @@ async fn main() -> Result<ExitCode, Report> {
                 certs.push(cert.wrap_err("cannot read certificate from stdin")?);
             }
 
-            revocation_check_to_exit_code(
-                Manifest::from_config(&config)?.check_certificates(&certs, &config),
-            )
+            Ok(Manifest::from_config(&config)?
+                .check_certificates(&certs, &config)?
+                .to_cli())
         }
         Command::RevocationCheck(RevocationCheck::Detail {
             cert_serial,
             issuer_spki_hash,
             sct_timestamps,
-        }) => revocation_check_to_exit_code(Manifest::from_config(&config)?.check(
-            &RevocationCheckInput {
-                cert_serial,
-                issuer_spki_hash,
-                sct_timestamps,
-            },
-            &config,
-        )),
-    }
-}
-
-fn revocation_check_to_exit_code(rc: Result<RevocationStatus, Report>) -> Result<ExitCode, Report> {
-    match rc {
-        Ok(status @ RevocationStatus::CertainlyRevoked) => {
-            println!("{status:?}");
-            Ok(ExitCode::from(EXIT_CODE_REVOCATION_REVOKED))
-        }
-        Ok(
-            status @ (RevocationStatus::NotRevoked | RevocationStatus::NotCoveredByRevocationData),
-        ) => {
-            println!("{status:?}");
-            Ok(ExitCode::SUCCESS)
-        }
-        Err(e) => {
-            println!("{e:?}");
-            Ok(ExitCode::from(EXIT_CODE_REVOCATION_ERROR))
-        }
+        }) => Ok(Manifest::from_config(&config)?
+            .check(
+                &RevocationCheckInput {
+                    cert_serial,
+                    issuer_spki_hash,
+                    sct_timestamps,
+                },
+                &config,
+            )?
+            .to_cli()),
     }
 }
 
@@ -188,6 +170,3 @@ enum RevocationCheck {
         sct_timestamps: Vec<CtTimestamp>,
     },
 }
-
-const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
-const EXIT_CODE_REVOCATION_ERROR: u8 = 1;
