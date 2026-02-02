@@ -72,7 +72,7 @@ impl Manifest {
             .wrap_err("too few certificates")?;
         let end_entity = webpki::EndEntityCert::try_from(end_entity)
             .wrap_err("cannot parse end-entity certificate")?;
-        let issuer = find_issuer(rest.iter(), end_entity.issuer())?;
+        let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
         let issuer_spki_hash = IssuerSpkiHash(
             digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
                 .as_ref()
@@ -331,8 +331,8 @@ impl Default for RevocationConfig {
 }
 
 fn find_issuer<'a>(
-    candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
     name: &[u8],
+    candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
 ) -> Result<TrustAnchor<'a>, Report> {
     for (i, c) in candidates.enumerate() {
         // nb. do not copy this code. it is not correct to treat intermediate certificates
