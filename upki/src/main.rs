@@ -8,9 +8,7 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
-use upki::revocation::{
-    CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, fetch,
-};
+use upki::revocation::{Manifest, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -56,20 +54,6 @@ async fn main() -> Result<ExitCode, Report> {
                 .check_certificates(&certs, &config)?
                 .to_cli())
         }
-        Command::RevocationCheck(RevocationCheck::Detail {
-            cert_serial,
-            issuer_spki_hash,
-            sct_timestamps,
-        }) => Ok(Manifest::from_config(&config)?
-            .check(
-                &RevocationCheckInput {
-                    cert_serial,
-                    issuer_spki_hash,
-                    sct_timestamps,
-                },
-                &config,
-            )?
-            .to_cli()),
     }
 }
 
@@ -143,30 +127,4 @@ enum RevocationCheck {
     /// required checks **before** calling this interface (path building, naming validation,
     /// expiry checking, etc.).
     High,
-
-    /// A "low-level" revocation check operation.
-    ///
-    /// This interface requires the callers to have an X509 parser that can extract
-    /// all the required details.  In exchange, it is faster because it involves less IO.
-    Detail {
-        /// The serial number of the end-entity certificate to check.
-        ///
-        /// This must be the base64 encoding of a big-endian integer, with
-        /// any necessary leading byte to ensure the top-bit is unset.
-        cert_serial: CertSerial,
-
-        /// The SHA256 hash of the issuer's SubjectPublicKeyInfo structure.
-        ///
-        /// This must be the base64 encoding of precisely 32 bytes.
-        issuer_spki_hash: IssuerSpkiHash,
-
-        /// The Certificate Transparency logs and inclusion timestamps extracted
-        /// from the end-entity certificate.
-        ///
-        /// Ths option should be supplied once for each log.
-        ///
-        /// The format should be the base64 encoding of the CT log id, followed by
-        /// a colon, followed by the decimal encoding of the timestamp.
-        sct_timestamps: Vec<CtTimestamp>,
-    },
 }

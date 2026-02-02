@@ -11,7 +11,7 @@ use std::time::SystemTime;
 
 use base64::prelude::*;
 use insta_cmd::get_cargo_bin;
-use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites, Sct};
+use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites};
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{CertificateError, Error, RootCertStore};
@@ -41,7 +41,6 @@ fn real_world_system_tests() {
     )
     .expect("cannot parse test-sites.json");
 
-    let low_level_cli = test_each_site(tests.sites.iter(), low_level_cli);
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli);
 
     let verifier = ServerVerifier::new(
@@ -56,20 +55,15 @@ fn real_world_system_tests() {
 
     let rustls_results = test_each_site(tests.sites.iter(), verifier);
 
-    for (((site, low), high), rustls) in tests
+    for ((site, high), rustls) in tests
         .sites
         .iter()
-        .zip(low_level_cli.iter())
         .zip(high_level_cli.iter())
         .zip(rustls_results.iter())
     {
         assert_eq!(
-            low, high,
-            "site {site:?} revocation result disagrees between low and high-level APIs"
-        );
-        assert_eq!(
-            low, rustls,
-            "site {site:?} revocation result disagrees between low-level API and rustls"
+            high, rustls,
+            "site {site:?} revocation result disagrees between high-level API and rustls verifier"
         );
     }
 }
@@ -112,42 +106,6 @@ impl TestCase for ServerVerifier {
                 TestResult::CorrectlyRevoked
             }
             Err(e) => panic!("unexpected error verifying certificate: {e}"),
-        }
-    }
-}
-
-fn low_level_cli(detail: &CertificateDetail) -> TestResult {
-    let e = Command::new(get_cargo_bin("upki"))
-        .arg("--config-file")
-        .arg(TEST_CONFIG_PATH)
-        .arg("revocation-check")
-        .arg("detail")
-        .arg(&detail.serial)
-        .arg(&detail.issuer_spki_sha256)
-        .args(
-            detail
-                .scts
-                .iter()
-                .map(|Sct { log_id, timestamp }| format!("{log_id}:{timestamp}")),
-        )
-        .output()
-        .expect("cannot run upki");
-
-    match e.status.code() {
-        Some(2) => {
-            assert_eq!(e.stdout, b"CertainlyRevoked\n");
-            TestResult::CorrectlyRevoked
-        }
-        Some(0) => {
-            assert!(matches!(
-                e.stdout.as_slice(),
-                b"NotCoveredByRevocationData\n" | b"NotRevoked\n"
-            ));
-            TestResult::IncorrectlyNotRevoked
-        }
-        _ => {
-            println!("unexpected stdout {}", String::from_utf8_lossy(&e.stdout));
-            panic!("unexpected error");
         }
     }
 }
