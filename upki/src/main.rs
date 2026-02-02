@@ -43,7 +43,7 @@ async fn main() -> Result<ExitCode, Report> {
             );
             Ok(ExitCode::SUCCESS)
         }
-        Command::RevocationCheck(RevocationCheck::High) => {
+        Command::Revocation(Revocation::Check) => {
             let mut certs = vec![];
 
             for cert in CertificateDer::pem_reader_iter(&mut BufReader::new(stdin())) {
@@ -105,7 +105,7 @@ enum Command {
     /// - `1`: the revocation check completed and the certificate is revoked.
     /// - `2`: an error prevented the revocation check.
     #[clap(subcommand)]
-    RevocationCheck(RevocationCheck),
+    Revocation(Revocation),
 
     /// Print the location of the configuration file.
     ShowConfigPath,
@@ -115,8 +115,8 @@ enum Command {
 }
 
 #[derive(Debug, Subcommand)]
-enum RevocationCheck {
-    /// A "high-level" revocation check operation.
+enum Revocation {
+    /// Check the revocation status of an end-entity certificate.
     ///
     /// This interface reads a sequence of PEM-encoded certificates from standard input.
     /// The first **must** be the end-entity certificate.  The end-entity certificate's issuer
@@ -127,5 +127,5 @@ enum RevocationCheck {
     /// **not** check any of the certificates for validity: it assumes the caller has done any
     /// required checks **before** calling this interface (path building, naming validation,
     /// expiry checking, etc.).
-    High,
+    Check,
 }
