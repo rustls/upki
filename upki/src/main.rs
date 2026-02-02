@@ -99,11 +99,6 @@ enum Command {
     Verify,
 
     /// Checks the revocation status of a certificate.
-    ///
-    /// # Exit codes
-    /// - `0`: the certificate is not revoked.
-    /// - `1`: the revocation check completed and the certificate is revoked.
-    /// - `2`: an error prevented the revocation check.
     #[clap(subcommand)]
     Revocation(Revocation),
 
@@ -127,5 +122,11 @@ enum Revocation {
     /// **not** check any of the certificates for validity: it assumes the caller has done any
     /// required checks **before** calling this interface (path building, naming validation,
     /// expiry checking, etc.).
+    ///
+    /// # Exit status
+    ///
+    /// 0 means the certificate is not revoked or no revocation information is available,
+    /// 1 means an error prevented the revocation check, and
+    /// 2 means the revocation check completed and the certificate is revoked.
     Check,
 }
