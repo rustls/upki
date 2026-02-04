@@ -128,9 +128,12 @@ impl Plan {
         for filter in &manifest.filters {
             unwanted_files.remove(Path::new(&filter.filename));
 
-            if exists_locally(filter, &local.join(&filter.filename))? {
-                continue;
+            let path = local.join(&filter.filename);
+            match hash_file(&path) {
+                Ok(digest) if digest.as_ref() == filter.hash => continue,
+                _ => {}
             }
+
             steps.push(PlanStep::download(filter, remote_url, local));
         }
 
@@ -211,8 +214,10 @@ impl PlanStep {
                 )
                 .wrap_err_with(|| format!("failed to write to {local:?}"))?;
 
-                if !exists_locally(&filter, &local)? {
-                    return Err(eyre!("failed to download {filter:?} -- is the hash wrong?"));
+                match hash_file(&local) {
+                    Ok(digest) if digest.as_ref() == filter.hash => {}
+                    Ok(_) => return Err(eyre!("downloaded file {local:?} has wrong hash")),
+                    Err(e) => return Err(eyre!("failed to hash downloaded file {local:?}: {e}")),
                 }
 
                 debug!("download successful");
@@ -268,18 +273,6 @@ impl fmt::Display for PlanStep {
             }
         }
     }
-}
-
-/// Return `Ok(true)` if we have the given filter.
-///
-/// This reads the file and checks its hash.
-fn exists_locally(filter: &Filter, local: &Path) -> Result<bool, Report> {
-    if !local.exists() {
-        return Ok(false);
-    }
-
-    let digest = hash_file(local)?;
-    Ok(digest.as_ref() == filter.hash)
 }
 
 fn hash_file(path: &Path) -> Result<digest::Digest, Report> {
