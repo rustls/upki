@@ -1,10 +1,10 @@
 #![doc = include_str!("../../README.md")]
 #![warn(missing_docs)]
 
-use std::fs;
+use core::error::Error as StdError;
 use std::path::{Path, PathBuf};
+use std::{fmt, fs, io};
 
-use eyre::{Context, Report};
 use serde::{Deserialize, Serialize};
 
 use crate::revocation::RevocationConfig;
@@ -24,7 +24,7 @@ impl Config {
     /// Load the configuration data from a file at `path`.
     ///
     /// If no file exists at `path`, a default configuration is returned.
-    pub fn from_file_or_default(path: &ConfigPath) -> Result<Self, Report> {
+    pub fn from_file_or_default(path: &ConfigPath) -> Result<Self, Error> {
         match path {
             ConfigPath::Default(path) if path.exists() => Self::from_file(path),
             ConfigPath::Default(_) => Self::try_default(),
@@ -33,15 +33,20 @@ impl Config {
     }
 
     /// Load the configuration data from a file at `path`.
-    pub fn from_file(path: &Path) -> Result<Self, Report> {
-        let config_content = fs::read_to_string(path)
-            .wrap_err_with(|| format!("cannot load configuration file from {path:?}"))?;
-        toml::from_str(&config_content)
-            .wrap_err_with(|| format!("cannot parse configuration file at {path:?}"))
+    pub fn from_file(path: &Path) -> Result<Self, Error> {
+        let config_content = fs::read_to_string(path).map_err(|error| Error::FileRead {
+            error,
+            path: path.to_owned(),
+        })?;
+
+        toml::from_str(&config_content).map_err(|error| Error::ConfigError {
+            error: Box::new(error),
+            path: path.to_owned(),
+        })
     }
 
     /// Return a sensible default configuration.
-    pub fn try_default() -> Result<Self, Report> {
+    pub fn try_default() -> Result<Self, Error> {
         Ok(Self {
             cache_dir: platform::default_cache_dir()?,
             revocation: RevocationConfig::default(),
@@ -73,7 +78,7 @@ impl ConfigPath {
     ///
     /// This function fails for platform-specific reasons, typically if `$HOME` is not
     /// set, or another XDG environment variable is malformed.
-    pub fn new(specified: Option<PathBuf>) -> Result<Self, Report> {
+    pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
             None => platform::find_config_file().map(ConfigPath::Default),
@@ -92,22 +97,21 @@ impl AsRef<Path> for ConfigPath {
 
 #[cfg(target_os = "linux")]
 mod platform {
-    use eyre::OptionExt;
     use xdg::BaseDirectories;
 
     use super::*;
 
-    pub(super) fn find_config_file() -> Result<PathBuf, Report> {
+    pub(super) fn find_config_file() -> Result<PathBuf, Error> {
         let bd = BaseDirectories::with_prefix(PREFIX);
         bd.find_config_file(CONFIG_FILE)
             .or_else(|| bd.get_config_file(CONFIG_FILE))
-            .ok_or_eyre("cannot determine config file location")
+            .ok_or(Error::NoConfigDirectoryFound)
     }
 
-    pub(super) fn default_cache_dir() -> Result<PathBuf, Report> {
+    pub(super) fn default_cache_dir() -> Result<PathBuf, Error> {
         BaseDirectories::with_prefix(PREFIX)
             .get_cache_home()
-            .ok_or_eyre("cannot determine default cache directory")
+            .ok_or(Error::NoCacheDirectoryFound)
     }
 }
 
@@ -117,19 +121,76 @@ mod platform {
 
     use super::*;
 
-    pub(super) fn find_config_file() -> Result<PathBuf, Report> {
+    pub(super) fn find_config_file() -> Result<PathBuf, Error> {
         Ok(project_dirs()?
             .config_dir()
             .join(CONFIG_FILE))
     }
 
-    pub(super) fn default_cache_dir() -> Result<PathBuf, Report> {
+    pub(super) fn default_cache_dir() -> Result<PathBuf, Error> {
         Ok(project_dirs()?.cache_dir().to_owned())
     }
 
-    fn project_dirs() -> Result<ProjectDirs, Report> {
-        ProjectDirs::from("dev", "rustls", PREFIX)
-            .ok_or_else(|| eyre::eyre!("cannot determine project directory"))
+    fn project_dirs() -> Result<ProjectDirs, Error> {
+        ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
+    }
+}
+
+/// Errors for the upki library API.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum Error {
+    /// Failed to decode configuration file at `path`.
+    ConfigError {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the configuration file.
+        path: PathBuf,
+    },
+    /// Failed to read configuration file at `path`.
+    FileRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the configuration file.
+        path: PathBuf,
+    },
+    /// No cache directory could be found.
+    NoCacheDirectoryFound,
+    /// No configuration directory could be found.
+    NoConfigDirectoryFound,
+    /// The user's home directory could not be determined.
+    NoValidHomeDirectory,
+    /// Error from the revocation API.
+    Revocation(revocation::Error),
+}
+
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::ConfigError { error, .. } => Some(error.as_ref()),
+            Self::FileRead { error, .. } => Some(error),
+            Self::NoCacheDirectoryFound
+            | Self::NoConfigDirectoryFound
+            | Self::NoValidHomeDirectory => None,
+            Self::Revocation(err) => Some(err),
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ConfigError { path, .. } => {
+                write!(f, "failed to parse config file at {}", path.display())
+            }
+            Self::FileRead { path, .. } => {
+                write!(f, "failed to read config file at {}", path.display())
+            }
+            Self::NoCacheDirectoryFound => write!(f, "no cache directory could be found"),
+            Self::NoConfigDirectoryFound => write!(f, "no configuration directory could be found"),
+            Self::NoValidHomeDirectory => write!(f, "could not determine user's home directory"),
+            Self::Revocation(_) => write!(f, "revocation error"),
+        }
     }
 }
 

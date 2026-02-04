@@ -11,30 +11,30 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File};
-use std::io::Read;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use aws_lc_rs::digest;
-use eyre::{Context, Report, eyre};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
 
+use super::{Error, Filter, Manifest};
 use crate::Config;
-use crate::revocation::{Filter, Manifest};
 
 /// Update the local revocation cache by fetching updates over the network.
 ///
 /// `dry_run` means this call fetches the new manifest, but does not fetch any
 /// required files; but the necessary files are printed to stdout.  Therefore
 /// such a call is not completely "dry" -- perhaps "moist".
-pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
+pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     let cache_dir = config.revocation_cache_dir();
     info!(
         "fetching {} into {:?}...",
         &config.revocation.fetch_url, &cache_dir,
     );
 
+    let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
     let client = reqwest::Client::builder()
         .use_rustls_tls()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT))
@@ -45,21 +45,32 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Report> {
             env!("CARGO_PKG_REPOSITORY")
         ))
         .build()
-        .wrap_err("failed to create HTTP client")?;
+        .map_err(|error| Error::HttpFetch {
+            error: Box::new(error),
+            url: manifest_url.clone(),
+        })?;
 
-    let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
     let response = client
         .get(&manifest_url)
         .send()
         .await
-        .wrap_err("failed to fetch manifest")?
+        .map_err(|error| Error::HttpFetch {
+            error: Box::new(error),
+            url: manifest_url.clone(),
+        })?
         .error_for_status()
-        .wrap_err("HTTP error while fetching manifest")?;
+        .map_err(|error| Error::HttpFetch {
+            error: Box::new(error),
+            url: manifest_url.clone(),
+        })?;
 
     let manifest = response
         .json::<Manifest>()
         .await
-        .wrap_err("failed to parse manifest JSON")?;
+        .map_err(|error| Error::ManifestDecode {
+            error: Box::new(error),
+            path: None,
+        })?;
 
     manifest.introduce()?;
 
@@ -105,17 +116,25 @@ impl Plan {
         manifest: &Manifest,
         remote_url: &str,
         local: &Path,
-    ) -> Result<Self, Report> {
+    ) -> Result<Self, Error> {
         let mut steps = Vec::new();
 
         // Collect unwanted files for deletion
         let mut unwanted_files = HashSet::new();
 
         if local.exists() {
-            for entry in fs::read_dir(local)
-                .wrap_err_with(|| format!("failed to read local directory {local:?}"))?
-            {
-                let path = Path::new(&entry?.file_name()).to_owned();
+            let iter = fs::read_dir(local).map_err(|error| Error::CreateDirectory {
+                error,
+                path: local.to_owned(),
+            })?;
+
+            for entry in iter {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(error) => return Err(Error::FilterRead { error, path: None }),
+                };
+
+                let path = Path::new(&entry.file_name()).to_owned();
                 let name = path.to_string_lossy();
                 if name.ends_with(".filter") || name.ends_with(".delta") {
                     unwanted_files.insert(path);
@@ -185,11 +204,11 @@ enum PlanStep {
 }
 
 impl PlanStep {
-    async fn execute(self, client: &reqwest::Client) -> Result<(), Report> {
+    async fn execute(self, client: &reqwest::Client) -> Result<(), Error> {
         match self {
-            Self::CreateDir(path) => fs::create_dir_all(path)
-                .wrap_err_with(|| "failed to create local directory {path:?}")?,
-
+            Self::CreateDir(path) => {
+                fs::create_dir_all(&path).map_err(|error| Error::CreateDirectory { error, path })?
+            }
             Self::Download {
                 filter,
                 remote_url,
@@ -201,44 +220,78 @@ impl PlanStep {
                     .get(&remote_url)
                     .send()
                     .await
-                    .wrap_err("failed to make download request")?
+                    .map_err(|error| Error::HttpFetch {
+                        error: Box::new(error),
+                        url: remote_url.clone(),
+                    })?
                     .error_for_status()
-                    .wrap_err("HTTP error while downloading")?;
+                    .map_err(|error| Error::HttpFetch {
+                        error: Box::new(error),
+                        url: remote_url.clone(),
+                    })?;
 
                 fs::write(
                     &local,
                     response
                         .bytes()
                         .await
-                        .wrap_err("failed to read from response")?,
+                        .map_err(|error| Error::HttpFetch {
+                            error: Box::new(error),
+                            url: remote_url.clone(),
+                        })?,
                 )
-                .wrap_err_with(|| format!("failed to write to {local:?}"))?;
+                .map_err(|error| Error::FileWrite {
+                    error,
+                    path: local.clone(),
+                })?;
 
                 match hash_file(&local) {
                     Ok(digest) if digest.as_ref() == filter.hash => {}
-                    Ok(_) => return Err(eyre!("downloaded file {local:?} has wrong hash")),
-                    Err(e) => return Err(eyre!("failed to hash downloaded file {local:?}: {e}")),
+                    Ok(_) => return Err(Error::HashMismatch(local)),
+                    Err(error) => {
+                        return Err(Error::FilterRead {
+                            error,
+                            path: Some(local),
+                        });
+                    }
                 }
 
                 debug!("download successful");
             }
             Self::Delete(target) => {
                 debug!("deleting unreferenced file {target:?}");
-                fs::remove_file(&target).wrap_err("failed to delete file")?;
+                fs::remove_file(&target).map_err(|error| Error::RemoveFile {
+                    error,
+                    path: target,
+                })?;
             }
             Self::SaveManifest {
                 manifest,
                 local_dir,
             } => {
                 debug!("saving manifest");
+                let mut local_temp =
+                    NamedTempFile::with_suffix_in(".new", &local_dir).map_err(|error| {
+                        Error::ManifestWrite {
+                            error,
+                            path: local_dir.clone(),
+                        }
+                    })?;
 
-                let mut local_temp = NamedTempFile::with_suffix_in(".new", &local_dir)
-                    .wrap_err("failed to create temporary manifest file")?;
-                serde_json::to_writer(local_temp.as_file_mut(), &manifest)
-                    .wrap_err("failed to write manifest")?;
+                serde_json::to_writer(local_temp.as_file_mut(), &manifest).map_err(|error| {
+                    Error::ManifestEncode {
+                        error: Box::new(error),
+                        path: local_temp.path().to_owned(),
+                    }
+                })?;
+
+                let path = local_dir.join(MANIFEST_JSON);
                 local_temp
-                    .persist(local_dir.join(MANIFEST_JSON))
-                    .wrap_err("failed to move new manifest into place")?;
+                    .persist(&path)
+                    .map_err(|error| Error::ManifestWrite {
+                        error: error.error,
+                        path,
+                    })?;
             }
         }
 
@@ -275,18 +328,16 @@ impl fmt::Display for PlanStep {
     }
 }
 
-fn hash_file(path: &Path) -> Result<digest::Digest, Report> {
-    let mut file = File::open(path).wrap_err("failed to open file")?;
+fn hash_file(path: &Path) -> Result<digest::Digest, io::Error> {
+    let mut file = File::open(path)?;
     let mut hasher = digest::Context::new(&digest::SHA256);
-
     let mut buffer = [0; 4096];
     loop {
-        let n = file
-            .read(&mut buffer)
-            .wrap_err("failed to read file")?;
+        let n = file.read(&mut buffer)?;
         if n == 0 {
             break;
         }
+
         hasher.update(&buffer[..n]);
     }
 

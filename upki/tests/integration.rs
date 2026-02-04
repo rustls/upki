@@ -42,7 +42,7 @@ fn config_unknown_fields() {
     ----- stdout -----
 
     ----- stderr -----
-    Error: cannot parse configuration file at "tests/data/config_unknown_fields/config.toml"
+    Error: failed to parse config file at tests/data/config_unknown_fields/config.toml
 
     Caused by:
         TOML parse error at line 1, column 1
@@ -53,7 +53,7 @@ fn config_unknown_fields() {
 
 
     Location:
-        upki/src/lib.rs:[LINE]:[COLUMN]
+        upki/src/main.rs:[LINE]:[COLUMN]
     "###);
 }
 
@@ -110,13 +110,13 @@ fn verify_of_non_existent_dir() {
     ----- stdout -----
 
     ----- stderr -----
-    Error: cannot open manifest JSON "not-exist/revocation/manifest.json"
+    Error: cannot read manifest file at "not-exist/revocation/manifest.json"
 
     Caused by:
         No such file or directory (os error 2)
 
     Location:
-        upki/src/revocation/mod.rs:[LINE]:[COLUMN]
+        upki/src/main.rs:[LINE]:[COLUMN]
     "###);
 }
 

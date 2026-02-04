@@ -32,16 +32,16 @@ async fn main() -> Result<ExitCode, Report> {
 
     let config = Config::from_file_or_default(&config_path)?;
 
-    match args.command {
-        Command::Fetch { dry_run } => fetch(dry_run, &config).await,
-        Command::Verify => Manifest::from_config(&config)?.verify(&config),
+    Ok(match args.command {
+        Command::Fetch { dry_run } => fetch(dry_run, &config).await?,
+        Command::Verify => Manifest::from_config(&config)?.verify(&config)?,
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(
                 "{}",
                 toml::to_string_pretty(&config).wrap_err("cannot format configuration")?
             );
-            Ok(ExitCode::SUCCESS)
+            ExitCode::SUCCESS
         }
         Command::Revocation(Revocation::Check) => {
             let mut certs = vec![];
@@ -51,11 +51,11 @@ async fn main() -> Result<ExitCode, Report> {
             }
 
             let input = RevocationCheckInput::from_certificates(&certs)?;
-            Ok(Manifest::from_config(&config)?
+            Manifest::from_config(&config)?
                 .check(&input, &config)?
-                .to_cli())
+                .to_cli()
         }
-    }
+    })
 }
 
 #[derive(Debug, Parser)]

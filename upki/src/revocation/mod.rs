@@ -2,7 +2,8 @@ use core::error::Error as StdError;
 use core::fmt;
 use core::str::FromStr;
 use std::fs::{self, File};
-use std::io::BufReader;
+use std::io::{self, BufReader};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use aws_lc_rs::digest;
@@ -10,7 +11,6 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::{DateTime, Utc};
 use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
-use eyre::{Context, ContextCompat as _, Report, eyre};
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -38,15 +38,24 @@ pub struct Manifest {
 
 impl Manifest {
     /// Load the revocation manifest from the cache directory specified in the configuration.
-    pub fn from_config(config: &Config) -> Result<Self, Report> {
+    pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
         file_name.push("manifest.json");
-        serde_json::from_reader(
-            File::open(&file_name)
-                .map(BufReader::new)
-                .wrap_err_with(|| format!("cannot open manifest JSON {file_name:?}"))?,
-        )
-        .wrap_err("cannot parse manifest JSON")
+
+        let file = match File::open(&file_name) {
+            Ok(f) => f,
+            Err(error) => {
+                return Err(Error::ManifestRead {
+                    error,
+                    path: file_name,
+                });
+            }
+        };
+
+        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::ManifestDecode {
+            error: Box::new(error),
+            path: Some(file_name),
+        })
     }
 
     /// This function does a low-level revocation check.
@@ -60,15 +69,26 @@ impl Manifest {
         &self,
         input: &RevocationCheckInput,
         config: &Config,
-    ) -> Result<RevocationStatus, Report> {
+    ) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let cache_dir = config.revocation_cache_dir();
         for f in &self.filters {
-            let bytes = fs::read(cache_dir.join(&f.filename))
-                .wrap_err_with(|| format!("cannot read filter file {}", f.filename))?;
+            let path = cache_dir.join(&f.filename);
+            let bytes = match fs::read(&path) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return Err(Error::FilterRead {
+                        error,
+                        path: Some(path),
+                    });
+                }
+            };
 
             let filter =
-                CRLiteClubcard::from_bytes(&bytes).map_err(|_| Error::CorruptCrliteFilter)?;
+                CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FilterDecode {
+                    error: format!("cannot decode crlite filter: {error:?}").into(),
+                    path,
+                })?;
 
             match filter.contains(
                 &key,
@@ -89,22 +109,25 @@ impl Manifest {
     /// Verify the current contents of the cache against this manifest.
     ///
     /// This performs disk IO but does not perform network IO.
-    pub fn verify(&self, config: &Config) -> Result<ExitCode, Report> {
+    pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
         self.introduce()?;
         let plan = Plan::construct(self, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
             0 => Ok(ExitCode::SUCCESS),
-            bytes => Err(eyre!(
-                "fixing the local cache requires downloading {bytes} bytes"
-            )),
+            bytes => Err(Error::Outdated(bytes)),
         }
     }
 
     /// Logs metadata fields in this manifest.
-    pub fn introduce(&self) -> Result<(), Report> {
+    pub fn introduce(&self) -> Result<(), Error> {
         let dt = match DateTime::<Utc>::from_timestamp(self.generated_at as i64, 0) {
             Some(dt) => dt.to_rfc3339(),
-            None => return Err(eyre!("manifest has invalid timestamp")),
+            None => {
+                return Err(Error::InvalidTimestamp {
+                    input: self.generated_at.to_string(),
+                    context: "manifest generated (in s)",
+                });
+            }
         };
 
         info!(comment = self.comment, date = dt, "parsed manifest");
@@ -150,12 +173,13 @@ impl RevocationCheckInput {
     /// **not** check any of the certificates for validity: it assumes the caller has done any
     /// required checks before calling this interface (path building, naming validation,
     /// expiry checking, etc.).
-    pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Report> {
+    pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Error> {
         let (end_entity, rest) = certificates
             .split_first()
-            .wrap_err("too few certificates")?;
+            .ok_or(Error::TooFewCertificates)?;
         let end_entity = webpki::EndEntityCert::try_from(end_entity)
-            .wrap_err("cannot parse end-entity certificate")?;
+            .map_err(|error| Error::InvalidEndEntityCertificate(Box::new(error)))?;
+
         let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
         let issuer_spki_hash = IssuerSpkiHash(
             digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
@@ -165,11 +189,12 @@ impl RevocationCheckInput {
         );
 
         let mut sct_timestamps = vec![];
-        for ts in end_entity
+        let iter = end_entity
             .sct_log_timestamps()
-            .map_err(|e| eyre!("error decoding sct: {e:?}"))?
-        {
-            let ts = ts.map_err(|e| eyre!("decoding error sct: {e:?}"))?;
+            .map_err(|e| Error::InvalidEndEntityCertificate(Box::new(e)))?;
+
+        for ts in iter {
+            let ts = ts.map_err(|e| Error::InvalidSctInCertificate(Box::new(e)))?;
             sct_timestamps.push(CtTimestamp {
                 log_id: ts.log_id,
                 timestamp: ts.timestamp_ms,
@@ -193,12 +218,15 @@ impl RevocationCheckInput {
 pub struct CertSerial(pub Vec<u8>);
 
 impl FromStr for CertSerial {
-    type Err = Report;
+    type Err = Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match BASE64_STANDARD.decode(value) {
             Ok(bytes) => Ok(Self(bytes)),
-            Err(e) => Err(e).wrap_err("cannot parse base64 serial number"),
+            Err(e) => Err(Error::InvalidBase64 {
+                error: Box::new(e),
+                context: "certificate serial",
+            }),
         }
     }
 }
@@ -208,16 +236,21 @@ impl FromStr for CertSerial {
 pub struct IssuerSpkiHash(pub [u8; 32]);
 
 impl FromStr for IssuerSpkiHash {
-    type Err = Report;
+    type Err = Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         Ok(Self(
             BASE64_STANDARD
                 .decode(value)
-                .wrap_err("cannot parse issuer SPKI hash")?
+                .map_err(|e| Error::InvalidBase64 {
+                    error: Box::new(e),
+                    context: "issuer SPKI hash",
+                })?
                 .try_into()
-                .map_err(|b: Vec<u8>| {
-                    eyre!("issuer SPKI hash is wrong length (was {} bytes)", b.len())
+                .map_err(|b: Vec<u8>| Error::InvalidLength {
+                    expected: 32,
+                    actual: b.len(),
+                    context: "issuer SPKI hash",
                 })?,
         ))
     }
@@ -233,24 +266,30 @@ pub struct CtTimestamp {
 }
 
 impl FromStr for CtTimestamp {
-    type Err = Report;
+    type Err = Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let Some((log_id, issuance_timestamp)) = value.split_once(":") else {
-            return Err(eyre!("missing colon in CT timestamp"));
+            return Err(Error::InvalidSctEncoding);
         };
 
         Ok(Self {
             log_id: BASE64_STANDARD
                 .decode(log_id)
-                .wrap_err("cannot parse CT log ID")?
+                .map_err(|e| Error::InvalidBase64 {
+                    error: Box::new(e),
+                    context: "CT log ID",
+                })?
                 .try_into()
-                .map_err(|wrong: Vec<u8>| {
-                    eyre!("CT log ID is wrong length (was {} bytes)", wrong.len())
+                .map_err(|wrong: Vec<u8>| Error::InvalidLength {
+                    expected: 32,
+                    actual: wrong.len(),
+                    context: "CT log ID",
                 })?,
-            timestamp: issuance_timestamp
-                .parse()
-                .wrap_err("cannot parse CT timestamp")?,
+            timestamp: u64::from_str(issuance_timestamp).map_err(|_| Error::InvalidTimestamp {
+                input: issuance_timestamp.to_string(),
+                context: "CT timestamp (in ms)",
+            })?,
         })
     }
 }
@@ -288,22 +327,6 @@ impl RevocationStatus {
     const EXIT_CODE_REVOCATION_REVOKED: u8 = 2;
 }
 
-#[derive(Debug)]
-pub(crate) enum Error {
-    /// `crlite_clubcard::CRLiteClubcard` couldn't deserialize the filter data.
-    CorruptCrliteFilter,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CorruptCrliteFilter => write!(f, "corrupt CRLite filter data"),
-        }
-    }
-}
-
-impl StdError for Error {}
-
 /// Details about crlite-style revocation.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
@@ -323,16 +346,231 @@ impl Default for RevocationConfig {
 fn find_issuer<'a>(
     name: &[u8],
     candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
-) -> Result<TrustAnchor<'a>, Report> {
+) -> Result<TrustAnchor<'a>, Error> {
     for (i, c) in candidates.enumerate() {
         // nb. do not copy this code. it is not correct to treat intermediate certificates
         // as trust anchors.
-        let root = webpki::anchor_from_trusted_cert(c).wrap_err_with(|| {
-            format!("cannot parse potential intermediate certificate {}", i + 1)
+        let root = webpki::anchor_from_trusted_cert(c).map_err(|error| {
+            Error::InvalidIntermediateCertificate {
+                error: Box::new(error),
+                index: i,
+            }
         })?;
+
         if root.subject.as_ref() == name {
             return Ok(root);
         }
     }
-    Err(eyre::eyre!("cannot find issuer certificate"))
+
+    Err(Error::NoIssuer)
+}
+
+/// Errors for the revocation API.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum Error {
+    /// Failed to create a directory.
+    CreateDirectory {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the directory being created.
+        path: PathBuf,
+    },
+    /// Failed to write a file.
+    FileWrite {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being written.
+        path: PathBuf,
+    },
+    /// Failed to decode a filter file.
+    FilterDecode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the filter file.
+        path: PathBuf,
+    },
+    /// Failed to read a filter file.
+    FilterRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the filter file.
+        path: Option<PathBuf>,
+    },
+    /// A downloaded file did not match the expected hash.
+    HashMismatch(PathBuf),
+    /// Failed to fetch a file over HTTP.
+    HttpFetch {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// URL being accessed.
+        url: String,
+    },
+    /// Invalid base64 encoding.
+    InvalidBase64 {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Context in which the base64 was being parsed.
+        context: &'static str,
+    },
+    /// The end-entity certificate was invalid and could not be parsed.
+    InvalidEndEntityCertificate(Box<dyn StdError + Send + Sync>),
+    /// An intermediate certificate was invalid and could not be parsed.
+    InvalidIntermediateCertificate {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Index of the intermediate certificate in the provided chain.
+        index: usize,
+    },
+    /// A base64-decoded value did not have the expected length.
+    InvalidLength {
+        /// Expected length.
+        expected: usize,
+        /// Actual length.
+        actual: usize,
+        /// Context in which the hash was being parsed.
+        context: &'static str,
+    },
+    /// No ':' found in [`CtTimestamp`] string representation.
+    InvalidSctEncoding,
+    /// An SCT in the end-entity certificate could not be parsed.
+    InvalidSctInCertificate(Box<dyn StdError + Send + Sync>),
+    /// A timestamp could not be parsed.
+    InvalidTimestamp {
+        /// Input value that failed to parse as a timestamp.
+        input: String,
+        /// Context in which the timestamp was being parsed.
+        context: &'static str,
+    },
+    /// Failed to decode a manifest file.
+    ManifestDecode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the manifest file.
+        path: Option<PathBuf>,
+    },
+    /// Failed to encode a manifest file.
+    ManifestEncode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the manifest file.
+        path: PathBuf,
+    },
+    /// Failed to read a manifest file.
+    ManifestRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the manifest file.
+        path: PathBuf,
+    },
+    /// Failed to write a manifest file.
+    ManifestWrite {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the manifest file.
+        path: PathBuf,
+    },
+    /// No issuer found for the end-entity certificate in the provided chain.
+    NoIssuer,
+    /// Number of bytes that need to be downloaded to update the local cache.
+    Outdated(usize),
+    /// Failed to remove a file.
+    RemoveFile {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being removed.
+        path: PathBuf,
+    },
+    /// Certificate chains must contain at least 2 certificates.
+    TooFewCertificates,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CreateDirectory { path, .. } => {
+                write!(f, "cannot create directory {path:?}")
+            }
+            Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
+            Self::FilterDecode { path, .. } => {
+                write!(f, "cannot decode filter file {path:?}")
+            }
+            Self::FilterRead { path, .. } => match path {
+                Some(path) => write!(f, "cannot read filter file {path:?}"),
+                None => write!(f, "cannot read filter file"),
+            },
+            Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
+            Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
+            Self::InvalidBase64 { context, .. } => {
+                write!(f, "invalid base64 for {context}")
+            }
+            Self::InvalidEndEntityCertificate(_) => {
+                write!(f, "invalid end-entity certificate")
+            }
+            Self::InvalidIntermediateCertificate { index, .. } => {
+                write!(f, "invalid intermediate certificate at index {index}")
+            }
+            Self::InvalidLength {
+                expected,
+                actual,
+                context,
+            } => write!(
+                f,
+                "invalid length for {context}: expected {expected}, got {actual}"
+            ),
+            Self::InvalidSctEncoding => write!(f, "invalid SCT encoding: no ':' found"),
+            Self::InvalidSctInCertificate(_) => {
+                write!(f, "invalid SCT in certificate")
+            }
+            Self::InvalidTimestamp { input, context } => {
+                write!(f, "invalid timestamp for {context}: '{input}'")
+            }
+            Self::ManifestDecode { path, .. } => {
+                write!(f, "cannot decode manifest file at {path:?}")
+            }
+            Self::ManifestEncode { path, .. } => {
+                write!(f, "cannot encode manifest file at {path:?}")
+            }
+            Self::ManifestRead { path, .. } => {
+                write!(f, "cannot read manifest file at {path:?}")
+            }
+            Self::ManifestWrite { path, .. } => {
+                write!(f, "cannot write manifest file at {path:?}")
+            }
+            Self::NoIssuer => write!(f, "no issuer found for end-entity certificate"),
+            Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
+            Self::RemoveFile { path, .. } => write!(f, "cannot remove file {path:?}"),
+            Self::TooFewCertificates => {
+                write!(f, "certificate chain must contain at least 2 certificates")
+            }
+        }
+    }
+}
+
+impl StdError for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::CreateDirectory { error, .. } => Some(error),
+            Self::FileWrite { error, .. } => Some(error),
+            Self::FilterDecode { error, .. } => Some(&**error),
+            Self::FilterRead { error, .. } => Some(error),
+            Self::HashMismatch(_) => None,
+            Self::HttpFetch { error, .. } => Some(&**error),
+            Self::InvalidBase64 { error, .. } => Some(&**error),
+            Self::InvalidEndEntityCertificate(error) => Some(&**error),
+            Self::InvalidIntermediateCertificate { error, .. } => Some(&**error),
+            Self::InvalidLength { .. } => None,
+            Self::InvalidSctEncoding => None,
+            Self::InvalidSctInCertificate(error) => Some(&**error),
+            Self::InvalidTimestamp { .. } => None,
+            Self::ManifestDecode { error, .. } => Some(&**error),
+            Self::ManifestEncode { error, .. } => Some(&**error),
+            Self::ManifestRead { error, .. } => Some(error),
+            Self::ManifestWrite { error, .. } => Some(error),
+            Self::NoIssuer => None,
+            Self::Outdated(_) => None,
+            Self::RemoveFile { error, .. } => Some(error),
+            Self::TooFewCertificates => None,
+        }
+    }
 }
