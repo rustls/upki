@@ -278,7 +278,12 @@ fn exists_locally(filter: &Filter, local: &Path) -> Result<bool, Report> {
         return Ok(false);
     }
 
-    let mut file = File::open(local).wrap_err("failed to open local file")?;
+    let digest = hash_file(local)?;
+    Ok(digest.as_ref() == filter.hash)
+}
+
+fn hash_file(path: &Path) -> Result<digest::Digest, Report> {
+    let mut file = File::open(path).wrap_err("failed to open file")?;
     let mut hasher = digest::Context::new(&digest::SHA256);
 
     let mut buffer = [0; 4096];
@@ -292,7 +297,7 @@ fn exists_locally(filter: &Filter, local: &Path) -> Result<bool, Report> {
         hasher.update(&buffer[..n]);
     }
 
-    Ok(hasher.finish().as_ref() == filter.hash)
+    Ok(hasher.finish())
 }
 
 const MANIFEST_JSON: &str = "manifest.json";
