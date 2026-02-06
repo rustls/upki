@@ -10,7 +10,9 @@ case "$1" in
         if ! getent passwd _upki > /dev/null; then
             /usr/sbin/useradd --system --group \
                     --home /var/cache/upki \
-                    --no-create-home --disabled-login _upki
+                    --no-create-home \
+                    --shell /usr/sbin/nologin \
+                    _upki
         fi
 
         # Set permissions
