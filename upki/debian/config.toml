@@ -1,0 +1,4 @@
+cache-dir = "/var/cache/upki"
+
+[revocation]
+fetch-url = "https://upki.rustls.dev/"

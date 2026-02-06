@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        # Create cache directory
+        mkdir -p /var/cache/upki
+
+        # Create low-privilege user if it doesn't exist
+        if ! getent passwd _upki > /dev/null; then
+            /usr/sbin/useradd --system --group \
+                    --home /var/cache/upki \
+                    --no-create-home --disabled-login _upki
+        fi
+
+        # Set permissions
+        chown _upki:_upki /var/cache/upki
+        chmod 755 /var/cache/upki
+
+        # Initial fetch
+        su -s /bin/sh _upki -c '/usr/bin/upki fetch' || true
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
