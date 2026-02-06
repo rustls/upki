@@ -44,7 +44,7 @@ workspace = true
 [package.metadata.deb]
 extended-description = """\
 A tool for managing certificate revocation data for publicly trusted certificates."""
-depends = "$auto, ca-certificates"
+depends = "$auto, ca-certificates, systemd"
 section = "utils"
 priority = "optional"
 assets = [
