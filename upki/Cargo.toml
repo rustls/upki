@@ -50,8 +50,6 @@ priority = "optional"
 assets = [
     ["target/release/upki", "usr/bin/", "755"],
     ["debian/config.toml", "etc/xdg/upki/", "644"],
-    ["debian/upki-fetch.service", "lib/systemd/system/", "644"],
-    ["debian/upki-fetch.timer", "lib/systemd/system/", "644"],
 ]
 maintainer-scripts = "debian/"
 systemd-units = [
