@@ -10,13 +10,14 @@ use core::fmt;
 use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
-use std::fs::{self, File};
+use std::fs::{self, File, Permissions};
 use std::io::{self, Read};
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use aws_lc_rs::digest;
-use tempfile::NamedTempFile;
 use tracing::{debug, info};
 
 use super::{Error, Filter, Manifest};
@@ -270,13 +271,20 @@ impl PlanStep {
                 local_dir,
             } => {
                 debug!("saving manifest");
-                let mut local_temp =
-                    NamedTempFile::with_suffix_in(".new", &local_dir).map_err(|error| {
-                        Error::ManifestWrite {
-                            error,
-                            path: local_dir.clone(),
-                        }
-                    })?;
+                #[cfg(target_family = "unix")]
+                let temp = tempfile::Builder::new()
+                    .permissions(Permissions::from_mode(0o644))
+                    .suffix(".new")
+                    .tempfile_in(&local_dir);
+                #[cfg(not(target_family = "unix"))]
+                let temp = tempfile::Builder::new()
+                    .suffix(".new")
+                    .tempfile_in(&local_dir);
+
+                let mut local_temp = temp.map_err(|error| Error::ManifestWrite {
+                    error,
+                    path: local_dir.clone(),
+                })?;
 
                 serde_json::to_writer(local_temp.as_file_mut(), &manifest).map_err(|error| {
                     Error::ManifestEncode {
