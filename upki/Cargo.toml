@@ -54,7 +54,9 @@ assets = [
     ["debian/upki-fetch.timer", "lib/systemd/system/", "644"],
 ]
 maintainer-scripts = "debian/"
-systemd-units = { enable = true }
+systemd-units = [
+    { unit-name = "upki-fetch" },
+]
 
 [package.metadata.deb.variants.upki]
 name = "upki"
