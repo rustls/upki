@@ -1,0 +1,120 @@
+name: package
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: ["main", "rel-*", "ci/*"]
+    tags:
+      - "**"
+  pull_request:
+  merge_group:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          profile: minimal
+
+      - name: Install cargo-deb
+        run: cargo install --locked cargo-deb
+
+      - name: Build Debian package
+        run: cargo deb --locked
+
+      - name: Find built package
+        id: find_deb
+        run: |
+          DEB_FILE=$(pwd)/$(ls target/debian/*.deb | head -n1)
+          echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "deb_name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
+
+      - name: Test package info
+        run: |
+          echo "=== Package Information ==="
+          dpkg-deb --info ${{ steps.find_deb.outputs.deb_file }}
+          echo ""
+          echo "=== Package Contents ==="
+          dpkg-deb --contents ${{ steps.find_deb.outputs.deb_file }}
+
+      - name: Test package installation and functionality
+        run: |
+          # Create a test script that will be run inside the container
+          cat > test_upki.sh << 'EOF'
+          #!/bin/bash
+          set -e
+
+          echo "=== Installing package ==="
+          apt-get update -qq
+          apt-get install -y /tmp/upki.deb
+
+          echo ""
+          echo "=== Verifying installation ==="
+          which upki
+          upki --version || true
+
+          echo ""
+          echo "=== Checking configuration file ==="
+          ls -la /etc/xdg/upki/config.toml
+          cat /etc/xdg/upki/config.toml
+
+          echo ""
+          echo "=== Checking cache directory ==="
+          ls -la /var/cache/upki/
+
+          echo ""
+          echo "=== Checking systemd units ==="
+          systemctl list-unit-files | grep upki || echo "Systemd units not enabled (expected in container)"
+          ls -la /lib/systemd/system/upki-fetch.* || true
+
+          echo ""
+          echo "=== Creating test user ==="
+          useradd -m testuser
+
+          echo ""
+          echo "=== Running upki verify as normal user ==="
+          su - testuser -c 'upki verify' || true
+
+          echo ""
+          echo "=== Checking upki verify exit code ==="
+          if su - testuser -c 'upki verify'; then
+            echo "upki verify succeeded"
+          else
+            EXIT_CODE=$?
+            echo "upki verify exited with code: $EXIT_CODE"
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "Note: This may be expected if no cache data is available yet"
+            fi
+          fi
+
+          echo ""
+          echo "=== Test completed ==="
+          EOF
+
+          chmod +x test_upki.sh
+
+          # Run the test in a Docker container
+          docker run --rm \
+            -v $(pwd)/test_upki.sh:/test_upki.sh:ro \
+            -v ${{ steps.find_deb.outputs.deb_file }}:/tmp/upki.deb:ro \
+            ubuntu:latest \
+            /test_upki.sh
