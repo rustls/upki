@@ -1,0 +1,10 @@
+[Unit]
+Description=Update upki cache every 2 hours
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

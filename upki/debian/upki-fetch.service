@@ -1,0 +1,10 @@
+[Unit]
+Description=Update upki certificate revocation cache
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=_upki
+Group=_upki
+ExecStart=/usr/bin/upki fetch

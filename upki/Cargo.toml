@@ -40,3 +40,21 @@ tiny_http.workspace = true
 
 [lints]
 workspace = true
+
+[package.metadata.deb]
+extended-description = """\
+A tool for managing certificate revocation data for publicly trusted certificates."""
+depends = "$auto, ca-certificates, systemd"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/upki", "usr/bin/", "755"],
+    ["debian/config.toml", "etc/xdg/upki/", "644"],
+]
+maintainer-scripts = "debian/"
+systemd-units = [
+    { unit-name = "upki-fetch" },
+]
+
+[package.metadata.deb.variants.upki]
+name = "upki"
