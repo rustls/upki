@@ -4,6 +4,8 @@ version = "0.1.0"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
+license.workspace = true
+description = "Platform-independent browser-grade certificate infrastructure"
 
 [dependencies]
 aws-lc-rs.workspace = true

@@ -2,7 +2,7 @@
   <img width="460" src="https://raw.githubusercontent.com/rustls/upki/main/admin/upki.svg">
 </p>
 
-**upki** brings browser-grade certificate infrastructure to Linux.
+**upki** implements platform-independent browser-grade certificate infrastructure.
 
 The first goal of this project is to provide reliable, privacy-preserving
 and efficient certificate revocation building on foundational work by Mozilla.
