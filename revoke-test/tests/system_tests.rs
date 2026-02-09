@@ -76,11 +76,17 @@ impl TestCase for ServerVerifier {
                 .decode(&detail.end_entity_cert)
                 .expect("cannot decode end_entity_cert"),
         );
-        let intermediates = [CertificateDer::from(
-            BASE64_STANDARD
-                .decode(&detail.issuer_cert)
-                .expect("cannot decode issuer_cert"),
-        )];
+        let intermediates = detail
+            .intermediates
+            .iter()
+            .map(|c| {
+                CertificateDer::from(
+                    BASE64_STANDARD
+                        .decode(c)
+                        .expect("cannot decode issuer_cert"),
+                )
+            })
+            .collect::<Vec<_>>();
 
         let url = &test.test_website_revoked;
         let host = url
@@ -128,7 +134,7 @@ fn high_level_cli(detail: &CertificateDetail) -> TestResult {
         .stdin
         .take()
         .expect("cannot get stdin");
-    for base64 in [&detail.end_entity_cert, &detail.issuer_cert] {
+    for base64 in [&detail.end_entity_cert, &detail.intermediates[0]] {
         stdin
             .write_all(b"-----BEGIN CERTIFICATE-----\r\n")
             .unwrap();

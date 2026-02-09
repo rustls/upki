@@ -30,7 +30,7 @@ pub struct RevocationTestSite {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CertificateDetail {
     pub end_entity_cert: String,
-    pub issuer_cert: String,
+    pub intermediates: Vec<String>,
     pub serial: String,
     pub issuer_spki_sha256: String,
     pub scts: Vec<Sct>,
@@ -67,9 +67,14 @@ impl CertificateDetail {
         }
 
         let (_, issuer) = X509Certificate::from_der(&certs[1])?;
+        let intermediates = certs[1..]
+            .iter()
+            .map(|c| BASE64_STANDARD.encode(c))
+            .collect();
+
         Ok(Self {
             end_entity_cert: BASE64_STANDARD.encode(&certs[0]),
-            issuer_cert: BASE64_STANDARD.encode(&certs[1]),
+            intermediates,
             serial: BASE64_STANDARD.encode(end_entity.raw_serial()),
             issuer_spki_sha256: BASE64_STANDARD
                 .encode(digest(&SHA256, issuer.public_key().raw).as_ref()),
