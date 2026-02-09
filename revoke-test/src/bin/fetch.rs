@@ -46,7 +46,10 @@ async fn main() -> Result<(), Report> {
         println!("processing URL: {url}");
         match dissect(url, &tls_connector).await {
             Ok(detail) => site.detail = Some(detail),
-            Err(e) => site.error = Some(e.to_string()),
+            Err(e) => {
+                println!("failed: {e}");
+                site.error = Some(e.to_string())
+            }
         };
 
         sites.push(site);
