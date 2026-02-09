@@ -105,7 +105,10 @@ impl TestCase for ServerVerifier {
             Err(Error::InvalidCertificate(CertificateError::Revoked)) => {
                 TestResult::CorrectlyRevoked
             }
-            Err(e) => panic!("unexpected error verifying certificate: {e}"),
+            Err(e) => panic!(
+                "unexpected error verifying certificate: {e} (site: {})",
+                test.test_website_revoked
+            ),
         }
     }
 }
