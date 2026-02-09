@@ -25,13 +25,10 @@ There are a number of interfaces available:
 This is useful for monitoring, testing and alerting purposes.
 
 ```shell
-$ curl -w '%{certs}' https://google.com | upki revocation-check high
+$ curl -w '%{certs}' https://google.com | upki revocation check
 (...)
 NotRevoked
 ```
-
-There is a further, low-level command-line interface -- see `upki revocation detail --help` for
-more.
 
 ### C-FFI interface
 
