@@ -63,11 +63,15 @@ impl ServerVerifier {
             })
             .expect("no cipher suites supported with SHA256");
 
-        // TODO: Pre-roll storage to check it works, and bring (eg permanant configuration) errors
-        // to forefront prior to any networking happens.
         let config = ConfigPath::new(config_path)
             .and_then(|path| Config::from_file_or_default(&path))
             .map_err(|report| rustls::Error::General(report.to_string()))?;
+
+        // Pre-roll storage to check it works, and bring (eg. permanent configuration) errors
+        // to forefront prior to any networking.
+        if Manifest::from_config(&config).is_err() {
+            let _ = policy.missing_data.as_result()?;
+        }
 
         Ok(Self {
             provider,
