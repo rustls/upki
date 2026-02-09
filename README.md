@@ -34,9 +34,17 @@ NotRevoked
 
 TODO
 
-### Rust crate
+### [Rustls](https://crates.io/crates/rustls/) integration
 
-TODO
+The [`rustls-upki`](https://crates.io/crates/rustls-upki) crate provides a rustls
+server certificate verifier that checks the server certificate's revocation status.
+
+See the [documentation](http://docs.rs/rustls-upki) or [example code](https://github.com/rustls/upki/blob/main/rustls-upki/examples/simpleclient.rs):
+
+```shell
+~/src/upki/rustls-upki$ cargo -q run --example simpleclient revoked.r6.roots.globalsign.com
+Error: Custom { kind: InvalidData, error: InvalidCertificate(Revoked) }
+```
 
 # Packaging
 
