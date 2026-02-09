@@ -41,7 +41,7 @@ fn real_world_system_tests() {
     )
     .expect("cannot parse test-sites.json");
 
-    let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli);
+    let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
 
     let verifier = ServerVerifier::new(
         Policy::default(),
@@ -53,7 +53,7 @@ fn real_world_system_tests() {
     )
     .unwrap();
 
-    let rustls_results = test_each_site(tests.sites.iter(), verifier);
+    let rustls_results = test_each_site(tests.sites.iter(), verifier, "rustls");
 
     for ((site, high), rustls) in tests
         .sites
@@ -162,11 +162,12 @@ fn high_level_cli(detail: &CertificateDetail) -> TestResult {
 fn test_each_site<'a>(
     sites: impl Iterator<Item = &'a RevocationTestSite>,
     test_one: impl TestCase,
+    kind: &str,
 ) -> Vec<TestResult> {
     let mut results = Vec::new();
 
     for t in sites {
-        println!("testing {}... ", t.test_website_revoked);
+        println!("testing [{kind}] {}... ", t.test_website_revoked);
 
         let Some(detail) = &t.detail else {
             results.push(TestResult::DecorationFailed);
