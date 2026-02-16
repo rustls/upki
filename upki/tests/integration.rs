@@ -12,7 +12,7 @@ use std::{fs, thread};
 use insta::assert_snapshot;
 use insta::internals::SettingsBindDropGuard;
 use insta_cmd::{assert_cmd_snapshot, get_cargo_bin};
-use rand::Rng;
+use rand::RngExt;
 use tempfile::TempDir;
 
 #[test]
