@@ -2631,7 +2631,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "upki"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "upki-ffi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cbindgen",
  "rustls-pki-types",
