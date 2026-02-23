@@ -110,7 +110,7 @@ fn verify_of_non_existent_dir() {
     ----- stdout -----
 
     ----- stderr -----
-    Error: cannot read manifest file at "not-exist/revocation/manifest.json"
+    Error: cannot read file "not-exist/revocation/manifest.json"
 
     Caused by:
         No such file or directory (os error 2)
