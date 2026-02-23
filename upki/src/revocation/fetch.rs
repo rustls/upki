@@ -68,7 +68,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     let manifest = response
         .json::<Manifest>()
         .await
-        .map_err(|error| Error::ManifestDecode {
+        .map_err(|error| Error::FileDecode {
             error: Box::new(error),
             path: None,
         })?;
@@ -132,7 +132,7 @@ impl Plan {
             for entry in iter {
                 let entry = match entry {
                     Ok(e) => e,
-                    Err(error) => return Err(Error::FilterRead { error, path: None }),
+                    Err(error) => return Err(Error::FileRead { error, path: None }),
                 };
 
                 let path = Path::new(&entry.file_name()).to_owned();
@@ -270,7 +270,7 @@ impl PlanStep {
                     Ok(digest) if digest.as_ref() == filter.hash => {}
                     Ok(_) => return Err(Error::HashMismatch(local)),
                     Err(error) => {
-                        return Err(Error::FilterRead {
+                        return Err(Error::FileRead {
                             error,
                             path: Some(local),
                         });
@@ -301,7 +301,7 @@ impl PlanStep {
                     .suffix(".new")
                     .tempfile_in(&local_dir);
 
-                let mut local_temp = temp.map_err(|error| Error::ManifestWrite {
+                let mut local_temp = temp.map_err(|error| Error::FileWrite {
                     error,
                     path: local_dir.clone(),
                 })?;
@@ -316,7 +316,7 @@ impl PlanStep {
                 let path = local_dir.join(MANIFEST_JSON);
                 local_temp
                     .persist(&path)
-                    .map_err(|error| Error::ManifestWrite {
+                    .map_err(|error| Error::FileWrite {
                         error: error.error,
                         path,
                     })?;
