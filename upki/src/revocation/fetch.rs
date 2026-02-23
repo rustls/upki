@@ -11,7 +11,7 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File, Permissions};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -231,18 +231,38 @@ impl PlanStep {
                         url: remote_url.clone(),
                     })?;
 
-                fs::write(
-                    &local,
-                    response
-                        .bytes()
-                        .await
-                        .map_err(|error| Error::HttpFetch {
-                            error: Box::new(error),
-                            url: remote_url.clone(),
-                        })?,
-                )
-                .map_err(|error| Error::FileWrite {
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|error| Error::HttpFetch {
+                        error: Box::new(error),
+                        url: remote_url.clone(),
+                    })?;
+
+                let parent = local.parent().expect("filter path must have parent");
+
+                #[cfg(target_family = "unix")]
+                let temp = tempfile::Builder::new()
+                    .permissions(Permissions::from_mode(0o644))
+                    .suffix(".tmp")
+                    .tempfile_in(parent);
+                #[cfg(not(target_family = "unix"))]
+                let temp = tempfile::Builder::new()
+                    .suffix(".tmp")
+                    .tempfile_in(parent);
+
+                let mut temp = temp.map_err(|error| Error::FileWrite {
                     error,
+                    path: local.clone(),
+                })?;
+
+                temp.write_all(&bytes).map_err(|error| Error::FileWrite {
+                    error,
+                    path: local.clone(),
+                })?;
+
+                temp.persist(&local).map_err(|error| Error::FileWrite {
+                    error: error.error,
                     path: local.clone(),
                 })?;
 
