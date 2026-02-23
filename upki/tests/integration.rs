@@ -260,7 +260,7 @@ fn full_fetch_and_incremental_update() {
     GET /manifest.json  ->  200 OK (547 bytes)
     GET /filter4.delta  ->  200 OK (3 bytes)
     ");
-    // filter2 is deleted, filter4 is new
+    // filter2 is deleted (stale), filter4 is new
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
         vec![
