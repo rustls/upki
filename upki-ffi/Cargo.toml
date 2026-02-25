@@ -1,6 +1,6 @@
 [package]
 name = "upki-ffi"
-version = "0.1.0"
+version = "0.2.0"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -14,7 +14,7 @@ doc = false # Can't document this and `upki` because they have the same name
 
 [dependencies]
 rustls-pki-types.workspace = true
-upki = { path = "../upki", version = "0.1.0" }
+upki = { path = "../upki", version = "0.2.0" }
 
 [build-dependencies]
 cbindgen.workspace = true

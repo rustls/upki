@@ -45,14 +45,14 @@ impl Manifest {
         let file = match File::open(&file_name) {
             Ok(f) => f,
             Err(error) => {
-                return Err(Error::ManifestRead {
+                return Err(Error::FileRead {
                     error,
-                    path: file_name,
+                    path: Some(file_name),
                 });
             }
         };
 
-        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::ManifestDecode {
+        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::FileDecode {
             error: Box::new(error),
             path: Some(file_name),
         })
@@ -77,18 +77,17 @@ impl Manifest {
             let bytes = match fs::read(&path) {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(Error::FilterRead {
+                    return Err(Error::FileRead {
                         error,
                         path: Some(path),
                     });
                 }
             };
 
-            let filter =
-                CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FilterDecode {
-                    error: format!("cannot decode crlite filter: {error:?}").into(),
-                    path,
-                })?;
+            let filter = CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
+                error: format!("cannot decode crlite filter: {error:?}").into(),
+                path: Some(path),
+            })?;
 
             match filter.contains(
                 &key,
@@ -383,18 +382,18 @@ pub enum Error {
         /// Path to the file being written.
         path: PathBuf,
     },
-    /// Failed to decode a filter file.
-    FilterDecode {
+    /// Failed to decode a file.
+    FileDecode {
         /// Underlying error.
         error: Box<dyn StdError + Send + Sync>,
-        /// Path to the filter file.
-        path: PathBuf,
+        /// Path to the file.
+        path: Option<PathBuf>,
     },
-    /// Failed to read a filter file.
-    FilterRead {
+    /// Failed to read a file.
+    FileRead {
         /// Underlying error.
         error: io::Error,
-        /// Path to the filter file.
+        /// Path to the file.
         path: Option<PathBuf>,
     },
     /// A downloaded file did not match the expected hash.
@@ -442,31 +441,10 @@ pub enum Error {
         /// Context in which the timestamp was being parsed.
         context: &'static str,
     },
-    /// Failed to decode a manifest file.
-    ManifestDecode {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// Path to the manifest file.
-        path: Option<PathBuf>,
-    },
     /// Failed to encode a manifest file.
     ManifestEncode {
         /// Underlying error.
         error: Box<dyn StdError + Send + Sync>,
-        /// Path to the manifest file.
-        path: PathBuf,
-    },
-    /// Failed to read a manifest file.
-    ManifestRead {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the manifest file.
-        path: PathBuf,
-    },
-    /// Failed to write a manifest file.
-    ManifestWrite {
-        /// Underlying error.
-        error: io::Error,
         /// Path to the manifest file.
         path: PathBuf,
     },
@@ -492,12 +470,13 @@ impl fmt::Display for Error {
                 write!(f, "cannot create directory {path:?}")
             }
             Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
-            Self::FilterDecode { path, .. } => {
-                write!(f, "cannot decode filter file {path:?}")
-            }
-            Self::FilterRead { path, .. } => match path {
-                Some(path) => write!(f, "cannot read filter file {path:?}"),
-                None => write!(f, "cannot read filter file"),
+            Self::FileDecode { path, .. } => match path {
+                Some(path) => write!(f, "cannot decode file {path:?}"),
+                None => write!(f, "cannot decode file"),
+            },
+            Self::FileRead { path, .. } => match path {
+                Some(path) => write!(f, "cannot read file {path:?}"),
+                None => write!(f, "cannot read file"),
             },
             Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
             Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
@@ -525,17 +504,8 @@ impl fmt::Display for Error {
             Self::InvalidTimestamp { input, context } => {
                 write!(f, "invalid timestamp for {context}: '{input}'")
             }
-            Self::ManifestDecode { path, .. } => {
-                write!(f, "cannot decode manifest file at {path:?}")
-            }
             Self::ManifestEncode { path, .. } => {
                 write!(f, "cannot encode manifest file at {path:?}")
-            }
-            Self::ManifestRead { path, .. } => {
-                write!(f, "cannot read manifest file at {path:?}")
-            }
-            Self::ManifestWrite { path, .. } => {
-                write!(f, "cannot write manifest file at {path:?}")
             }
             Self::NoIssuer => write!(f, "no issuer found for end-entity certificate"),
             Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
@@ -552,8 +522,8 @@ impl StdError for Error {
         match self {
             Self::CreateDirectory { error, .. } => Some(error),
             Self::FileWrite { error, .. } => Some(error),
-            Self::FilterDecode { error, .. } => Some(&**error),
-            Self::FilterRead { error, .. } => Some(error),
+            Self::FileDecode { error, .. } => Some(&**error),
+            Self::FileRead { error, .. } => Some(error),
             Self::HashMismatch(_) => None,
             Self::HttpFetch { error, .. } => Some(&**error),
             Self::InvalidBase64 { error, .. } => Some(&**error),
@@ -563,10 +533,7 @@ impl StdError for Error {
             Self::InvalidSctEncoding => None,
             Self::InvalidSctInCertificate(error) => Some(&**error),
             Self::InvalidTimestamp { .. } => None,
-            Self::ManifestDecode { error, .. } => Some(&**error),
             Self::ManifestEncode { error, .. } => Some(&**error),
-            Self::ManifestRead { error, .. } => Some(error),
-            Self::ManifestWrite { error, .. } => Some(error),
             Self::NoIssuer => None,
             Self::Outdated(_) => None,
             Self::RemoveFile { error, .. } => Some(error),
