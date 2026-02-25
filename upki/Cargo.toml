@@ -16,6 +16,7 @@ clap.workspace = true
 clubcard-crlite.workspace = true
 eyre.workspace = true
 hex.workspace = true
+memmap2.workspace = true
 reqwest.workspace = true
 rustls-pki-types.workspace = true
 rustls-webpki.workspace = true

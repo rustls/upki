@@ -74,7 +74,7 @@ impl Manifest {
         let cache_dir = config.revocation_cache_dir();
         for f in &self.filters {
             let path = cache_dir.join(&f.filename);
-            let bytes = match fs::read(&path) {
+            let bytes = match File::open(&path).and_then(|f| unsafe { memmap2::Mmap::map(&f) }) {
                 Ok(bytes) => bytes,
                 Err(error) => {
                     return Err(Error::FilterRead {
