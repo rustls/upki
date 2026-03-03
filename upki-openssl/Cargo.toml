@@ -1,0 +1,28 @@
+[package]
+name = "upki-openssl"
+version = "0.1.0"
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+openssl-sys = { workspace = true }
+rustls-pki-types.workspace = true
+upki = { path = "../upki", version = "0.2.0", features = ["capi"] }
+
+[dev-dependencies]
+cbindgen.workspace = true
+similar-asserts.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+capi = []
+
+[package.metadata.capi.header]
+generation = false
+
+[package.metadata.capi.install.include]
+asset = [{ from = "upki-openssl.h" }]
