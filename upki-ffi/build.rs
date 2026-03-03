@@ -8,6 +8,7 @@ fn main() {
     cbindgen::Builder::new()
         .with_crate(&crate_dir)
         .with_language(Language::C)
+        .with_include_guard("UPKI_H")
         .generate()
         .expect("unable to generate bindings")
         .write_to_file(crate_dir.join("upki.h"));
