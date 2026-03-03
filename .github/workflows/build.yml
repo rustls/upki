@@ -56,7 +56,9 @@ jobs:
       - name: Run tests (debug)
         run: cargo test --locked
       - name: Check FFI header
-        run: git diff --exit-code -- upki-ffi/upki.h
+        run: |
+          git diff --exit-code -- upki-ffi/upki.h
+          git diff --exit-code -- upki-openssl/upki-openssl.h
 
       - name: Build (release)
         run: cargo build --locked --release
