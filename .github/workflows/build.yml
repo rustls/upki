@@ -56,6 +56,13 @@ jobs:
         with:
           tool: cargo-c
 
+      - name: Install OpenSSL (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          vcpkg install openssl:x64-windows-static-md
+
       - name: Build (debug)
         run: cargo build --locked
       - name: Run tests (debug)
@@ -68,6 +75,8 @@ jobs:
 
       - name: Build FFI
         run: cargo cbuild --locked --release -p upki
+      - name: Build OpenSSL integration
+        run: cargo cbuild --locked --release -p upki-openssl
 
       - name: Run system tests (release)
         run: cargo test --locked --release --test system_tests -- --ignored --nocapture

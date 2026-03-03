@@ -23,9 +23,11 @@ x509-parser.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 insta-cmd.workspace = true
+openssl-sys.workspace = true
 rustls-pki-types.workspace = true
 rustls-upki.workspace = true
 upki = { path = "../upki", features = ["capi"] }
+upki-openssl = { path = "../upki-openssl" }
 
 [features]
 __bench_codspeed = ["dep:codspeed-criterion-compat"]
