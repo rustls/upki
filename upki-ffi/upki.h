@@ -1,3 +1,6 @@
+#ifndef UPKI_H
+#define UPKI_H
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -219,3 +222,5 @@ enum upki_result upki_config_new(struct upki_config **out);
  * or null (in which case this is a no-op).
  */
 void upki_config_free(struct upki_config *config);
+
+#endif  /* UPKI_H */
