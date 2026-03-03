@@ -160,6 +160,12 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<revocation::Error> for Error {
+    fn from(value: revocation::Error) -> Self {
+        Self::Revocation(value)
+    }
+}
+
 fn user_config_file() -> Result<PathBuf, Error> {
     Ok(project_dirs()?
         .config_dir()
