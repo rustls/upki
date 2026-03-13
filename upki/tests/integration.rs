@@ -18,14 +18,14 @@ use tempfile::TempDir;
 #[test]
 fn version() {
     let _filters = apply_common_filters();
-    assert_cmd_snapshot!(upki().arg("--version"), @r"
+    assert_cmd_snapshot!(upki().arg("--version"), @r###"
     success: true
     exit_code: 0
     ----- stdout -----
-    upki 0.1.0
+    upki 0.2.0
 
     ----- stderr -----
-    ");
+    "###);
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn verify_of_non_existent_dir() {
     ----- stdout -----
 
     ----- stderr -----
-    Error: cannot read manifest file at "not-exist/revocation/manifest.json"
+    Error: cannot read file "not-exist/revocation/manifest.json"
 
     Caused by:
         No such file or directory (os error 2)
@@ -260,7 +260,7 @@ fn full_fetch_and_incremental_update() {
     GET /manifest.json  ->  200 OK (547 bytes)
     GET /filter4.delta  ->  200 OK (3 bytes)
     ");
-    // filter2 is deleted, filter4 is new
+    // filter2 is deleted (stale), filter4 is new
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
         vec![

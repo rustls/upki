@@ -11,7 +11,7 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File, Permissions};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -68,7 +68,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     let manifest = response
         .json::<Manifest>()
         .await
-        .map_err(|error| Error::ManifestDecode {
+        .map_err(|error| Error::FileDecode {
             error: Box::new(error),
             path: None,
         })?;
@@ -132,7 +132,7 @@ impl Plan {
             for entry in iter {
                 let entry = match entry {
                     Ok(e) => e,
-                    Err(error) => return Err(Error::FilterRead { error, path: None }),
+                    Err(error) => return Err(Error::FileRead { error, path: None }),
                 };
 
                 let path = Path::new(&entry.file_name()).to_owned();
@@ -231,17 +231,15 @@ impl PlanStep {
                         url: remote_url.clone(),
                     })?;
 
-                fs::write(
-                    &local,
-                    response
-                        .bytes()
-                        .await
-                        .map_err(|error| Error::HttpFetch {
-                            error: Box::new(error),
-                            url: remote_url.clone(),
-                        })?,
-                )
-                .map_err(|error| Error::FileWrite {
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|error| Error::HttpFetch {
+                        error: Box::new(error),
+                        url: remote_url.clone(),
+                    })?;
+
+                atomic_write(&local, &bytes).map_err(|error| Error::FileWrite {
                     error,
                     path: local.clone(),
                 })?;
@@ -250,7 +248,7 @@ impl PlanStep {
                     Ok(digest) if digest.as_ref() == filter.hash => {}
                     Ok(_) => return Err(Error::HashMismatch(local)),
                     Err(error) => {
-                        return Err(Error::FilterRead {
+                        return Err(Error::FileRead {
                             error,
                             path: Some(local),
                         });
@@ -271,35 +269,13 @@ impl PlanStep {
                 local_dir,
             } => {
                 debug!("saving manifest");
-                #[cfg(target_family = "unix")]
-                let temp = tempfile::Builder::new()
-                    .permissions(Permissions::from_mode(0o644))
-                    .suffix(".new")
-                    .tempfile_in(&local_dir);
-                #[cfg(not(target_family = "unix"))]
-                let temp = tempfile::Builder::new()
-                    .suffix(".new")
-                    .tempfile_in(&local_dir);
-
-                let mut local_temp = temp.map_err(|error| Error::ManifestWrite {
-                    error,
-                    path: local_dir.clone(),
-                })?;
-
-                serde_json::to_writer(local_temp.as_file_mut(), &manifest).map_err(|error| {
-                    Error::ManifestEncode {
-                        error: Box::new(error),
-                        path: local_temp.path().to_owned(),
-                    }
-                })?;
-
                 let path = local_dir.join(MANIFEST_JSON);
-                local_temp
-                    .persist(&path)
-                    .map_err(|error| Error::ManifestWrite {
-                        error: error.error,
-                        path,
+                let data =
+                    serde_json::to_vec(&manifest).map_err(|error| Error::ManifestEncode {
+                        error: Box::new(error),
+                        path: path.clone(),
                     })?;
+                atomic_write(&path, &data).map_err(|error| Error::FileWrite { error, path })?;
             }
         }
 
@@ -334,6 +310,26 @@ impl fmt::Display for PlanStep {
             }
         }
     }
+}
+
+/// Atomically write `data` to `path` via a temporary file and rename.
+fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
+    let dir = path
+        .parent()
+        .expect("path must have parent");
+
+    #[cfg(target_family = "unix")]
+    let temp = tempfile::Builder::new()
+        .permissions(Permissions::from_mode(0o644))
+        .tempfile_in(dir);
+    #[cfg(not(target_family = "unix"))]
+    let temp = tempfile::Builder::new().tempfile_in(dir);
+
+    let mut temp = temp?;
+    temp.write_all(data)?;
+    temp.persist(path)
+        .map_err(|error| error.error)?;
+    Ok(())
 }
 
 fn hash_file(path: &Path) -> Result<digest::Digest, io::Error> {
