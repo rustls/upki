@@ -75,7 +75,14 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
 
     manifest.introduce()?;
 
-    let plan = Plan::construct(&manifest, &config.revocation.fetch_url, &cache_dir)?;
+    let old_manifest = Manifest::from_config(config).ok();
+
+    let plan = Plan::construct(
+        &old_manifest,
+        &manifest,
+        &config.revocation.fetch_url,
+        &cache_dir,
+    )?;
 
     if dry_run {
         println!(
@@ -110,10 +117,12 @@ pub(crate) struct Plan {
 impl Plan {
     /// Form a plan of how to synchronize with the remote server.
     ///
+    /// - `old_manifest` is an alleged current manifest, whose files are left alone.
     /// - `manifest` describes the contents of the remote server.
     /// - `remote_url` is the base URL.
     /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
     pub(crate) fn construct(
+        old_manifest: &Option<Manifest>,
         manifest: &Manifest,
         remote_url: &str,
         local: &Path,
@@ -155,6 +164,12 @@ impl Plan {
             }
 
             steps.push(PlanStep::download(filter, remote_url, local));
+        }
+
+        if let Some(old_manifest) = &old_manifest {
+            for filter in &old_manifest.filters {
+                unwanted_files.remove(Path::new(&filter.filename));
+            }
         }
 
         steps.push(PlanStep::SaveManifest {

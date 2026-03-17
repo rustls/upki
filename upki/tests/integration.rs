@@ -260,7 +260,38 @@ fn full_fetch_and_incremental_update() {
     GET /manifest.json  ->  200 OK (547 bytes)
     GET /filter4.delta  ->  200 OK (3 bytes)
     ");
-    // filter2 is deleted, filter4 is new
+    // filter2 could be deleted, filter4 is new
+    assert_eq!(
+        list_dir(&temp.path().join("revocation")),
+        vec![
+            "filter1.filter",
+            "filter2.delta",
+            "filter3.delta",
+            "filter4.delta",
+            "manifest.json"
+        ]
+    );
+
+    // a fetch of the same manifest clears away "filter2.delta" as it is now unused
+    let (server, _filters) = http_server("tests/data/evolution/");
+    write_config(&temp, server.url());
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--config-file")
+            .arg(&config_file)
+            .arg("fetch"),
+        @r"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+
+    ----- stderr -----
+    ");
+    assert_snapshot!(
+        server.into_log(),
+        @"GET /manifest.json  ->  200 OK (547 bytes)");
+
+    // filter2 is now deleted
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
         vec![
