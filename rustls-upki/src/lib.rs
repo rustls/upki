@@ -14,7 +14,8 @@ use rustls::{
     ExtendedKeyPurpose, RootCertStore, SignatureScheme, SupportedCipherSuite,
 };
 use upki::revocation::{
-    CertSerial, CtTimestamp, IssuerSpkiHash, Manifest, RevocationCheckInput, RevocationStatus,
+    CertSerial, CtTimestamp, Index, IssuerSpkiHash, Manifest, RevocationCheckInput,
+    RevocationStatus,
 };
 use upki::{self, Config, ConfigPath};
 use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, VerifiedPath};
@@ -128,9 +129,7 @@ impl ServerVerifier {
             sct_timestamps,
         };
 
-        match Manifest::from_config(&self.config)
-            .and_then(|manifest| manifest.check(&input, &self.config))
-        {
+        match Index::from_cache(&self.config).and_then(|index| index.check(&input)) {
             Ok(rs) => Ok(rs),
             Err(e) => Err(rustls::Error::General(e.to_string())),
         }
