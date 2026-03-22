@@ -1,0 +1,4 @@
+cache-dir = "benches/data/"
+
+[revocation]
+fetch-url = "https://upki.rustls.dev/"
