@@ -10,7 +10,7 @@ use codspeed_criterion_compat::{Criterion, criterion_group, criterion_main};
 use criterion::{Criterion, criterion_group, criterion_main};
 use revoke_test::RevocationTestSites;
 use rustls_pki_types::CertificateDer;
-use upki::revocation::{Manifest, RevocationCheckInput, RevocationStatus};
+use upki::revocation::{Index, Manifest, RevocationCheckInput, RevocationStatus};
 use upki::{Config, ConfigPath};
 
 fn revocation(c: &mut Criterion) {
@@ -47,10 +47,12 @@ fn revocation(c: &mut Criterion) {
         let revoked_certs = certificates_for_test_site(BENCHMARK_CASE);
 
         b.iter(|| {
-            let manifest = Manifest::from_config(&config).unwrap();
             let input = RevocationCheckInput::from_certificates(&revoked_certs).unwrap();
             assert_eq!(
-                manifest.check(&input, &config).unwrap(),
+                Index::from_cache(&config)
+                    .unwrap()
+                    .check(&input)
+                    .unwrap(),
                 RevocationStatus::CertainlyRevoked
             );
         })

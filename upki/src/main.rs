@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
-use upki::revocation::{Manifest, RevocationCheckInput, fetch};
+use upki::revocation::{Index, Manifest, RevocationCheckInput, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -51,8 +51,8 @@ async fn main() -> Result<ExitCode, Report> {
             }
 
             let input = RevocationCheckInput::from_certificates(&certs)?;
-            Manifest::from_config(&config)?
-                .check(&input, &config)?
+            Index::from_cache(&config)?
+                .check(&input)?
                 .to_cli()
         }
     })

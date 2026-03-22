@@ -1,7 +1,7 @@
 use core::error::Error as StdError;
-use core::fmt;
 use core::str::FromStr;
-use std::fs::{self, File};
+use core::{fmt, str};
+use std::fs::File;
 use std::io::{self, BufReader};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -10,7 +10,7 @@ use aws_lc_rs::digest;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::{DateTime, Utc};
-use clubcard_crlite::{CRLiteClubcard, CRLiteKey, CRLiteStatus};
+use clubcard_crlite::CRLiteKey;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -20,6 +20,9 @@ use crate::Config;
 mod fetch;
 use fetch::Plan;
 pub use fetch::fetch;
+
+mod index;
+pub use index::Index;
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -56,54 +59,6 @@ impl Manifest {
             error: Box::new(error),
             path: Some(file_name),
         })
-    }
-
-    /// This function does a low-level revocation check.
-    ///
-    /// It is assumed the caller has already done a path verification, and now wants to
-    /// check the revocation status of the end-entity certificate.
-    ///
-    /// On success, this returns a [`RevocationStatus`] saying whether the certificate
-    /// is revoked, not revoked, or whether the data set cannot make that determination.
-    pub fn check(
-        &self,
-        input: &RevocationCheckInput,
-        config: &Config,
-    ) -> Result<RevocationStatus, Error> {
-        let key = input.key();
-        let cache_dir = config.revocation_cache_dir();
-        for f in &self.filters {
-            let path = cache_dir.join(&f.filename);
-            let bytes = match fs::read(&path) {
-                Ok(bytes) => bytes,
-                Err(error) => {
-                    return Err(Error::FilterRead {
-                        error,
-                        path: Some(path),
-                    });
-                }
-            };
-
-            let filter =
-                CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FilterDecode {
-                    error: format!("cannot decode crlite filter: {error:?}").into(),
-                    path,
-                })?;
-
-            match filter.contains(
-                &key,
-                input
-                    .sct_timestamps
-                    .iter()
-                    .map(|ct_ts| (&ct_ts.log_id, ct_ts.timestamp)),
-            ) {
-                CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
-                CRLiteStatus::Good => return Ok(RevocationStatus::NotRevoked),
-                CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => continue,
-            }
-        }
-
-        Ok(RevocationStatus::NotCoveredByRevocationData)
     }
 
     /// Verify the current contents of the cache against this manifest.
@@ -399,6 +354,8 @@ pub enum Error {
     },
     /// A downloaded file did not match the expected hash.
     HashMismatch(PathBuf),
+    /// Failed to decode the index file.
+    IndexDecode(Box<dyn StdError + Send + Sync>),
     /// Failed to fetch a file over HTTP.
     HttpFetch {
         /// Underlying error.
@@ -500,6 +457,7 @@ impl fmt::Display for Error {
                 None => write!(f, "cannot read filter file"),
             },
             Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
+            Self::IndexDecode(_) => write!(f, "cannot decode index file"),
             Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
             Self::InvalidBase64 { context, .. } => {
                 write!(f, "invalid base64 for {context}")
@@ -555,6 +513,7 @@ impl StdError for Error {
             Self::FilterDecode { error, .. } => Some(&**error),
             Self::FilterRead { error, .. } => Some(error),
             Self::HashMismatch(_) => None,
+            Self::IndexDecode(error) => Some(&**error),
             Self::HttpFetch { error, .. } => Some(&**error),
             Self::InvalidBase64 { error, .. } => Some(&**error),
             Self::InvalidEndEntityCertificate(error) => Some(&**error),

@@ -11,7 +11,7 @@ use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File, Permissions};
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -20,7 +20,8 @@ use std::process::ExitCode;
 use aws_lc_rs::digest;
 use tracing::{debug, info};
 
-use super::{Error, Filter, Manifest};
+use super::index::INDEX_BIN;
+use super::{Error, Filter, Index, Manifest};
 use crate::Config;
 
 /// Update the local revocation cache by fetching updates over the network.
@@ -157,6 +158,11 @@ impl Plan {
             steps.push(PlanStep::download(filter, remote_url, local));
         }
 
+        steps.push(PlanStep::SaveIndex {
+            manifest: manifest.clone(),
+            local_dir: local.to_owned(),
+        });
+
         steps.push(PlanStep::SaveManifest {
             manifest: manifest.clone(),
             local_dir: local.to_owned(),
@@ -196,6 +202,12 @@ enum PlanStep {
 
     /// Delete the given single local file.
     Delete(PathBuf),
+
+    /// Build and save the index from filter universe metadata.
+    SaveIndex {
+        manifest: Manifest,
+        local_dir: PathBuf,
+    },
 
     /// Save the manifest structure
     SaveManifest {
@@ -266,6 +278,46 @@ impl PlanStep {
                     path: target,
                 })?;
             }
+            Self::SaveIndex {
+                manifest,
+                local_dir,
+            } => {
+                debug!("building index");
+                let Some(buf) = Index::write(&manifest, &local_dir) else {
+                    return Ok(());
+                };
+
+                #[cfg(target_family = "unix")]
+                let temp = tempfile::Builder::new()
+                    .permissions(Permissions::from_mode(0o644))
+                    .suffix(".new")
+                    .tempfile_in(&local_dir);
+                #[cfg(not(target_family = "unix"))]
+                let temp = tempfile::Builder::new()
+                    .suffix(".new")
+                    .tempfile_in(&local_dir);
+
+                let mut local_temp = temp.map_err(|error| Error::FileWrite {
+                    error,
+                    path: local_dir.clone(),
+                })?;
+
+                local_temp
+                    .as_file_mut()
+                    .write_all(&buf)
+                    .map_err(|error| Error::FileWrite {
+                        error,
+                        path: local_temp.path().to_owned(),
+                    })?;
+
+                let path = local_dir.join(INDEX_BIN);
+                local_temp
+                    .persist(&path)
+                    .map_err(|error| Error::FileWrite {
+                        error: error.error,
+                        path,
+                    })?;
+            }
             Self::SaveManifest {
                 manifest,
                 local_dir,
@@ -329,6 +381,9 @@ impl fmt::Display for PlanStep {
                 filter.size
             ),
             Self::Delete(path) => write!(f, "delete stale file {path:?}"),
+            Self::SaveIndex { local_dir, .. } => {
+                write!(f, "build index from filters into {local_dir:?}")
+            }
             Self::SaveManifest { local_dir, .. } => {
                 write!(f, "save new manifest into {local_dir:?}")
             }
