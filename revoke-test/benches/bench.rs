@@ -1,6 +1,7 @@
 use core::hint::black_box;
 use core::iter;
 use std::fs::File;
+use std::path::PathBuf;
 
 use base64::prelude::{BASE64_STANDARD, Engine};
 #[cfg(feature = "__bench_codspeed")]
@@ -14,11 +15,19 @@ use upki::{Config, ConfigPath};
 
 fn revocation(c: &mut Criterion) {
     c.bench_function("load-config", |b| {
-        b.iter(|| Config::from_file_or_default(&ConfigPath::new(None).unwrap()).unwrap())
+        b.iter(|| {
+            Config::from_file_or_default(&ConfigPath::Specified(PathBuf::from(
+                "benches/data/config.toml",
+            )))
+            .unwrap()
+        })
     });
 
     c.bench_function("load-manifest", |b| {
-        let config = Config::from_file_or_default(&ConfigPath::new(None).unwrap()).unwrap();
+        let config = Config::from_file_or_default(&ConfigPath::Specified(PathBuf::from(
+            "benches/data/config.toml",
+        )))
+        .unwrap();
 
         b.iter(|| {
             black_box(Manifest::from_config(&config).unwrap());
