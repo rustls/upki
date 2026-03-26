@@ -26,12 +26,14 @@ jobs:
 
       - name: Generate backend files
         run: |
-          mkdir -p tmp/revocation/
+          mkdir -p tmp/revocation/ tmp/intermediates
           cargo run --locked --release --bin mozilla-crlite -- tmp/revocation/ production --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
           # backwards compatible location & manifest
           cp tmp/revocation/* tmp/
           jq '. + {filters: .files} | del(.files)' tmp/manifest.json > tmp/manifest.json.new
           mv tmp/manifest.json.new tmp/manifest.json
+
+          cargo run --locked --release --bin intermediates -- tmp/intermediates/ --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
 
       - name: Package and upload artifact
         uses: actions/upload-pages-artifact@v4
