@@ -23,6 +23,10 @@ pub(crate) mod fetch;
 pub mod revocation;
 use crate::revocation::RevocationConfig;
 
+/// Fetching intermediate certificates to assist chain building.
+pub mod intermediates;
+use crate::intermediates::IntermediatesConfig;
+
 /// Foreign function interface.
 #[cfg(feature = "capi")]
 pub mod ffi;
@@ -42,6 +46,15 @@ pub struct Config {
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
+
+    /// Configuration for intermediate preloading.
+    ///
+    /// This is optional, and if absent intermediates are not fetched.
+    ///
+    /// If the configuration section is provided but empty (ie, just `[intermediates]\n`), then it
+    /// is fetched using the default URL.
+    #[serde(default)]
+    pub intermediates: Option<IntermediatesConfig>,
 }
 
 impl Config {
@@ -84,6 +97,7 @@ impl Config {
                 }
             },
             revocation: RevocationConfig::default(),
+            intermediates: None,
         })
     }
 
