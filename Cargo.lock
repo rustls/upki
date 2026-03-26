@@ -2679,9 +2679,11 @@ version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
  "clap",
+ "csv",
  "eyre",
  "hex",
  "reqwest",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "tokio",
