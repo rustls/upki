@@ -21,8 +21,9 @@ use aws_lc_rs::digest;
 use tracing::{debug, info};
 
 use super::index::INDEX_BIN;
-use super::{Error, Index, Manifest, ManifestFile};
+use super::{Error, Index};
 use crate::Config;
+use crate::data::{Manifest, ManifestFile};
 
 /// Update the local revocation cache by fetching updates over the network.
 ///
@@ -31,7 +32,9 @@ use crate::Config;
 /// such a call is not completely "dry" -- perhaps "moist".
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
-    let old_manifest = Manifest::from_config(config).ok();
+    let old_manifest = super::Manifest::from_config(config)
+        .ok()
+        .map(|m| m.0);
     fetch_inner(
         dry_run,
         &config.revocation.fetch_url,

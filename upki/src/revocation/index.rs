@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 
 use clubcard_crlite::{CRLiteClubcard, CRLiteStatus};
 
-use super::{Error, Manifest, RevocationCheckInput, RevocationStatus};
+use super::{Error, RevocationCheckInput, RevocationStatus};
 use crate::Config;
+use crate::data::Manifest;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
 ///
