@@ -18,6 +18,9 @@ pub mod revocation;
 /// Fetching intermediate certificates to assist chain building.
 pub mod intermediates;
 
+/// Data storage.
+pub mod data;
+
 use crate::intermediates::IntermediatesConfig;
 use crate::revocation::RevocationConfig;
 
