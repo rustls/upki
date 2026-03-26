@@ -40,7 +40,7 @@ impl Manifest {
     #[cfg(feature = "__fetch")]
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
-        file_name.push("manifest.json");
+        file_name.push(fetch::MANIFEST_JSON);
 
         let file = match File::open(&file_name) {
             Ok(f) => f,

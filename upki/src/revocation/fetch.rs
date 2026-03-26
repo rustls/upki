@@ -432,5 +432,5 @@ fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
     Ok(hasher.finish())
 }
 
-const MANIFEST_JSON: &str = "manifest.json";
+pub(super) const MANIFEST_JSON: &str = "manifest.json";
 const REQUEST_TIMEOUT: u64 = 30;
