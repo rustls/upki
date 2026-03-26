@@ -113,7 +113,9 @@ async fn main() -> Result<(), Report> {
         comment: opts.manifest_comment.clone(),
         filters,
     };
-    let output_filename = opts.output_dir.join("manifest.json");
+    let output_filename = opts
+        .output_dir
+        .join("v1-revocation-manifest.json");
     fs::write(
         output_filename,
         serde_json::to_string(&manifest)
