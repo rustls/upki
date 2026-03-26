@@ -7,6 +7,7 @@ use std::{fmt, fs, io};
 
 use serde::{Deserialize, Serialize};
 
+use crate::intermediates::IntermediatesConfig;
 use crate::revocation::RevocationConfig;
 
 /// `upki` configuration.
@@ -18,6 +19,9 @@ pub struct Config {
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
+
+    /// Configuration for intermediate preloading.
+    pub intermediates: Option<IntermediatesConfig>,
 }
 
 impl Config {
@@ -50,6 +54,7 @@ impl Config {
         Ok(Self {
             cache_dir: platform::default_cache_dir()?,
             revocation: RevocationConfig::default(),
+            intermediates: Some(IntermediatesConfig::default()),
         })
     }
 
@@ -199,3 +204,6 @@ const CONFIG_FILE: &str = "config.toml";
 
 /// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
+
+/// Fetching intermediate certificates to assist chain building.
+pub mod intermediates;
