@@ -20,8 +20,9 @@ use std::process::ExitCode;
 use aws_lc_rs::digest;
 use tracing::{debug, info};
 
-use super::{Error, Filter, Manifest};
+use super::Error;
 use crate::Config;
+use crate::data::{Manifest, ManifestFile};
 
 /// Update the local revocation cache by fetching updates over the network.
 ///
@@ -155,7 +156,7 @@ impl Plan {
             steps.push(PlanStep::CreateDir(local.to_owned()));
         }
 
-        for filter in &manifest.filters {
+        for filter in &manifest.files {
             unwanted_files.remove(Path::new(&filter.filename));
 
             let path = local.join(&filter.filename);
@@ -184,7 +185,7 @@ impl Plan {
         self.steps
             .iter()
             .filter_map(|s| match s {
-                PlanStep::Download { filter, .. } => Some(filter.size),
+                PlanStep::Download { file, .. } => Some(file.size),
                 _ => None,
             })
             .sum()
@@ -197,7 +198,7 @@ enum PlanStep {
 
     /// Download `filter` from `remote` to `local`
     Download {
-        filter: Filter,
+        file: ManifestFile,
         /// URL.
         remote_url: String,
         /// Full path to output file.
@@ -221,11 +222,11 @@ impl PlanStep {
                 fs::create_dir_all(&path).map_err(|error| Error::CreateDirectory { error, path })?
             }
             Self::Download {
-                filter,
+                file,
                 remote_url,
                 local,
             } => {
-                debug!("downloading {:?}", filter);
+                debug!("downloading {:?}", file);
 
                 let response = client
                     .get(&remote_url)
@@ -257,7 +258,7 @@ impl PlanStep {
                 })?;
 
                 match hash_file(&local) {
-                    Ok(digest) if digest.as_ref() == filter.hash => {}
+                    Ok(digest) if digest.as_ref() == file.hash => {}
                     Ok(_) => return Err(Error::HashMismatch(local)),
                     Err(error) => {
                         return Err(Error::FilterRead {
@@ -316,11 +317,11 @@ impl PlanStep {
         Ok(())
     }
 
-    fn download(filter: &Filter, remote_url: &str, local: &Path) -> Self {
+    fn download(file: &ManifestFile, remote_url: &str, local: &Path) -> Self {
         Self::Download {
-            filter: filter.clone(),
-            remote_url: format!("{remote_url}{}", filter.filename),
-            local: local.join(&filter.filename),
+            file: file.clone(),
+            remote_url: format!("{remote_url}{}", file.filename),
+            local: local.join(&file.filename),
         }
     }
 }
@@ -330,13 +331,13 @@ impl fmt::Display for PlanStep {
         match self {
             Self::CreateDir(path) => write!(f, "create directory {path:?}"),
             Self::Download {
-                filter,
+                file,
                 remote_url,
                 local,
             } => write!(
                 f,
                 "download {} bytes from {remote_url} to {local:?}",
-                filter.size
+                file.size
             ),
             Self::Delete(path) => write!(f, "delete stale file {path:?}"),
             Self::SaveManifest { local_dir, .. } => {

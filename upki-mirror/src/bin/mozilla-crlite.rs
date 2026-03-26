@@ -7,7 +7,7 @@ use std::time::SystemTime;
 use aws_lc_rs::digest::{SHA256, digest};
 use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
-use upki::revocation::{Filter, Manifest};
+use upki::data::{Manifest, ManifestFile};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Report> {
         download_plan.push(item);
     }
 
-    let mut filters = Vec::new();
+    let mut files = Vec::new();
 
     for p in download_plan {
         let attachment_url = source.attachment_host.to_string() + &p.attachment.location;
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Report> {
         fs::write(&output_filename, bytes)
             .wrap_err_with(|| format!("cannot write filter data to {output_filename:?}",))?;
 
-        filters.push(Filter {
+        files.push(ManifestFile {
             filename: p.attachment.filename.clone(),
             size: p.attachment.size,
             hash: p.attachment.hash.clone(),
@@ -111,7 +111,7 @@ async fn main() -> Result<(), Report> {
             .unwrap()
             .as_secs(),
         comment: opts.manifest_comment.clone(),
-        filters,
+        files,
     };
     let output_filename = opts
         .output_dir

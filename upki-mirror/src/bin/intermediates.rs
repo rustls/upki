@@ -9,7 +9,7 @@ use clap::Parser;
 use eyre::{Context, Report, anyhow};
 use rustls_pki_types::{CertificateDer, pem::PemObject};
 use serde::Deserialize;
-use upki::revocation::{Filter, Manifest};
+use upki::data::{Manifest, ManifestFile};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
@@ -89,7 +89,7 @@ async fn main() -> Result<(), Report> {
         fs::write(opts.output_dir.join(&filename), &contents).wrap_err("cannot write PEM file")?;
         let hash = digest(&SHA256, contents.as_bytes());
 
-        files.push(Filter {
+        files.push(ManifestFile {
             filename,
             size: contents.len(),
             hash: hash.as_ref().to_vec(),
@@ -102,7 +102,7 @@ async fn main() -> Result<(), Report> {
             .unwrap()
             .as_secs(),
         comment: opts.manifest_comment.clone(),
-        filters: files, // TODO: generalise format (breaking)
+        files,
     };
     let output_filename = opts
         .output_dir
