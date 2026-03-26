@@ -15,9 +15,9 @@ use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 
 use crate::Config;
+use crate::data::Plan;
 
 mod fetch;
-use fetch::Plan;
 pub use fetch::fetch;
 
 /// The structure contained in a manifest.json

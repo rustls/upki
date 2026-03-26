@@ -7,7 +7,8 @@ use std::time::SystemTime;
 use aws_lc_rs::digest::{SHA256, digest};
 use clap::Parser;
 use eyre::{Context, Report, anyhow};
-use rustls_pki_types::{CertificateDer, pem::PemObject};
+use rustls_pki_types::CertificateDer;
+use rustls_pki_types::pem::PemObject;
 use serde::Deserialize;
 use upki::data::{Manifest, ManifestFile};
 
