@@ -27,7 +27,10 @@ jobs:
       - name: Generate backend files
         run: |
           mkdir tmp/
-          cargo run --locked --release --bin upki-mirror -- tmp/ production --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
+          cargo run --locked --release --bin mozilla-crlite -- tmp/ production --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
+          # backwards compatible name
+          cp tmp/v1-revocation-manifest.json tmp/manifest.json
+          cargo run --locked --release --bin intermediates -- tmp/ --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
 
       - name: Package and upload artifact
         uses: actions/upload-pages-artifact@v4

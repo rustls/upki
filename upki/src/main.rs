@@ -8,8 +8,9 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
-use upki::revocation::{Manifest, RevocationCheckInput, fetch};
+use upki::revocation::{Manifest, RevocationCheckInput};
 use upki::{Config, ConfigPath};
+use upki::{intermediates, revocation};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {
@@ -33,7 +34,15 @@ async fn main() -> Result<ExitCode, Report> {
     let config = Config::from_file_or_default(&config_path)?;
 
     Ok(match args.command {
-        Command::Fetch { dry_run } => fetch(dry_run, &config).await?,
+        Command::Fetch { dry_run } => {
+            match (
+                revocation::fetch(dry_run, &config).await?,
+                intermediates::fetch(dry_run, &config).await?,
+            ) {
+                (ExitCode::SUCCESS, ExitCode::SUCCESS) => ExitCode::SUCCESS,
+                (..) => ExitCode::FAILURE,
+            }
+        }
         Command::Verify => Manifest::from_config(&config)?.verify(&config)?,
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
