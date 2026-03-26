@@ -9,8 +9,6 @@ use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
 use upki::revocation::{Filter, Manifest};
 
-mod mozilla;
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
     let opts = Opts::try_parse()?;
@@ -168,3 +166,38 @@ const MOZILLA_PROD: Source = Source {
     records_url: "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/cert-revocations/records",
     attachment_host: "https://firefox-settings-attachments.cdn.mozilla.net/",
 };
+
+/// JSON structures used in the Mozilla preferences service.
+mod mozilla {
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    pub(crate) struct Manifest {
+        pub(crate) data: Vec<Item>,
+    }
+
+    #[derive(Clone, Debug, Deserialize)]
+    pub(crate) struct Item {
+        pub(crate) attachment: Attachment,
+        pub(crate) channel: Channel,
+        pub(crate) id: String,
+        pub(crate) incremental: bool,
+        pub(crate) parent: Option<String>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    #[serde(rename_all = "snake_case")]
+    pub(crate) enum Channel {
+        Default,
+        Compat,
+    }
+
+    #[derive(Clone, Debug, Deserialize)]
+    pub(crate) struct Attachment {
+        #[serde(with = "hex::serde")]
+        pub hash: Vec<u8>,
+        pub size: usize,
+        pub filename: String,
+        pub location: String,
+    }
+}
