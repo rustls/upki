@@ -20,11 +20,11 @@ use crate::{data, sha256};
 #[cfg(feature = "__fetch")]
 mod fetch;
 #[cfg(feature = "__fetch")]
-use fetch::Plan;
-#[cfg(feature = "__fetch")]
 pub use fetch::fetch;
 
 mod index;
+#[cfg(feature = "__fetch")]
+pub(crate) use index::INDEX_BIN;
 pub use index::Index;
 
 /// The structure contained in a manifest.json
@@ -36,7 +36,7 @@ impl Manifest {
     #[cfg(feature = "__fetch")]
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
-        file_name.push(fetch::MANIFEST_JSON);
+        file_name.push(data::MANIFEST_JSON);
         data::Manifest::from_file(&file_name).map(Manifest)
     }
 
@@ -46,7 +46,8 @@ impl Manifest {
     #[cfg(feature = "__fetch")]
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
         self.introduce()?;
-        let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
+        let plan =
+            data::Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
             0 => Ok(ExitCode::SUCCESS),
             bytes => Err(Error::Outdated(bytes)),
