@@ -30,13 +30,26 @@ use crate::Config;
 /// required files; but the necessary files are printed to stdout.  Therefore
 /// such a call is not completely "dry" -- perhaps "moist".
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
-    let cache_dir = config.revocation_cache_dir();
-    info!(
-        "fetching {} into {:?}...",
-        &config.revocation.fetch_url, &cache_dir,
-    );
-
     let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
+    let old_manifest = Manifest::from_config(config).ok();
+    fetch_inner(
+        dry_run,
+        &config.revocation.fetch_url,
+        manifest_url,
+        &old_manifest,
+        config.revocation_cache_dir(),
+    )
+    .await
+}
+
+async fn fetch_inner(
+    dry_run: bool,
+    fetch_url: &str,
+    manifest_url: String,
+    old_manifest: &Option<Manifest>,
+    cache_dir: PathBuf,
+) -> Result<ExitCode, Error> {
+    info!("fetching {fetch_url} into {cache_dir:?}...");
     let client = reqwest::Client::builder()
         .use_rustls_tls()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT))
@@ -76,14 +89,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
 
     manifest.introduce()?;
 
-    let old_manifest = Manifest::from_config(config).ok();
-
-    let plan = Plan::construct(
-        &manifest,
-        &old_manifest,
-        &config.revocation.fetch_url,
-        &cache_dir,
-    )?;
+    let plan = Plan::construct(&manifest, old_manifest, fetch_url, &cache_dir)?;
 
     if dry_run {
         println!(
