@@ -1002,6 +1002,7 @@ mod tests {
         Config {
             cache_dir: dir.to_owned(),
             revocation: RevocationConfig::default(),
+            intermediates: None,
         }
     }
 
