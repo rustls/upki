@@ -35,6 +35,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
         dry_run,
         &config.revocation.fetch_url,
         manifest_url,
+        MANIFEST_JSON.to_string(),
         config.revocation_cache_dir(),
     )
     .await
@@ -44,6 +45,7 @@ async fn fetch_inner(
     dry_run: bool,
     fetch_url: &str,
     manifest_url: String,
+    manifest_file_name: String,
     cache_dir: PathBuf,
 ) -> Result<ExitCode, Error> {
     info!("fetching {fetch_url} into {cache_dir:?}...");
@@ -86,7 +88,7 @@ async fn fetch_inner(
 
     manifest.introduce()?;
 
-    let plan = Plan::construct(&manifest, fetch_url, &cache_dir)?;
+    let plan = Plan::construct(&manifest, fetch_url, &cache_dir, manifest_file_name)?;
 
     if dry_run {
         println!(
@@ -124,10 +126,12 @@ impl Plan {
     /// - `manifest` describes the contents of the remote server.
     /// - `remote_url` is the base URL.
     /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
+    /// - `manifest_file_name` is the file name of the manifest, which will be placed into `local`.
     pub(crate) fn construct(
         manifest: &Manifest,
         remote_url: &str,
         local: &Path,
+        manifest_file_name: String,
     ) -> Result<Self, Error> {
         let mut steps = Vec::new();
 
@@ -171,6 +175,7 @@ impl Plan {
         steps.push(PlanStep::SaveManifest {
             manifest: manifest.clone(),
             local_dir: local.to_owned(),
+            file_name: manifest_file_name.clone(),
         });
 
         for filename in unwanted_files {
@@ -212,6 +217,7 @@ enum PlanStep {
     SaveManifest {
         manifest: Manifest,
         local_dir: PathBuf,
+        file_name: String,
     },
 }
 
@@ -280,6 +286,7 @@ impl PlanStep {
             Self::SaveManifest {
                 manifest,
                 local_dir,
+                file_name,
             } => {
                 debug!("saving manifest");
                 #[cfg(target_family = "unix")]
@@ -304,7 +311,7 @@ impl PlanStep {
                     }
                 })?;
 
-                let path = local_dir.join(MANIFEST_JSON);
+                let path = local_dir.join(file_name);
                 local_temp
                     .persist(&path)
                     .map_err(|error| Error::ManifestWrite {
