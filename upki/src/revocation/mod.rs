@@ -16,10 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::{Config, data};
 
 mod fetch;
-use fetch::Plan;
 pub use fetch::fetch;
 
 mod index;
+pub(crate) use index::INDEX_BIN;
 pub use index::Index;
 
 /// The structure contained in a manifest.json
@@ -30,7 +30,7 @@ impl Manifest {
     /// Load the revocation manifest from the cache directory specified in the configuration.
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
-        file_name.push(fetch::MANIFEST_JSON);
+        file_name.push(data::MANIFEST_JSON);
         data::Manifest::from_file(&file_name).map(Manifest)
     }
 
@@ -39,7 +39,8 @@ impl Manifest {
     /// This performs disk IO but does not perform network IO.
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
         self.introduce()?;
-        let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
+        let plan =
+            data::Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
             0 => Ok(ExitCode::SUCCESS),
             bytes => Err(Error::Outdated(bytes)),
