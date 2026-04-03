@@ -7,9 +7,7 @@ use std::time::SystemTime;
 use aws_lc_rs::digest::{SHA256, digest};
 use clap::{Parser, ValueEnum};
 use eyre::{Context, Report, anyhow};
-use upki::revocation::{Filter, Manifest};
-
-mod mozilla;
+use upki::data::{Manifest, ManifestFile};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
@@ -68,7 +66,7 @@ async fn main() -> Result<(), Report> {
         download_plan.push(item);
     }
 
-    let mut filters = Vec::new();
+    let mut files = Vec::new();
 
     for p in download_plan {
         let attachment_url = source.attachment_host.to_string() + &p.attachment.location;
@@ -100,7 +98,7 @@ async fn main() -> Result<(), Report> {
         fs::write(&output_filename, bytes)
             .wrap_err_with(|| format!("cannot write filter data to {output_filename:?}",))?;
 
-        filters.push(Filter {
+        files.push(ManifestFile {
             filename: p.attachment.filename.clone(),
             size: p.attachment.size,
             hash: p.attachment.hash.clone(),
@@ -113,9 +111,11 @@ async fn main() -> Result<(), Report> {
             .unwrap()
             .as_secs(),
         comment: opts.manifest_comment.clone(),
-        filters,
+        files,
     };
-    let output_filename = opts.output_dir.join("manifest.json");
+    let output_filename = opts
+        .output_dir
+        .join("v1-revocation-manifest.json");
     fs::write(
         output_filename,
         serde_json::to_string(&manifest)
@@ -168,3 +168,38 @@ const MOZILLA_PROD: Source = Source {
     records_url: "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/cert-revocations/records",
     attachment_host: "https://firefox-settings-attachments.cdn.mozilla.net/",
 };
+
+/// JSON structures used in the Mozilla preferences service.
+mod mozilla {
+    use serde::Deserialize;
+
+    #[derive(Debug, Deserialize)]
+    pub(crate) struct Manifest {
+        pub(crate) data: Vec<Item>,
+    }
+
+    #[derive(Clone, Debug, Deserialize)]
+    pub(crate) struct Item {
+        pub(crate) attachment: Attachment,
+        pub(crate) channel: Channel,
+        pub(crate) id: String,
+        pub(crate) incremental: bool,
+        pub(crate) parent: Option<String>,
+    }
+
+    #[derive(Clone, Debug, Deserialize, PartialEq)]
+    #[serde(rename_all = "snake_case")]
+    pub(crate) enum Channel {
+        Default,
+        Compat,
+    }
+
+    #[derive(Clone, Debug, Deserialize)]
+    pub(crate) struct Attachment {
+        #[serde(with = "hex::serde")]
+        pub hash: Vec<u8>,
+        pub size: usize,
+        pub filename: String,
+        pub location: String,
+    }
+}
