@@ -28,8 +28,10 @@ jobs:
         run: |
           mkdir -p tmp/revocation/
           cargo run --locked --release --bin mozilla-crlite -- tmp/revocation/ production --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
-          # backwards compatible location
+          # backwards compatible location & manifest
           cp tmp/revocation/* tmp/
+          jq '. + {filters: .files} | del(.files)' tmp/manifest.json > tmp/manifest.json.new
+          mv tmp/manifest.json.new tmp/manifest.json
 
       - name: Package and upload artifact
         uses: actions/upload-pages-artifact@v4

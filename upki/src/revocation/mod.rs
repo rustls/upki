@@ -32,8 +32,9 @@ pub struct Manifest {
     /// Some human-readable text.
     pub comment: String,
 
-    /// List of filter files.
-    pub filters: Vec<Filter>,
+    /// List of required files.
+    #[serde(alias = "filters")]
+    pub files: Vec<ManifestFile>,
 }
 
 impl Manifest {
@@ -72,7 +73,7 @@ impl Manifest {
     ) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let cache_dir = config.revocation_cache_dir();
-        for f in &self.filters {
+        for f in &self.files {
             let path = cache_dir.join(&f.filename);
             let bytes = match fs::read(&path) {
                 Ok(bytes) => bytes,
@@ -136,7 +137,7 @@ impl Manifest {
 
 /// Manifest data for a single crlite filter file.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Filter {
+pub struct ManifestFile {
     /// Relative filename.
     ///
     /// This is also the suggested local filename.
