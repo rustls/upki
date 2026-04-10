@@ -338,7 +338,7 @@ pub struct RevocationConfig {
 impl Default for RevocationConfig {
     fn default() -> Self {
         Self {
-            fetch_url: "https://upki.rustls.dev/".into(),
+            fetch_url: "https://upki.rustls.dev/revocation/".into(),
         }
     }
 }

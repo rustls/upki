@@ -234,4 +234,4 @@ enum TestResult {
 const TEST_CONFIG_PATH: &str = "tmp/system-test/config.toml";
 const TEST_CONFIG: &str = "cache-dir=\"tmp/system-test\"\n\
     [revocation]\n\
-    fetch-url=\"https://upki.rustls.dev/\"\n";
+    fetch-url=\"https://upki.rustls.dev/revocation/\"\n";
