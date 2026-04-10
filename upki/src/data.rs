@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -35,6 +39,24 @@ impl Manifest {
 
         info!(comment = self.comment, date = dt, "parsed manifest");
         Ok(())
+    }
+
+    /// Load a manifest by reading the named JSON file.
+    pub(crate) fn from_file(file_name: &Path) -> Result<Self, Error> {
+        let file = match File::open(file_name) {
+            Ok(f) => f,
+            Err(error) => {
+                return Err(Error::FileRead {
+                    error,
+                    path: Some(file_name.to_owned()),
+                });
+            }
+        };
+
+        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::FileDecode {
+            error: Box::new(error),
+            path: Some(file_name.to_owned()),
+        })
     }
 }
 
