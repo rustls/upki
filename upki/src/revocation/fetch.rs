@@ -40,7 +40,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
         .use_rustls_tls()
         .timeout(Duration::from_secs(REQUEST_TIMEOUT))
         .user_agent(format!(
-            "{} v{} ({})",
+            "{}/{} ({})",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             env!("CARGO_PKG_REPOSITORY")

@@ -18,7 +18,7 @@ async fn main() -> Result<(), Report> {
         .use_rustls_tls()
         .timeout(Duration::from_secs(opts.http_timeout_secs))
         .user_agent(format!(
-            "{} v{} ({})",
+            "{}/{} ({})",
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             env!("CARGO_PKG_REPOSITORY")
