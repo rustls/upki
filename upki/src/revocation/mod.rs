@@ -2,8 +2,7 @@ use core::error::Error as StdError;
 use core::ops::Deref;
 use core::str::FromStr;
 use core::{fmt, str};
-use std::fs::File;
-use std::io::{self, BufReader};
+use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -32,21 +31,7 @@ impl Manifest {
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
         file_name.push(fetch::MANIFEST_JSON);
-
-        let file = match File::open(&file_name) {
-            Ok(f) => f,
-            Err(error) => {
-                return Err(Error::FileRead {
-                    error,
-                    path: Some(file_name),
-                });
-            }
-        };
-
-        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::FileDecode {
-            error: Box::new(error),
-            path: Some(file_name),
-        })
+        data::Manifest::from_file(&file_name).map(Manifest)
     }
 
     /// Verify the current contents of the cache against this manifest.
