@@ -8,7 +8,7 @@ use std::path::Path;
 use std::slice;
 
 use rustls_pki_types::CertificateDer;
-use upki::revocation::{self, Manifest, RevocationCheckInput, RevocationStatus};
+use upki::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
 use upki::{Config, Error};
 
 /// Check the revocation status of a certificate.
@@ -47,12 +47,12 @@ pub unsafe extern "C" fn upki_check_revocation(
             Err(err) => return Error::Revocation(err).into(),
         };
 
-        let manifest = match Manifest::from_config(config) {
-            Ok(manifest) => manifest,
+        let mut index = match Index::from_cache(config) {
+            Ok(index) => index,
             Err(err) => return Error::Revocation(err).into(),
         };
 
-        match manifest.check(&input, config) {
+        match index.check(&input) {
             Ok(status) => match status {
                 RevocationStatus::NotCoveredByRevocationData => {
                     upki_result::UPKI_REVOCATION_NOT_COVERED
