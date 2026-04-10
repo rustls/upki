@@ -1,7 +1,7 @@
 {
   "generated_at": 1765445031,
   "comment": "typical test manifest",
-  "filters": [
+  "files": [
     {
       "filename": "filter1.filter",
       "size": 11,

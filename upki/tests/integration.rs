@@ -157,7 +157,7 @@ fn fetch_of_empty_manifest() {
     ");
     assert_snapshot!(
         server.into_log(),
-        @"GET /manifest.json  ->  200 OK (81 bytes)"
+        @"GET /manifest.json  ->  200 OK (79 bytes)"
     );
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
@@ -186,7 +186,7 @@ fn full_fetch() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /manifest.json  ->  200 OK (532 bytes)
+    GET /manifest.json  ->  200 OK (530 bytes)
     GET /filter1.filter  ->  200 OK (11 bytes)
     GET /filter2.delta  ->  200 OK (14 bytes)
     GET /filter3.delta  ->  200 OK (10 bytes)
@@ -223,7 +223,7 @@ fn full_fetch_and_incremental_update() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /manifest.json  ->  200 OK (532 bytes)
+    GET /manifest.json  ->  200 OK (530 bytes)
     GET /filter1.filter  ->  200 OK (11 bytes)
     GET /filter2.delta  ->  200 OK (14 bytes)
     GET /filter3.delta  ->  200 OK (10 bytes)
@@ -257,7 +257,7 @@ fn full_fetch_and_incremental_update() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /manifest.json  ->  200 OK (547 bytes)
+    GET /manifest.json  ->  200 OK (545 bytes)
     GET /filter4.delta  ->  200 OK (3 bytes)
     ");
     // filter2 is deleted (stale), filter4 is new
@@ -314,7 +314,7 @@ fn typical_incremental_fetch() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /manifest.json  ->  200 OK (532 bytes)
+    GET /manifest.json  ->  200 OK (530 bytes)
     GET /filter2.delta  ->  200 OK (14 bytes)
     ");
 
