@@ -1,0 +1,22 @@
+[package]
+name = "upki-openssl"
+version = "0.1.0"
+license.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+repository.workspace = true
+
+[lib]
+name = "upkiopenssl"
+crate-type = ["cdylib"]
+
+[dependencies]
+openssl-sys = { workspace = true }
+rustls-pki-types.workspace = true
+upki = { path = "../upki", version = "0.2.0" }
+
+[build-dependencies]
+cbindgen.workspace = true
+
+[lints]
+workspace = true
