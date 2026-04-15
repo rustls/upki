@@ -36,7 +36,7 @@ jobs:
           cargo run --locked --release --bin intermediates -- tmp/intermediates/ --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
 
       - name: Package and upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./tmp/
 
