@@ -194,6 +194,12 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<revocation::Error> for Error {
+    fn from(value: revocation::Error) -> Self {
+        Self::Revocation(value)
+    }
+}
+
 const PREFIX: &str = "upki";
 const CONFIG_FILE: &str = "config.toml";
 

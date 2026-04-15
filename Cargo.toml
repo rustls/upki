@@ -1,5 +1,5 @@
 [workspace]
-members = ["upki", "upki-mirror", "revoke-test", "rustls-upki", "upki-ffi"]
+members = ["upki", "upki-mirror", "revoke-test", "rustls-upki", "upki-ffi", "upki-openssl"]
 resolver = "3"
 
 [workspace.package]
@@ -22,6 +22,7 @@ hex = { version = "0.4", features = ["serde"] }
 http = "1"
 insta = { version = "1.44.3", features = ["filters"] }
 insta-cmd = "0.6.0"
+openssl-sys = "0"
 reqwest = { version = "0.13", default-features = false, features = ["charset", "default-tls", "h2", "http2", "json"] }
 rand = "0.10"
 regex = "1.12"
