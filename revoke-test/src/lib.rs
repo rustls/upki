@@ -14,6 +14,7 @@ use x509_parser::prelude::FromDer;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RevocationTestSites<'a> {
     pub sites: Cow<'a, [RevocationTestSite]>,
+    pub timestamp: u64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

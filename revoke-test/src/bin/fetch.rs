@@ -2,6 +2,7 @@ use core::str::FromStr;
 use std::borrow::Cow;
 use std::fs::File;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use eyre::{Report, Result};
 use http::Uri;
@@ -64,6 +65,10 @@ async fn main() -> Result<(), Report> {
         File::create("test-sites.json")?,
         &RevocationTestSites {
             sites: Cow::Borrowed(&sites),
+            timestamp: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         },
     )?;
 
