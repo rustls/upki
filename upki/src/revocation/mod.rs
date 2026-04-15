@@ -1,65 +1,37 @@
 use core::error::Error as StdError;
+use core::ops::Deref;
 use core::str::FromStr;
 use core::{fmt, str};
-use std::fs::File;
-use std::io::{self, BufReader};
+use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use aws_lc_rs::digest;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use chrono::{DateTime, Utc};
 use clubcard_crlite::CRLiteKey;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
-use tracing::info;
 
-use crate::Config;
+use crate::{Config, data};
 
 mod fetch;
-use fetch::Plan;
 pub use fetch::fetch;
 
 mod index;
+pub(crate) use index::INDEX_BIN;
 pub use index::Index;
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Manifest {
-    /// When this file was generated.
-    ///
-    /// UNIX timestamp in seconds.
-    pub generated_at: u64,
-
-    /// Some human-readable text.
-    pub comment: String,
-
-    /// List of required files.
-    #[serde(alias = "filters")]
-    pub files: Vec<ManifestFile>,
-}
+pub struct Manifest(data::Manifest);
 
 impl Manifest {
     /// Load the revocation manifest from the cache directory specified in the configuration.
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
-        file_name.push("manifest.json");
-
-        let file = match File::open(&file_name) {
-            Ok(f) => f,
-            Err(error) => {
-                return Err(Error::FileRead {
-                    error,
-                    path: Some(file_name),
-                });
-            }
-        };
-
-        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::FileDecode {
-            error: Box::new(error),
-            path: Some(file_name),
-        })
+        file_name.push(data::MANIFEST_JSON);
+        data::Manifest::from_file(&file_name).map(Manifest)
     }
 
     /// Verify the current contents of the cache against this manifest.
@@ -67,44 +39,21 @@ impl Manifest {
     /// This performs disk IO but does not perform network IO.
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
         self.introduce()?;
-        let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
+        let plan =
+            data::Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
             0 => Ok(ExitCode::SUCCESS),
             bytes => Err(Error::Outdated(bytes)),
         }
     }
-
-    /// Logs metadata fields in this manifest.
-    pub fn introduce(&self) -> Result<(), Error> {
-        let dt = match DateTime::<Utc>::from_timestamp(self.generated_at as i64, 0) {
-            Some(dt) => dt.to_rfc3339(),
-            None => {
-                return Err(Error::InvalidTimestamp {
-                    input: self.generated_at.to_string(),
-                    context: "manifest generated (in s)",
-                });
-            }
-        };
-
-        info!(comment = self.comment, date = dt, "parsed manifest");
-        Ok(())
-    }
 }
 
-/// Manifest data for a single crlite filter file.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ManifestFile {
-    /// Relative filename.
-    ///
-    /// This is also the suggested local filename.
-    pub filename: String,
+impl Deref for Manifest {
+    type Target = data::Manifest;
 
-    /// File size, indicative.  Allows a fetcher to predict data usage.
-    pub size: usize,
-
-    /// SHA256 hash of file contents.
-    #[serde(with = "hex::serde")]
-    pub hash: Vec<u8>,
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// Input parameters for a revocation check.

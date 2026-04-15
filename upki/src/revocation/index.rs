@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 
 use clubcard_crlite::{CRLiteClubcard, CRLiteStatus};
 
-use super::{Error, Manifest, RevocationCheckInput, RevocationStatus};
+use super::{Error, RevocationCheckInput, RevocationStatus};
 use crate::Config;
+use crate::data::Manifest;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
 ///
@@ -95,7 +96,7 @@ impl Index {
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
     ///
     /// Returns `None` if any filter file cannot be read or decoded.
-    pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
+    pub(crate) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
         let mut by_log_id: BTreeMap<[u8; 32], Vec<(u8, u64, u64)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
@@ -344,7 +345,7 @@ const FILENAME_SIZE: usize = 32;
 const LOG_DIR_ENTRY_SIZE: usize = 32 + 8 + 2;
 const ENTRY_SIZE: usize = 1 + 8 + 8;
 
-pub(super) const INDEX_BIN: &str = "index.bin";
+pub(crate) const INDEX_BIN: &str = "index.bin";
 const INDEX_MAGIC: &[u8; 8] = b"upkiidx0";
 
 #[cfg(test)]
@@ -437,6 +438,7 @@ mod tests {
         Config {
             cache_dir: dir.to_owned(),
             revocation: RevocationConfig::default(),
+            intermediates: None,
         }
     }
 
