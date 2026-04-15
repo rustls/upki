@@ -40,6 +40,10 @@ fn real_world_system_tests() {
             .expect("cannot find ../revoke-test/test-sites.json"),
     )
     .expect("cannot parse test-sites.json");
+    assert!(
+        !tests.expired(),
+        "test-sites.json is expired, please regenerate"
+    );
 
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
 
