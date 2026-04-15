@@ -1,4 +1,6 @@
+use core::time::Duration;
 use std::borrow::Cow;
+use std::time::SystemTime;
 
 use aws_lc_rs::digest::{SHA256, digest};
 use base64::Engine;
@@ -15,6 +17,16 @@ use x509_parser::prelude::FromDer;
 pub struct RevocationTestSites<'a> {
     pub sites: Cow<'a, [RevocationTestSite]>,
     pub timestamp: u64,
+}
+
+impl RevocationTestSites<'_> {
+    pub fn expired(&self) -> bool {
+        let one_month = Duration::from_secs(60 * 60 * 24 * 30);
+        let deadline = SystemTime::UNIX_EPOCH
+            .checked_add(Duration::from_secs(self.timestamp) + one_month)
+            .unwrap();
+        SystemTime::now() > deadline
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
