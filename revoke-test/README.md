@@ -21,9 +21,9 @@ fuzzy: we actually just require that a majority of sites are detected as revoked
 of its revoked test website together with details of the certificate chain it
 presents.
 
-Certificate chains presented by the test websites have varying lifetimes, but these
-tests currently don't accept expired certificates.  That means the snapshot needs
-to be regularly refreshed.
+Certificate chains presented by the test websites have varying lifetimes, and as a result
+these tests currently accept expired certificates.  The tests enforce a 30-day limit on
+test data lifetime to avoid expiry becoming a significant factor.
 
 Refresh the snapshot with:
 

@@ -65,9 +65,9 @@ fn real_world_system_tests() {
         .zip(high_level_cli.iter())
         .zip(rustls_results.iter())
     {
-        assert_eq!(
-            high, rustls,
-            "site {site:?} revocation result disagrees between high-level API and rustls verifier"
+        assert!(
+            high == rustls || *high == rustls.expired_as_revoked(),
+            "site {site:?} revocation result disagrees between high-level API ({high:?})  and rustls verifier ({rustls:?})"
         );
     }
 }
@@ -115,6 +115,9 @@ impl TestCase for ServerVerifier {
             Err(Error::InvalidCertificate(CertificateError::Revoked)) => {
                 TestResult::CorrectlyRevoked
             }
+            Err(Error::InvalidCertificate(
+                CertificateError::Expired | CertificateError::ExpiredContext { .. },
+            )) => TestResult::Expired,
             Err(e) => panic!(
                 "unexpected error verifying certificate: {e} (site: {})",
                 test.test_website_revoked
@@ -205,10 +208,15 @@ fn test_each_site<'a>(
         .iter()
         .filter(|item| matches!(item, TestResult::DecorationFailed))
         .count();
+    let expired = results
+        .iter()
+        .filter(|item| matches!(item, TestResult::Expired))
+        .count();
     println!("summary:");
     println!("       correctly revoked: {correctly_revoked}");
     println!(" incorrectly not revoked: {incorrectly_not_revoked}");
     println!("        test case absent: {decorate_failed}");
+    println!("       test case expired: {expired}");
 
     assert!(correctly_revoked > 0);
     assert!(correctly_revoked > incorrectly_not_revoked);
@@ -228,11 +236,24 @@ trait TestCase {
     fn run(&self, detail: &CertificateDetail, test: &RevocationTestSite) -> TestResult;
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum TestResult {
     CorrectlyRevoked,
     IncorrectlyNotRevoked,
     DecorationFailed,
+    Expired,
+}
+
+impl TestResult {
+    fn expired_as_revoked(&self) -> Self {
+        // The high-level CLI doesn't do expiry checks, while the rustls verifier does.
+        // So we treat expiry as a class of revocation for the purpose of checking
+        // that the APIs agree.
+        match self {
+            Self::Expired => Self::CorrectlyRevoked,
+            other => *other,
+        }
+    }
 }
 
 const TEST_CONFIG_PATH: &str = "tmp/system-test/config.toml";
