@@ -96,20 +96,6 @@ impl AsRef<Path> for ConfigPath {
     }
 }
 
-fn find_config_file() -> Result<PathBuf, Error> {
-    Ok(project_dirs()?
-        .config_dir()
-        .join(CONFIG_FILE))
-}
-
-fn default_cache_dir() -> Result<PathBuf, Error> {
-    Ok(project_dirs()?.cache_dir().to_owned())
-}
-
-fn project_dirs() -> Result<ProjectDirs, Error> {
-    ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
-}
-
 /// Errors for the upki library API.
 #[non_exhaustive]
 #[derive(Debug)]
@@ -166,6 +152,20 @@ impl fmt::Display for Error {
             Self::Revocation(_) => write!(f, "revocation error"),
         }
     }
+}
+
+fn find_config_file() -> Result<PathBuf, Error> {
+    Ok(project_dirs()?
+        .config_dir()
+        .join(CONFIG_FILE))
+}
+
+fn default_cache_dir() -> Result<PathBuf, Error> {
+    Ok(project_dirs()?.cache_dir().to_owned())
+}
+
+fn project_dirs() -> Result<ProjectDirs, Error> {
+    ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
 }
 
 const PREFIX: &str = "upki";
