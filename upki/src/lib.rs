@@ -5,6 +5,7 @@ use core::error::Error as StdError;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 
+use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
 use crate::revocation::RevocationConfig;
@@ -48,7 +49,7 @@ impl Config {
     /// Return a sensible default configuration.
     pub fn try_default() -> Result<Self, Error> {
         Ok(Self {
-            cache_dir: platform::default_cache_dir()?,
+            cache_dir: default_cache_dir()?,
             revocation: RevocationConfig::default(),
         })
     }
@@ -81,7 +82,7 @@ impl ConfigPath {
     pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
-            None => platform::find_config_file().map(ConfigPath::Default),
+            None => find_config_file().map(ConfigPath::Default),
         }
     }
 }
@@ -95,24 +96,18 @@ impl AsRef<Path> for ConfigPath {
     }
 }
 
-mod platform {
-    use directories::ProjectDirs;
+fn find_config_file() -> Result<PathBuf, Error> {
+    Ok(project_dirs()?
+        .config_dir()
+        .join(CONFIG_FILE))
+}
 
-    use super::*;
+fn default_cache_dir() -> Result<PathBuf, Error> {
+    Ok(project_dirs()?.cache_dir().to_owned())
+}
 
-    pub(super) fn find_config_file() -> Result<PathBuf, Error> {
-        Ok(project_dirs()?
-            .config_dir()
-            .join(CONFIG_FILE))
-    }
-
-    pub(super) fn default_cache_dir() -> Result<PathBuf, Error> {
-        Ok(project_dirs()?.cache_dir().to_owned())
-    }
-
-    fn project_dirs() -> Result<ProjectDirs, Error> {
-        ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
-    }
+fn project_dirs() -> Result<ProjectDirs, Error> {
+    ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
 }
 
 /// Errors for the upki library API.
