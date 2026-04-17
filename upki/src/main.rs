@@ -30,7 +30,7 @@ async fn main() -> Result<ExitCode, Report> {
         return Ok(ExitCode::SUCCESS);
     }
 
-    let config = Config::from_file_or_default(&config_path)?;
+    let config = Config::from_file_or_user_default(&config_path)?;
 
     Ok(match args.command {
         Command::Fetch { dry_run } => fetch(dry_run, &config).await?,

@@ -196,7 +196,7 @@ enum upki_result upki_config_from_file(const char *path, struct upki_config **ou
  *
  * - `out` must not be `NULL`.
  */
-enum upki_result upki_config_new(struct upki_config **out);
+enum upki_result upki_config_new_user(struct upki_config **out);
 
 /**
  * Free a `upki_config` created by `upki_config_new`.

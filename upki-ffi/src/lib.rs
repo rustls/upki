@@ -113,13 +113,13 @@ pub unsafe extern "C" fn upki_config_from_file(
 ///
 /// - `out` must not be `NULL`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn upki_config_new(out: *mut *mut upki_config) -> upki_result {
+pub unsafe extern "C" fn upki_config_new_user(out: *mut *mut upki_config) -> upki_result {
     catch_unwind(|| {
         if out.is_null() {
             return upki_result::UPKI_ERR_NULL_POINTER;
         }
 
-        match Config::try_default() {
+        match Config::try_user_default() {
             Ok(config) => {
                 unsafe { *out = Box::into_raw(Box::new(upki_config(config))) };
                 upki_result::UPKI_OK

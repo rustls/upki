@@ -27,10 +27,10 @@ impl Config {
     /// Load the configuration data from a file at `path`.
     ///
     /// If no file exists at `path`, a default configuration is returned.
-    pub fn from_file_or_default(path: &ConfigPath) -> Result<Self, Error> {
+    pub fn from_file_or_user_default(path: &ConfigPath) -> Result<Self, Error> {
         match path {
             ConfigPath::Default(path) if path.exists() => Self::from_file(path),
-            ConfigPath::Default(_) => Self::try_default(),
+            ConfigPath::Default(_) => Self::try_user_default(),
             ConfigPath::Specified(path) => Self::from_file(path),
         }
     }
@@ -49,9 +49,9 @@ impl Config {
     }
 
     /// Return a sensible default configuration.
-    pub fn try_default() -> Result<Self, Error> {
+    pub fn try_user_default() -> Result<Self, Error> {
         Ok(Self {
-            cache_dir: default_cache_dir()?,
+            cache_dir: user_cache_dir()?,
             revocation: RevocationConfig::default(),
         })
     }
@@ -84,7 +84,7 @@ impl ConfigPath {
     pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
-            None => find_config_file().map(ConfigPath::Default),
+            None => user_config_file().map(ConfigPath::Default),
         }
     }
 }
@@ -156,13 +156,13 @@ impl fmt::Display for Error {
     }
 }
 
-fn find_config_file() -> Result<PathBuf, Error> {
+fn user_config_file() -> Result<PathBuf, Error> {
     Ok(project_dirs()?
         .config_dir()
         .join(CONFIG_FILE))
 }
 
-fn default_cache_dir() -> Result<PathBuf, Error> {
+fn user_cache_dir() -> Result<PathBuf, Error> {
     Ok(project_dirs()?.cache_dir().to_owned())
 }
 
