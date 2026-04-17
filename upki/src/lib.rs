@@ -55,7 +55,7 @@ impl Config {
     /// Return a sensible default configuration.
     pub fn try_user_default() -> Result<Self, Error> {
         Ok(Self {
-            cache_dir: user_cache_dir()?,
+            cache_dir: project_dirs()?.cache_dir().to_owned(),
             revocation: RevocationConfig::default(),
         })
     }
@@ -88,7 +88,11 @@ impl ConfigPath {
     pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
-            None => user_config_file().map(ConfigPath::Default),
+            None => Ok(Self::Default(
+                project_dirs()?
+                    .config_dir()
+                    .join(CONFIG_FILE),
+            )),
         }
     }
 }
@@ -164,16 +168,6 @@ impl From<revocation::Error> for Error {
     fn from(value: revocation::Error) -> Self {
         Self::Revocation(value)
     }
-}
-
-fn user_config_file() -> Result<PathBuf, Error> {
-    Ok(project_dirs()?
-        .config_dir()
-        .join(CONFIG_FILE))
-}
-
-fn user_cache_dir() -> Result<PathBuf, Error> {
-    Ok(project_dirs()?.cache_dir().to_owned())
 }
 
 fn project_dirs() -> Result<ProjectDirs, Error> {
