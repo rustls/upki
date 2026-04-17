@@ -27,10 +27,10 @@ impl Config {
     /// Load the configuration data from a file at `path`.
     ///
     /// If no file exists at `path`, a default configuration is returned.
-    pub fn from_file_or_user_default(path: &ConfigPath) -> Result<Self, Error> {
+    pub fn from_file_or_default(path: &ConfigPath) -> Result<Self, Error> {
         match path {
-            ConfigPath::Default(path) if path.exists() => Self::from_file(path),
-            ConfigPath::Default(_) => Self::try_user_default(),
+            ConfigPath::Default(path, _) if path.exists() => Self::from_file(path),
+            ConfigPath::Default(_, kind) => Self::try_default(*kind),
             ConfigPath::Specified(path) => Self::from_file(path),
         }
     }
@@ -49,9 +49,9 @@ impl Config {
     }
 
     /// Return a sensible default configuration.
-    pub fn try_user_default() -> Result<Self, Error> {
+    pub fn try_default(kind: PathKind) -> Result<Self, Error> {
         Ok(Self {
-            cache_dir: PathKind::User.cache_dir()?,
+            cache_dir: kind.cache_dir()?,
             revocation: RevocationConfig::default(),
         })
     }
@@ -66,7 +66,7 @@ pub enum ConfigPath {
     /// The path was directly specified by a user.
     Specified(PathBuf),
     /// The path was determined automatically.
-    Default(PathBuf),
+    Default(PathBuf, PathKind),
 }
 
 impl ConfigPath {
@@ -81,14 +81,10 @@ impl ConfigPath {
     ///
     /// This function fails for platform-specific reasons, typically if `$HOME` is not
     /// set, or another XDG environment variable is malformed.
-    pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
+    pub fn new(specified: Option<PathBuf>, kind: PathKind) -> Result<Self, Error> {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
-            None => Ok(Self::Default(
-                PathKind::User
-                    .config_dir()?
-                    .join(CONFIG_FILE),
-            )),
+            None => Ok(Self::Default(kind.config_dir()?.join(CONFIG_FILE), kind)),
         }
     }
 }
@@ -97,7 +93,7 @@ impl AsRef<Path> for ConfigPath {
     fn as_ref(&self) -> &Path {
         match self {
             Self::Specified(path) => path.as_ref(),
-            Self::Default(path) => path.as_ref(),
+            Self::Default(path, _) => path.as_ref(),
         }
     }
 }

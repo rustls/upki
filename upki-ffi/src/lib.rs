@@ -9,7 +9,7 @@ use std::slice;
 
 use rustls_pki_types::CertificateDer;
 use upki::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
-use upki::{Config, Error};
+use upki::{Config, Error, PathKind};
 
 /// Check the revocation status of a certificate.
 ///
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn upki_config_new_user(out: *mut *mut upki_config) -> upk
             return upki_result::UPKI_ERR_NULL_POINTER;
         }
 
-        match Config::try_user_default() {
+        match Config::try_default(PathKind::User) {
             Ok(config) => {
                 unsafe { *out = Box::into_raw(Box::new(upki_config(config))) };
                 upki_result::UPKI_OK
