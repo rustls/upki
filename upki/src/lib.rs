@@ -8,6 +8,8 @@ use std::{fmt, fs, io};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
+/// Determining revocation status of publicly trusted certificates.
+pub mod revocation;
 use crate::revocation::RevocationConfig;
 
 /// `upki` configuration.
@@ -170,6 +172,3 @@ fn project_dirs() -> Result<ProjectDirs, Error> {
 
 const PREFIX: &str = "upki";
 const CONFIG_FILE: &str = "config.toml";
-
-/// Determining revocation status of publicly trusted certificates.
-pub mod revocation;
