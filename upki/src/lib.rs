@@ -51,7 +51,7 @@ impl Config {
     /// Return a sensible default configuration.
     pub fn try_user_default() -> Result<Self, Error> {
         Ok(Self {
-            cache_dir: project_dirs()?.cache_dir().to_owned(),
+            cache_dir: PathKind::User.cache_dir()?,
             revocation: RevocationConfig::default(),
         })
     }
@@ -85,8 +85,8 @@ impl ConfigPath {
         match specified {
             Some(f) => Ok(Self::Specified(f)),
             None => Ok(Self::Default(
-                project_dirs()?
-                    .config_dir()
+                PathKind::User
+                    .config_dir()?
                     .join(CONFIG_FILE),
             )),
         }
@@ -99,6 +99,27 @@ impl AsRef<Path> for ConfigPath {
             Self::Specified(path) => path.as_ref(),
             Self::Default(path) => path.as_ref(),
         }
+    }
+}
+
+/// What kind of path is being determined.
+#[derive(Clone, Copy, Debug)]
+pub enum PathKind {
+    /// User-relative configuration and data.
+    User,
+}
+
+impl PathKind {
+    fn config_dir(self) -> Result<PathBuf, Error> {
+        Ok(match self {
+            Self::User => project_dirs()?.config_dir().to_owned(),
+        })
+    }
+
+    fn cache_dir(self) -> Result<PathBuf, Error> {
+        Ok(match self {
+            Self::User => project_dirs()?.cache_dir().to_owned(),
+        })
     }
 }
 
