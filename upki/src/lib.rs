@@ -95,27 +95,6 @@ impl AsRef<Path> for ConfigPath {
     }
 }
 
-#[cfg(target_os = "linux")]
-mod platform {
-    use xdg::BaseDirectories;
-
-    use super::*;
-
-    pub(super) fn find_config_file() -> Result<PathBuf, Error> {
-        let bd = BaseDirectories::with_prefix(PREFIX);
-        bd.find_config_file(CONFIG_FILE)
-            .or_else(|| bd.get_config_file(CONFIG_FILE))
-            .ok_or(Error::NoConfigDirectoryFound)
-    }
-
-    pub(super) fn default_cache_dir() -> Result<PathBuf, Error> {
-        BaseDirectories::with_prefix(PREFIX)
-            .get_cache_home()
-            .ok_or(Error::NoCacheDirectoryFound)
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
 mod platform {
     use directories::ProjectDirs;
 
