@@ -11,12 +11,12 @@ use criterion::{Criterion, criterion_group, criterion_main};
 use revoke_test::RevocationTestSites;
 use rustls_pki_types::CertificateDer;
 use upki::revocation::{Index, Manifest, RevocationCheckInput, RevocationStatus};
-use upki::{Config, ConfigPath};
+use upki::{Config, ConfigPath, PathKind};
 
 fn revocation(c: &mut Criterion) {
     c.bench_function("load-config", |b| {
         b.iter(|| {
-            Config::from_file_or_user_default(&ConfigPath::Specified(PathBuf::from(
+            Config::from_file_or_default(&ConfigPath::Specified(PathBuf::from(
                 "benches/data/config.toml",
             )))
             .unwrap()
@@ -24,7 +24,7 @@ fn revocation(c: &mut Criterion) {
     });
 
     c.bench_function("load-manifest", |b| {
-        let config = Config::from_file_or_user_default(&ConfigPath::Specified(PathBuf::from(
+        let config = Config::from_file_or_default(&ConfigPath::Specified(PathBuf::from(
             "benches/data/config.toml",
         )))
         .unwrap();
@@ -43,7 +43,8 @@ fn revocation(c: &mut Criterion) {
     });
 
     c.bench_function("revocation-check", |b| {
-        let config = Config::from_file_or_user_default(&ConfigPath::new(None).unwrap()).unwrap();
+        let config =
+            Config::from_file_or_default(&ConfigPath::new(None, PathKind::User).unwrap()).unwrap();
         let revoked_certs = certificates_for_test_site(BENCHMARK_CASE);
 
         b.iter(|| {

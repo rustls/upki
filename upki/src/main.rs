@@ -9,7 +9,7 @@ use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
 use upki::revocation::{Index, Manifest, RevocationCheckInput, fetch};
-use upki::{Config, ConfigPath};
+use upki::{Config, ConfigPath, PathKind};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {
@@ -22,15 +22,15 @@ async fn main() -> Result<ExitCode, Report> {
             .init();
     }
 
-    let config_path =
-        ConfigPath::new(args.config_file).wrap_err("cannot find configuration path")?;
+    let config_path = ConfigPath::new(args.config_file, PathKind::User)
+        .wrap_err("cannot find configuration path")?;
 
     if let Command::ShowConfigPath = args.command {
         println!("{}", config_path.as_ref().display());
         return Ok(ExitCode::SUCCESS);
     }
 
-    let config = Config::from_file_or_user_default(&config_path)?;
+    let config = Config::from_file_or_default(&config_path)?;
 
     Ok(match args.command {
         Command::Fetch { dry_run } => fetch(dry_run, &config).await?,
