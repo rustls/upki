@@ -17,7 +17,7 @@ use upki::revocation::{
     CertSerial, CtTimestamp, Index, IssuerSpkiHash, Manifest, RevocationCheckInput,
     RevocationStatus,
 };
-use upki::{self, Config, ConfigPath};
+use upki::{self, Config, ConfigPath, PathKind};
 use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, VerifiedPath};
 
 /// A [`ServerCertVerifier`] that uses upki to check revocation status of server certificates.
@@ -64,8 +64,8 @@ impl ServerVerifier {
             })
             .expect("no cipher suites supported with SHA256");
 
-        let config = ConfigPath::new(config_path)
-            .and_then(|path| Config::from_file_or_user_default(&path))
+        let config = ConfigPath::new(config_path, PathKind::User)
+            .and_then(|path| Config::from_file_or_default(&path))
             .map_err(|report| rustls::Error::General(report.to_string()))?;
 
         // Pre-roll storage to check it works, and bring (eg. permanent configuration) errors
