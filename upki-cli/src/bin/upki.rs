@@ -59,7 +59,7 @@ async fn main() -> Result<ExitCode, Report> {
 }
 
 #[derive(Debug, Parser)]
-#[command(author, version, about)]
+#[command(name = "upki", author, version, about)]
 struct Args {
     #[command(subcommand)]
     command: Command,

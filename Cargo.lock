@@ -2641,10 +2641,8 @@ dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
  "chrono",
- "clap",
  "clubcard-crlite",
  "directories",
- "eyre",
  "hex",
  "insta",
  "insta-cmd",
@@ -2660,7 +2658,26 @@ dependencies = [
  "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
+]
+
+[[package]]
+name = "upki-cli"
+version = "0.2.0"
+dependencies = [
+ "clap",
+ "eyre",
+ "insta",
+ "insta-cmd",
+ "rand 0.10.1",
+ "regex",
+ "rustls-pki-types",
+ "tempfile",
+ "tiny_http",
+ "tokio",
+ "toml 1.1.2+spec-1.1.0",
+ "tracing",
  "tracing-subscriber",
+ "upki",
 ]
 
 [[package]]
