@@ -36,11 +36,11 @@ jobs:
       - name: Set up upki
         # ensure there is a config file, and a filled cache.
         run: |
-          cargo run --release -p upki show-config > config.toml
-          target=$(cargo run --release -p upki show-config-path)
+          cargo run --release --bin upki show-config > config.toml
+          target=$(cargo run --release --bin upki -- show-config-path)
           mkdir --parents $(dirname $target)
           mv config.toml $target
-          cargo run --release -p upki -- fetch
+          cargo run --release --bin upki -- fetch
 
       - name: Build benchmarks
         run: cargo codspeed build -p revoke-test --features __bench_codspeed
