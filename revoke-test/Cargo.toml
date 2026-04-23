@@ -26,6 +26,7 @@ insta-cmd.workspace = true
 rustls-pki-types.workspace = true
 rustls-upki.workspace = true
 upki = { path = "../upki" }
+upki-ffi = { path = "../upki-ffi" }
 
 [features]
 __bench_codspeed = ["dep:codspeed-criterion-compat"]

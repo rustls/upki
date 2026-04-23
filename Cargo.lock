@@ -1890,6 +1890,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "upki",
+ "upki-ffi",
  "webpki-ccadb",
  "webpki-roots",
  "x509-parser",
