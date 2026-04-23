@@ -17,6 +17,9 @@ use rustls::{CertificateError, Error, RootCertStore};
 use rustls_pki_types::CertificateDer;
 use rustls_upki::{Policy, ServerVerifier};
 
+#[path = "api/ffi.rs"]
+mod ffi;
+
 #[ignore]
 #[test]
 fn real_world_system_tests() {
@@ -46,6 +49,7 @@ fn real_world_system_tests() {
     );
 
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
+    let ffi = test_each_site(tests.sites.iter(), ffi::ffi, "ffi");
 
     let verifier = ServerVerifier::new(
         Policy::default(),
@@ -59,15 +63,20 @@ fn real_world_system_tests() {
 
     let rustls_results = test_each_site(tests.sites.iter(), verifier, "rustls");
 
-    for ((site, high), rustls) in tests
+    for (((site, high), rustls), ffi) in tests
         .sites
         .iter()
         .zip(high_level_cli.iter())
         .zip(rustls_results.iter())
+        .zip(ffi.iter())
     {
         assert!(
             high == rustls || *high == rustls.expired_as_revoked(),
             "site {site:?} revocation result disagrees between high-level API ({high:?})  and rustls verifier ({rustls:?})"
+        );
+        assert!(
+            high == ffi,
+            "site {site:?} revocation result disagrees between high-level API ({high:?}) and FFI API ({ffi:?})"
         );
     }
 }
