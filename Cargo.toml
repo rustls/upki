@@ -26,7 +26,7 @@ reqwest = { version = "0.13", default-features = false, features = ["charset", "
 rand = "0.10"
 regex = "1.12"
 rustls = "0.23"
-rustls-pki-types = "1.13"
+rustls-pki-types = "1.14"
 rustls-upki = { path = "rustls-upki" }
 rustls-webpki = "0.104.0-alpha.7"
 serde = "1"
