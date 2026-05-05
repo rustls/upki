@@ -2,7 +2,7 @@
 When distributed in a package, these are the main goals:
 
 ## Provide a system-wide configuration file
-`upki` looks for this at `/etc/xdg/upki/config.toml` (before falling back to typical
+`upki` looks for this at `/etc/upki/config.toml` (after looking at typical
 per-user XDG locations.)  An example looks like:
 
 ```
@@ -41,7 +41,7 @@ Running `upki fetch` when the cache is empty downloads up to ~10MB of data.
 # Packaging checklist
 
 - The executable `upki`, built in release mode.
-- A system-wide configuration file at `/etc/xdg/upki/config.toml` which points
+- A system-wide configuration file at `/etc/upki/config.toml` which points
   at a `cache-dir` that may be read by any user needing to use `upki`.
 - Arrangements to regularly run `upki fetch` as a low-privilege user who
   can write to the configured `cache-dir`.

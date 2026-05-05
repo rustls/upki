@@ -2,6 +2,8 @@
 #![warn(missing_docs)]
 
 use core::error::Error as StdError;
+#[cfg(target_os = "windows")]
+use std::env;
 use std::path::{Path, PathBuf};
 use std::{fmt, fs, io};
 
@@ -86,14 +88,31 @@ impl ConfigPath {
     /// This function fails for platform-specific reasons, typically if `$HOME` is not
     /// set, or another XDG environment variable is malformed.
     pub fn new(specified: Option<PathBuf>) -> Result<Self, Error> {
-        match specified {
-            Some(f) => Ok(Self::Specified(f)),
-            None => Ok(Self::Default(
-                project_dirs()?
-                    .config_dir()
-                    .join(CONFIG_FILE),
-            )),
+        if let Some(f) = specified {
+            return Ok(Self::Specified(f));
         }
+
+        // Search for an existing configuration file.
+        //
+        // The search order is:
+        //
+        // - user-specific files, following XDG
+        // - a system-level file
+        //
+        // If no files are found, the user-specific file location is returned.
+        let user = project_dirs()?
+            .config_dir()
+            .join(CONFIG_FILE);
+        if user.exists() {
+            return Ok(Self::Default(user));
+        }
+
+        let system = platform::system_config_dir()?.join(CONFIG_FILE);
+        if system.exists() {
+            return Ok(Self::Default(system.to_owned()));
+        }
+
+        Ok(Self::Default(user))
     }
 }
 
@@ -103,6 +122,38 @@ impl AsRef<Path> for ConfigPath {
             Self::Specified(path) => path.as_ref(),
             Self::Default(path) => path.as_ref(),
         }
+    }
+}
+
+#[cfg(target_vendor = "apple")]
+mod platform {
+    use super::*;
+
+    pub(super) fn system_config_dir() -> Result<PathBuf, Error> {
+        Ok(PathBuf::from("/Library/Application Support").join(PREFIX))
+    }
+}
+
+#[cfg(all(unix, not(target_vendor = "apple")))]
+mod platform {
+    use super::*;
+
+    pub(super) fn system_config_dir() -> Result<PathBuf, Error> {
+        Ok(PathBuf::from("/etc").join(PREFIX))
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod platform {
+    use super::*;
+
+    pub(super) fn system_config_dir() -> Result<PathBuf, Error> {
+        Ok(match env::var_os("ProgramData") {
+            Some(base) => PathBuf::from(base),
+            None => PathBuf::from("C:\\ProgramData"),
+        }
+        .join(VENDOR)
+        .join(PREFIX))
     }
 }
 
@@ -174,5 +225,7 @@ fn project_dirs() -> Result<ProjectDirs, Error> {
     ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
 }
 
+#[cfg(target_os = "windows")]
+const VENDOR: &str = "rustls";
 const PREFIX: &str = "upki";
 const CONFIG_FILE: &str = "config.toml";
