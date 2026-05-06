@@ -196,18 +196,6 @@ enum upki_result upki_check_revocation(const struct upki_config *config,
 enum upki_result upki_config_new(const char *path, struct upki_config **out);
 
 /**
- * Create a new `upki_config` with default settings.
- *
- * On success, writes the config pointer to `out` and returns `UPKI_OK`.
- * The caller is responsible for freeing the config with `upki_config_free`.
- *
- * # Safety
- *
- * - `out` must not be `NULL`.
- */
-enum upki_result upki_config_new_user(struct upki_config **out);
-
-/**
  * Free a `upki_config` created by `upki_config_new`.
  *
  * # Safety

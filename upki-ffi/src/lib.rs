@@ -119,32 +119,6 @@ pub unsafe extern "C" fn upki_config_new(
     .unwrap_or(upki_result::UPKI_ERR_PANICKED)
 }
 
-/// Create a new `upki_config` with default settings.
-///
-/// On success, writes the config pointer to `out` and returns `UPKI_OK`.
-/// The caller is responsible for freeing the config with `upki_config_free`.
-///
-/// # Safety
-///
-/// - `out` must not be `NULL`.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn upki_config_new_user(out: *mut *mut upki_config) -> upki_result {
-    catch_unwind(|| {
-        if out.is_null() {
-            return upki_result::UPKI_ERR_NULL_POINTER;
-        }
-
-        match Config::try_user_default() {
-            Ok(config) => {
-                unsafe { *out = Box::into_raw(Box::new(upki_config(config))) };
-                upki_result::UPKI_OK
-            }
-            Err(err) => err.into(),
-        }
-    })
-    .unwrap_or(upki_result::UPKI_ERR_PANICKED)
-}
-
 /// Free a `upki_config` created by `upki_config_new`.
 ///
 /// # Safety
