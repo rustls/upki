@@ -9,7 +9,7 @@ use std::slice;
 
 use rustls_pki_types::CertificateDer;
 use upki::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
-use upki::{Config, Error};
+use upki::{Config, ConfigPath, Error};
 
 /// Check the revocation status of a certificate.
 ///
@@ -71,29 +71,44 @@ pub struct upki_config(Config);
 
 /// Create a new `upki_config` by loading it from the file at `path`.
 ///
+/// If `path` is `NULL`, the file is found by searching for a configuration
+/// file in a series of places (depending on the platform.) This is
+/// exposed by the `upki` command-line tool: run `upki show-config-path`
+/// so see where the current configuration file is being found.
+///
 /// On success, writes the config pointer to `out` and returns `UPKI_OK`.
 /// The caller is responsible for freeing the config with `upki_config_free`.
 ///
 /// # Safety
 ///
-/// - `out` must not be `NULL`.
-/// - `path` must be a valid pointer to a null-terminated UTF-8 string.
+/// - `out` must be a pointer to writable, properly-aligned storage for a pointer.
+///   Returns `UPKI_ERR_NULL_POINTER` if `out` is `NULL`.
+/// - `path` must be a valid pointer to a null-terminated UTF-8 string, or `NULL`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn upki_config_from_file(
+pub unsafe extern "C" fn upki_config_new(
     path: *const c_char,
     out: *mut *mut upki_config,
 ) -> upki_result {
     catch_unwind(|| {
-        if path.is_null() || out.is_null() {
+        if out.is_null() {
             return upki_result::UPKI_ERR_NULL_POINTER;
         }
 
-        let path = unsafe { CStr::from_ptr(path) };
-        let Ok(path) = path.to_str() else {
-            return upki_result::UPKI_ERR_CONFIG_PATH;
+        let path = match path.is_null() {
+            true => match ConfigPath::new(None) {
+                Ok(path) => path,
+                Err(e) => return e.into(),
+            },
+            false => {
+                let path = unsafe { CStr::from_ptr(path) };
+                let Ok(path) = path.to_str() else {
+                    return upki_result::UPKI_ERR_CONFIG_PATH;
+                };
+                ConfigPath::Specified(Path::new(path).to_owned())
+            }
         };
 
-        match Config::from_file(Path::new(path)) {
+        match Config::from_file(path.as_ref()) {
             Ok(config) => {
                 unsafe { *out = Box::into_raw(Box::new(upki_config(config))) };
                 upki_result::UPKI_OK

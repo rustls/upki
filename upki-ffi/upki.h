@@ -179,15 +179,21 @@ enum upki_result upki_check_revocation(const struct upki_config *config,
 /**
  * Create a new `upki_config` by loading it from the file at `path`.
  *
+ * If `path` is `NULL`, the file is found by searching for a configuration
+ * file in a series of places (depending on the platform.) This is
+ * exposed by the `upki` command-line tool: run `upki show-config-path`
+ * so see where the current configuration file is being found.
+ *
  * On success, writes the config pointer to `out` and returns `UPKI_OK`.
  * The caller is responsible for freeing the config with `upki_config_free`.
  *
  * # Safety
  *
- * - `out` must not be `NULL`.
- * - `path` must be a valid pointer to a null-terminated UTF-8 string.
+ * - `out` must be a pointer to writable, properly-aligned storage for a pointer.
+ *   Returns `UPKI_ERR_NULL_POINTER` if `out` is `NULL`.
+ * - `path` must be a valid pointer to a null-terminated UTF-8 string, or `NULL`.
  */
-enum upki_result upki_config_from_file(const char *path, struct upki_config **out);
+enum upki_result upki_config_new(const char *path, struct upki_config **out);
 
 /**
  * Create a new `upki_config` with default settings.
