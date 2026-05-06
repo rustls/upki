@@ -8,9 +8,7 @@ license.workspace = true
 description = "C FFI bindings for upki"
 
 [lib]
-name = "upki"
-crate-type = ["cdylib"]
-doc = false # Can't document this and `upki` because they have the same name
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 rustls-pki-types.workspace = true
