@@ -66,6 +66,28 @@ jobs:
       - name: Run system tests (release)
         run: cargo test --locked --release --test system_tests -- --ignored --nocapture
 
+  ffi-example:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+
+      - name: Check upki-ffi/example builds
+        run: |
+            cargo build --locked --release
+            cd upki-ffi/example
+            make
+            ./upki-demo || true
+            valgrind ./upki-demo || true
+
   msrv:
     runs-on: ubuntu-latest
     steps:

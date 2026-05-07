@@ -58,3 +58,8 @@ jobs:
         run: cargo +nightly doc --locked --all-features --no-deps --document-private-items
         env:
           RUSTDOCFLAGS: -Dwarnings
+
+      - name: clang-format
+        run: |
+            clang-format -i upki-ffi/example/upki-demo.c
+            git diff --exit-code
