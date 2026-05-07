@@ -19,6 +19,8 @@ use rustls_upki::{Policy, ServerVerifier};
 
 #[path = "api/ffi.rs"]
 mod ffi;
+#[path = "api/openssl.rs"]
+mod openssl;
 
 #[ignore]
 #[test]
@@ -50,6 +52,7 @@ fn real_world_system_tests() {
 
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
     let ffi = test_each_site(tests.sites.iter(), ffi::ffi, "ffi");
+    let openssl = test_each_site(tests.sites.iter(), openssl::openssl, "openssl");
 
     let verifier = ServerVerifier::new(
         Policy::default(),
@@ -63,12 +66,13 @@ fn real_world_system_tests() {
 
     let rustls_results = test_each_site(tests.sites.iter(), verifier, "rustls");
 
-    for (((site, high), rustls), ffi) in tests
+    for ((((site, high), rustls), ffi), openssl) in tests
         .sites
         .iter()
         .zip(high_level_cli.iter())
         .zip(rustls_results.iter())
         .zip(ffi.iter())
+        .zip(openssl.iter())
     {
         assert!(
             high == rustls || *high == rustls.expired_as_revoked(),
@@ -77,6 +81,10 @@ fn real_world_system_tests() {
         assert!(
             high == ffi,
             "site {site:?} revocation result disagrees between high-level API ({high:?}) and FFI API ({ffi:?})"
+        );
+        assert!(
+            high == openssl,
+            "site {site:?} revocation result disagrees between high-level API ({high:?}) and OpenSSL API ({openssl:?})"
         );
     }
 }
