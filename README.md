@@ -31,8 +31,21 @@ NotRevoked
 ```
 
 ### C-FFI interface
+This is a simple C interface to checking revocation status.  The simplest use is this
+sequence of calls:
 
-TODO
+1. `upki_config_new(NULL, ..)` - finding and loading upki's configuration from a file.
+   The first parameter may be used to specify where the configuration file should be found.
+
+2. `upki_check_revocation(config, certs, certs_count)` - checking revocation status.
+   `certs` is a sequence of certificates represented by `upki_certificate_der` structs,
+   and is `certs_count` elements long.   This returns `UPKI_REVOCATION_REVOKED` if the
+   certificate is revoked, `UPKI_REVOCATION_NOT_REVOKED` if it is OK, or another error.
+
+3. `upki_config_free(config)`.
+
+See [the header](https://github.com/rustls/upki/blob/main/upki-ffi/upki.h) for further
+documentation, or [a minimal example](https://github.com/rustls/upki/blob/main/upki-ffi/example/).
 
 ### [Rustls](https://crates.io/crates/rustls/) integration
 
