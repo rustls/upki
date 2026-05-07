@@ -94,6 +94,23 @@ impl CertificateDetail {
             scts,
         })
     }
+
+    pub fn end_entity_cert_der(&self) -> Result<CertificateDer<'static>> {
+        Ok(CertificateDer::from(
+            BASE64_STANDARD
+                .decode(&self.end_entity_cert)
+                .map_err(|e| eyre::eyre!("cannot base64-decode certificate {e:?}"))?,
+        ))
+    }
+
+    pub fn intermediates_der(&self) -> impl Iterator<Item = Result<CertificateDer<'static>>> {
+        self.intermediates.iter().map(|pem| {
+            BASE64_STANDARD
+                .decode(pem)
+                .map_err(|e| eyre::eyre!("cannot base64-decode certificate {e:?}"))
+                .map(CertificateDer::from)
+        })
+    }
 }
 
 fn parse_octet_string(data: &[u8]) -> Result<&[u8]> {

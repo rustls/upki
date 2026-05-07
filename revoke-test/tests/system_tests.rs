@@ -9,12 +9,12 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use base64::prelude::*;
 use insta_cmd::get_cargo_bin;
 use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites};
 use rustls::client::danger::ServerCertVerifier;
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::pki_types::{ServerName, UnixTime};
 use rustls::{CertificateError, Error, RootCertStore};
+use rustls_pki_types::CertificateDer;
 use rustls_upki::{Policy, ServerVerifier};
 
 #[ignore]
@@ -75,22 +75,13 @@ fn real_world_system_tests() {
 impl TestCase for ServerVerifier {
     fn run(&self, detail: &CertificateDetail, test: &RevocationTestSite) -> TestResult {
         // Decode certificates from base64
-        let end_entity = CertificateDer::from(
-            BASE64_STANDARD
-                .decode(&detail.end_entity_cert)
-                .expect("cannot decode end_entity_cert"),
-        );
+        let end_entity = detail
+            .end_entity_cert_der()
+            .expect("cannot decode end_entity_cert");
         let intermediates = detail
-            .intermediates
-            .iter()
-            .map(|c| {
-                CertificateDer::from(
-                    BASE64_STANDARD
-                        .decode(c)
-                        .expect("cannot decode issuer_cert"),
-                )
-            })
-            .collect::<Vec<_>>();
+            .intermediates_der()
+            .collect::<eyre::Result<Vec<CertificateDer<'static>>>>()
+            .expect("cannot decode issuer_cert");
 
         let url = &test.test_website_revoked;
         let host = url
