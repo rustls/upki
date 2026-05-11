@@ -51,17 +51,25 @@ jobs:
         with:
           toolchain: ${{ matrix.rustc }}
 
+      - name: Install cargo-c
+        uses: taiki-e/cache-cargo-install-action@v3
+        with:
+          tool: cargo-c
+
       - name: Build (debug)
         run: cargo build --locked
       - name: Run tests (debug)
         run: cargo test --locked
-      - name: Check FFI header
-        run: git diff --exit-code -- upki-ffi/upki.h
 
       - name: Build (release)
         run: cargo build --locked --release
       - name: Run tests (release)
         run: cargo test --locked --release
+
+      - name: Build FFI
+        run: cargo cbuild --locked --release -p upki
+      - name: Check FFI header
+        run: git diff --exit-code -- upki/upki.h
 
       - name: Run system tests (release)
         run: cargo test --locked --release --test system_tests -- --ignored --nocapture
@@ -80,10 +88,18 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Check upki-ffi/example builds
+      - name: Install cargo-c
+        uses: taiki-e/cache-cargo-install-action@v3
+        with:
+          tool: cargo-c
+
+      - name: Check upki/ffi-example builds
         run: |
-            cargo build --locked --release
-            cd upki-ffi/example
+            mkdir -p dist/ffi
+            cargo cinstall -p upki --release --prefix=$(realpath dist/ffi)
+            export PKG_CONFIG_PATH=$(realpath dist/ffi/lib/x86_64-linux-gnu/pkgconfig/)
+
+            cd upki/ffi-example
             make
             ./upki-demo || true
             valgrind ./upki-demo || true

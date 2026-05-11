@@ -1890,7 +1890,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "upki",
- "upki-ffi",
  "webpki-ccadb",
  "webpki-roots",
  "x509-parser",
@@ -2641,6 +2640,7 @@ version = "0.2.0"
 dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
+ "cbindgen",
  "chrono",
  "clubcard-crlite",
  "directories",
@@ -2678,15 +2678,6 @@ dependencies = [
  "toml 1.1.2+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
- "upki",
-]
-
-[[package]]
-name = "upki-ffi"
-version = "0.2.0"
-dependencies = [
- "cbindgen",
- "rustls-pki-types",
  "upki",
 ]
 

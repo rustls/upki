@@ -3,7 +3,7 @@ use std::ffi::CString;
 
 use revoke_test::CertificateDetail;
 use rustls_pki_types::CertificateDer;
-use upki_ffi::{
+use upki::ffi::{
     upki_certificate_der, upki_check_revocation, upki_config, upki_config_free, upki_config_new,
     upki_result,
 };

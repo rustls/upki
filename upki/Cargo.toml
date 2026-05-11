@@ -33,5 +33,18 @@ regex.workspace = true
 tempfile.workspace = true
 tiny_http.workspace = true
 
+[build-dependencies]
+cbindgen.workspace = true
+
+[features]
+default = []
+capi = []
+
 [lints]
 workspace = true
+
+[package.metadata.capi.header]
+generation = false
+
+[package.metadata.capi.install.include]
+asset = [{ from = "upki.h" }]

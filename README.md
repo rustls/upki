@@ -44,8 +44,8 @@ sequence of calls:
 
 3. `upki_config_free(config)`.
 
-See [the header](https://github.com/rustls/upki/blob/main/upki-ffi/upki.h) for further
-documentation, or [a minimal example](https://github.com/rustls/upki/blob/main/upki-ffi/example/).
+See [the header](https://github.com/rustls/upki/blob/main/upki/upki.h) for further
+documentation, or [a minimal example](https://github.com/rustls/upki/blob/main/upki/ffi-example/).
 
 ### [Rustls](https://crates.io/crates/rustls/) integration
 

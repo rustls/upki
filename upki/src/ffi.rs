@@ -1,4 +1,3 @@
-#![crate_type = "staticlib"]
 #![allow(non_camel_case_types)]
 
 use core::ffi::c_char;
@@ -8,8 +7,9 @@ use std::path::Path;
 use std::slice;
 
 use rustls_pki_types::CertificateDer;
-use upki::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
-use upki::{Config, ConfigPath, Error};
+
+use crate::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
+use crate::{Config, ConfigPath, Error};
 
 /// Check the revocation status of a certificate.
 ///
