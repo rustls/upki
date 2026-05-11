@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "../upki.h"
 #include "demo-certs.h"
+#include "upki.h"
 
 int main() {
   upki_config *config = NULL;

@@ -12,6 +12,10 @@ use serde::{Deserialize, Serialize};
 pub mod revocation;
 use crate::revocation::RevocationConfig;
 
+/// Foreign function interface.
+#[cfg(feature = "capi")]
+pub mod ffi;
+
 /// `upki` configuration.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
