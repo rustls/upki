@@ -10,7 +10,9 @@ use core::fmt;
 use core::time::Duration;
 use std::collections::HashSet;
 use std::env;
-use std::fs::{self, File, Permissions};
+#[cfg(target_family = "unix")]
+use std::fs::Permissions;
+use std::fs::{self, File};
 use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
