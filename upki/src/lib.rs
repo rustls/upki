@@ -36,7 +36,7 @@ impl Config {
     pub fn from_file_or_user_default(path: &ConfigPath) -> Result<Self, Error> {
         match path {
             ConfigPath::Default(path) if path.exists() => Self::from_file(path),
-            ConfigPath::Default(_) => Self::try_user_default(),
+            ConfigPath::Default(_) => Self::try_default(),
             ConfigPath::Specified(path) => Self::from_file(path),
         }
     }
@@ -55,9 +55,19 @@ impl Config {
     }
 
     /// Return a sensible default configuration.
-    pub fn try_user_default() -> Result<Self, Error> {
+    pub fn try_default() -> Result<Self, Error> {
+        let user_cache = project_dirs()?.cache_dir().to_owned();
         Ok(Self {
-            cache_dir: project_dirs()?.cache_dir().to_owned(),
+            cache_dir: match user_cache.exists() {
+                true => user_cache,
+                false => {
+                    let system_cache = platform::system_cache_dir()?;
+                    match system_cache.exists() {
+                        true => system_cache,
+                        false => user_cache,
+                    }
+                }
+            },
             revocation: RevocationConfig::default(),
         })
     }
@@ -132,6 +142,10 @@ mod platform {
     pub(super) fn system_config_dir() -> Result<PathBuf, Error> {
         Ok(PathBuf::from("/Library/Application Support").join(PREFIX))
     }
+
+    pub(super) fn system_cache_dir() -> Result<PathBuf, Error> {
+        Ok(PathBuf::from("/Library/Caches").join(BUNDLE_ID))
+    }
 }
 
 #[cfg(all(unix, not(target_vendor = "apple")))]
@@ -140,6 +154,10 @@ mod platform {
 
     pub(super) fn system_config_dir() -> Result<PathBuf, Error> {
         Ok(PathBuf::from("/etc").join(PREFIX))
+    }
+
+    pub(super) fn system_cache_dir() -> Result<PathBuf, Error> {
+        Ok(PathBuf::from("/var/cache").join(PREFIX))
     }
 }
 
@@ -154,6 +172,16 @@ mod platform {
         }
         .join(VENDOR)
         .join(PREFIX))
+    }
+
+    pub(super) fn system_cache_dir() -> Result<PathBuf, Error> {
+        Ok(match env::var_os("ProgramData") {
+            Some(base) => PathBuf::from(base),
+            None => PathBuf::from("C:\\ProgramData"),
+        }
+        .join(VENDOR)
+        .join(PREFIX)
+        .join("cache"))
     }
 }
 
@@ -225,6 +253,8 @@ fn project_dirs() -> Result<ProjectDirs, Error> {
     ProjectDirs::from("dev", "rustls", PREFIX).ok_or(Error::NoValidHomeDirectory)
 }
 
+#[cfg(target_vendor = "apple")]
+const BUNDLE_ID: &str = "dev.rustls.upki";
 #[cfg(target_os = "windows")]
 const VENDOR: &str = "rustls";
 const PREFIX: &str = "upki";
