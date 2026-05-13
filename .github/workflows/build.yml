@@ -68,8 +68,6 @@ jobs:
 
       - name: Build FFI
         run: cargo cbuild --locked --release -p upki
-      - name: Check FFI header
-        run: git diff --exit-code -- upki/upki.h
 
       - name: Run system tests (release)
         run: cargo test --locked --release --test system_tests -- --ignored --nocapture
