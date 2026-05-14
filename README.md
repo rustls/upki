@@ -22,6 +22,7 @@ but ideally it is run system-wide as [arranged by packagers](PACKAGING.md).
 There are a number of interfaces available:
 
 ### Command-line interface
+
 This is useful for monitoring, testing and alerting purposes.
 
 ```shell
@@ -31,6 +32,7 @@ NotRevoked
 ```
 
 ### C-FFI interface
+
 This is a simple C interface to checking revocation status.  The simplest use is this
 sequence of calls:
 
@@ -46,6 +48,15 @@ sequence of calls:
 
 See [the header](https://github.com/rustls/upki/blob/main/upki/upki.h) for further
 documentation, or [a minimal example](https://github.com/rustls/upki/blob/main/upki/ffi-example/).
+
+### OpenSSL integration
+
+The `upki-openssl` library provides `upki_openssl_verify_callback()` which is an OpenSSL verification callback
+(it matches the [`SSL_verify_cb`][ssl-verify] type) that performs revocation checking. You can pass this to
+[`SSL_CTX_set_verify()`][ssl-verify] or [`SSL_set_verify()`][ssl-verify].
+See [the header](https://github.com/rustls/upki/blob/main/upki-openssl/upki-openssl.h) for further documentation.
+
+[ssl-verify]: https://docs.openssl.org/3.3/man3/SSL_CTX_set_verify/
 
 ### [Rustls](https://crates.io/crates/rustls/) integration
 
