@@ -21,3 +21,6 @@ upki = { path = "../upki" }
 
 [lints]
 workspace = true
+
+[package.metadata.dist]
+dist = false
