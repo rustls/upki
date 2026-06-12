@@ -19,11 +19,7 @@ use upki::{Config, ConfigPath};
 async fn main() -> Result<ExitCode, Report> {
     let args = Args::parse();
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .compact(),
-        )
+        .with(tracing_subscriber::fmt::layer().compact())
         .with(
             EnvFilter::builder()
                 .with_default_directive(
