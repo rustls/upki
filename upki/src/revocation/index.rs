@@ -5,7 +5,7 @@ use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
-use clubcard_crlite::{CRLiteClubcard, CRLiteStatus};
+use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp, TimestampInterval};
 
 use super::{Error, Manifest, RevocationCheckInput, RevocationStatus};
 use crate::Config;
@@ -96,7 +96,7 @@ impl Index {
     ///
     /// Returns `None` if any filter file cannot be read or decoded.
     pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
-        let mut by_log_id: BTreeMap<[u8; 32], Vec<(u8, u64, u64)>> = BTreeMap::new();
+        let mut by_log_id: BTreeMap<LogId, Vec<(u8, TimestampInterval)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
             if filter.filename.len() > FILENAME_SIZE {
@@ -124,11 +124,11 @@ impl Index {
                 }
             };
 
-            for (log_id, (min_ts, max_ts)) in clubcard.universe().iter() {
+            for (log_id, interval) in clubcard.universe().iter() {
                 by_log_id
                     .entry(*log_id)
                     .or_default()
-                    .push((filter_idx as u8, *min_ts, *max_ts));
+                    .push((filter_idx as u8, *interval));
             }
         }
 
@@ -153,7 +153,7 @@ impl Index {
 
         // Pre-compute offsets for each log_id's entry section
         let mut current_offset = header_size;
-        let mut dir_entries: Vec<(&[u8; 32], u64, u16)> = Vec::new();
+        let mut dir_entries: Vec<(&LogId, u64, u16)> = Vec::new();
         for (log_id, entries) in &by_log_id {
             dir_entries.push((log_id, current_offset as u64, entries.len() as u16));
             current_offset += entries.len() * ENTRY_SIZE;
@@ -161,17 +161,17 @@ impl Index {
 
         // Write log_id directory
         for (log_id, offset, count) in &dir_entries {
-            buf.extend_from_slice(*log_id);
+            buf.extend_from_slice(&log_id.0);
             buf.extend_from_slice(&offset.to_be_bytes());
             buf.extend_from_slice(&count.to_be_bytes());
         }
 
         // Write entry sections
         for entries in by_log_id.values() {
-            for (filter_idx, min_ts, max_ts) in entries {
+            for (filter_idx, interval) in entries {
                 buf.push(*filter_idx);
-                buf.extend_from_slice(&min_ts.to_be_bytes());
-                buf.extend_from_slice(&max_ts.to_be_bytes());
+                buf.extend_from_slice(&interval.low.0.to_be_bytes());
+                buf.extend_from_slice(&interval.high.0.to_be_bytes());
             }
         }
 
@@ -260,7 +260,7 @@ impl Index {
                 input
                     .sct_timestamps
                     .iter()
-                    .map(|ct_ts| (&ct_ts.log_id, ct_ts.timestamp)),
+                    .map(|ct_ts| (LogId(ct_ts.log_id), Timestamp(ct_ts.timestamp))),
             ) {
                 CRLiteStatus::Revoked => RevocationStatus::CertainlyRevoked,
                 CRLiteStatus::Good => RevocationStatus::NotRevoked,
