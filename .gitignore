@@ -1,3 +1,6 @@
 target/
 revoke-test/tmp/
 *.pending-snap
+dist-packages/**/*.dylib
+dist-packages/**/*.so
+dist-packages/**/*.h
