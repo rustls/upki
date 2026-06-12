@@ -1,0 +1,9 @@
+# Injected by dist (via `github-build-setup` in dist-workspace.toml) into the release build jobs.
+#
+# The FFI packages` build-commands run `cargo cbuild`, which requires cargo-c. Only install it on
+# the runners that actually build an FFI cdylib, mirrorning the cargo-c install in `build.yml`.
+- name: Install cargo-c (for the FFI cdylib builds)
+  if: ${{ contains(join(matrix.targets), 'apple-darwin') || contains(join(matrix.targets), 'linux-gnu') || contains(join(matrix.targets), 'x86_64-pc-windows-msvc') }}
+  uses: taiki-e/cache-cargo-install-action@v3
+  with:
+    tool: cargo-c

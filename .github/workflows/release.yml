@@ -127,6 +127,11 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: "Install cargo-c (for the FFI cdylib builds)"
+        uses: "taiki-e/cache-cargo-install-action@v3"
+        if: "${{ contains(join(matrix.targets), 'apple-darwin') || contains(join(matrix.targets), 'linux-gnu') || contains(join(matrix.targets), 'x86_64-pc-windows-msvc') }}"
+        with:
+          "tool": "cargo-c"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

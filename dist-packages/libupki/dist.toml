@@ -1,0 +1,16 @@
+[package]
+name = "libupki"
+version = "1.0.0-beta.2"
+repository = "https://github.com/rustls/upki"
+build-command = ["sh", "build-ffi.sh"]
+cdylibs = ["upki"]
+
+[dist]
+package-libraries = ["cdylib"]
+include = ["upki.h"]
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+]
