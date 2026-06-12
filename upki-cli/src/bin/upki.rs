@@ -8,19 +8,30 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use upki::revocation::{Index, Manifest, RevocationCheckInput, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<ExitCode, Report> {
     let args = Args::parse();
-    if args.verbose {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .with_ansi(false)
-            .compact()
-            .init();
-    }
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().compact())
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(
+                    match args.verbose {
+                        true => LevelFilter::TRACE,
+                        false => LevelFilter::ERROR,
+                    }
+                    .into(),
+                )
+                .from_env()?,
+        )
+        .init();
 
     let config_path =
         ConfigPath::new(args.config_file).wrap_err("cannot find configuration path")?;
