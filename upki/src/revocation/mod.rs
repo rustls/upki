@@ -11,6 +11,7 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::{DateTime, Utc};
 use clubcard_crlite::CRLiteKey;
+pub use clubcard_crlite::IssuerSpkiHash;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -165,7 +166,7 @@ impl RevocationCheckInput {
     }
 
     fn key(&self) -> CRLiteKey<'_> {
-        CRLiteKey::new(&self.issuer_spki_hash.0, &self.cert_serial.0)
+        CRLiteKey::new(&self.issuer_spki_hash, &self.cert_serial.0)
     }
 }
 
@@ -184,31 +185,6 @@ impl FromStr for CertSerial {
                 context: "certificate serial",
             }),
         }
-    }
-}
-
-/// The SHA256 hash of a `SubjectPublicKeyInfoDer` belonging to a certificate's issuer.
-#[derive(Clone, Debug)]
-pub struct IssuerSpkiHash(pub [u8; 32]);
-
-impl FromStr for IssuerSpkiHash {
-    type Err = Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        Ok(Self(
-            BASE64_STANDARD
-                .decode(value)
-                .map_err(|e| Error::InvalidBase64 {
-                    error: Box::new(e),
-                    context: "issuer SPKI hash",
-                })?
-                .try_into()
-                .map_err(|b: Vec<u8>| Error::InvalidLength {
-                    expected: 32,
-                    actual: b.len(),
-                    context: "issuer SPKI hash",
-                })?,
-        ))
     }
 }
 
