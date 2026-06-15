@@ -5,6 +5,7 @@ license.workspace = true
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 
 [dependencies]
 rustls.workspace = true
