@@ -68,15 +68,10 @@ jobs:
       - name: Run tests (debug)
         run: cargo test --locked
 
-      - name: Build (release)
-        run: cargo build --locked --release
-      - name: Run tests (release)
-        run: cargo test --locked --release
-
       - name: Build FFI
-        run: cargo cbuild --locked --release -p upki
+        run: cargo cbuild --locked -p upki
       - name: Build OpenSSL integration
-        run: cargo cbuild --locked --release -p upki-openssl
+        run: cargo cbuild --locked -p upki-openssl
 
       - name: Run system tests (release)
         run: cargo test --locked --release --test system_tests -- --ignored --nocapture
