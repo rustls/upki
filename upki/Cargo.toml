@@ -15,11 +15,11 @@ chrono.workspace = true
 clubcard-crlite.workspace = true
 directories.workspace = true
 hex.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, optional = true }
 rustls-pki-types.workspace = true
 rustls-webpki.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, optional = true }
 tempfile.workspace = true
 tokio.workspace = true
 toml.workspace = true
@@ -38,6 +38,7 @@ tiny_http.workspace = true
 [features]
 default = []
 capi = []
+fetch = ["dep:reqwest", "dep:serde_json"]
 
 [lints]
 workspace = true
