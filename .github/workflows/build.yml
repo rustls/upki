@@ -67,6 +67,8 @@ jobs:
         run: cargo check --locked --all-features --all-targets
       - name: Run tests (debug)
         run: cargo test --locked
+      - name: Without features
+        run: cargo check --locked -p upki --no-default-features
 
       - name: Build FFI
         run: cargo cbuild --locked -p upki
