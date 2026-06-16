@@ -11,7 +11,7 @@ use std::{fs, thread};
 
 use insta::assert_snapshot;
 use insta::internals::SettingsBindDropGuard;
-use insta_cmd::{assert_cmd_snapshot, get_cargo_bin};
+use insta_cmd::assert_cmd_snapshot;
 use rand::RngExt;
 use tempfile::TempDir;
 
@@ -414,7 +414,13 @@ fn typical_incremental_fetch_dry_run() {
 }
 
 fn upki() -> Command {
-    Command::new(get_cargo_bin("upki"))
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run")
+        .arg("--quiet")
+        .arg("--package")
+        .arg("upki-cli")
+        .arg("--");
+    cmd
 }
 
 fn http_server(root: &str) -> (TestHttpServer, SettingsBindDropGuard) {
