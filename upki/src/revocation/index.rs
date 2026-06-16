@@ -1,13 +1,20 @@
 use core::cmp::Ordering;
 use core::{fmt, str};
+#[cfg(feature = "fetch")]
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+#[cfg(feature = "fetch")]
+use std::path::Path;
+use std::path::PathBuf;
 
-use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp, TimestampInterval};
+#[cfg(feature = "fetch")]
+use clubcard_crlite::TimestampInterval;
+use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 
-use super::{Error, Manifest, RevocationCheckInput, RevocationStatus};
+#[cfg(feature = "fetch")]
+use super::Manifest;
+use super::{Error, RevocationCheckInput, RevocationStatus};
 use crate::Config;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
@@ -95,6 +102,7 @@ impl Index {
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
     ///
     /// Returns `None` if any filter file cannot be read or decoded.
+    #[cfg(feature = "fetch")]
     pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
         let mut by_log_id: BTreeMap<LogId, Vec<(u8, TimestampInterval)>> = BTreeMap::new();
 

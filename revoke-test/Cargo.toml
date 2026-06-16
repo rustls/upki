@@ -26,7 +26,7 @@ insta-cmd.workspace = true
 openssl-sys.workspace = true
 rustls-pki-types.workspace = true
 rustls-upki.workspace = true
-upki = { path = "../upki", features = ["capi"] }
+upki = { path = "../upki", features = ["capi", "fetch"] }
 upki-openssl = { path = "../upki-openssl" }
 
 [features]
