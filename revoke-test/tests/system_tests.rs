@@ -9,7 +9,6 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use insta_cmd::get_cargo_bin;
 use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites};
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types::{ServerName, UnixTime};
@@ -33,7 +32,7 @@ fn real_world_system_tests() {
     .unwrap();
     fs::write(TEST_CONFIG_PATH, TEST_CONFIG).unwrap();
 
-    Command::new(get_cargo_bin("upki"))
+    upki()
         .arg("--config-file")
         .arg(TEST_CONFIG_PATH)
         .arg("fetch")
@@ -135,7 +134,7 @@ impl TestCase for ServerVerifier {
 }
 
 fn high_level_cli(detail: &CertificateDetail) -> TestResult {
-    let mut c = Command::new(get_cargo_bin("upki"))
+    let mut c = upki()
         .arg("--config-file")
         .arg(TEST_CONFIG_PATH)
         .arg("revocation")
@@ -229,6 +228,16 @@ fn test_each_site<'a>(
     assert!(correctly_revoked > 0);
     assert!(correctly_revoked > incorrectly_not_revoked);
     results
+}
+
+fn upki() -> Command {
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run")
+        .arg("--quiet")
+        .arg("--package")
+        .arg("upki-cli")
+        .arg("--");
+    cmd
 }
 
 impl<F> TestCase for F
