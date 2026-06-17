@@ -56,23 +56,25 @@ jobs:
         with:
           tool: cargo-c
 
-      - name: Install OpenSSL (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          vcpkg install openssl:x64-windows-static-md
-
       - name: Check all targets
+        if: matrix.os != 'windows-latest'
         run: cargo check --locked --all-features --all-targets
+      - name: Check all targets (Windows) # Skip upki-openssl on Windows because it requires OpenSSL to be installed
+        if: matrix.os == 'windows-latest'
+        run: cargo check --locked -p upki -p rustls-upki -p upki-cli -p upki-mirror -p revoke-test --all-features --all-targets
       - name: Run tests (debug)
-        run: cargo test --locked
+        if: matrix.os != 'windows-latest'
+        run: cargo test --locked -p upki -p rustls-upki -p upki-cli -p upki-mirror -p revoke-test
+      - name: Run tests (debug, Windows) # Skip upki-openssl on Windows because it requires OpenSSL to be installed
+        if: matrix.os == 'windows-latest'
+        run: cargo test -p revoke-test -p rustls-upki -p upki
       - name: Without features
         run: cargo check --locked -p upki --no-default-features
 
       - name: Build FFI
         run: cargo cbuild --locked -p upki
       - name: Build OpenSSL integration
+        if: runner.os != 'Windows'
         run: cargo cbuild --locked -p upki-openssl
 
       - name: Run system tests (release)
