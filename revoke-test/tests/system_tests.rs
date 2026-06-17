@@ -18,6 +18,7 @@ use rustls_upki::{Policy, ServerVerifier};
 
 #[path = "api/ffi.rs"]
 mod ffi;
+#[cfg(not(windows))]
 #[path = "api/openssl.rs"]
 mod openssl;
 
@@ -51,6 +52,7 @@ fn real_world_system_tests() {
 
     let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
     let ffi = test_each_site(tests.sites.iter(), ffi::ffi, "ffi");
+    #[cfg(not(windows))]
     let openssl = test_each_site(tests.sites.iter(), openssl::openssl, "openssl");
 
     let verifier = ServerVerifier::new(
@@ -64,15 +66,22 @@ fn real_world_system_tests() {
     .unwrap();
 
     let rustls_results = test_each_site(tests.sites.iter(), verifier, "rustls");
-
-    for ((((site, high), rustls), ffi), openssl) in tests
+    let iter = tests
         .sites
         .iter()
         .zip(high_level_cli.iter())
         .zip(rustls_results.iter())
-        .zip(ffi.iter())
-        .zip(openssl.iter())
-    {
+        .zip(ffi.iter());
+
+    #[cfg(not(windows))]
+    let iter = iter.zip(openssl.iter());
+
+    for cases in iter {
+        #[cfg(windows)]
+        let (((site, high), rustls), ffi) = cases;
+        #[cfg(not(windows))]
+        let ((((site, high), rustls), ffi), openssl) = cases;
+
         assert!(
             high == rustls || *high == rustls.expired_as_revoked(),
             "site {site:?} revocation result disagrees between high-level API ({high:?})  and rustls verifier ({rustls:?})"
@@ -81,6 +90,7 @@ fn real_world_system_tests() {
             high == ffi,
             "site {site:?} revocation result disagrees between high-level API ({high:?}) and FFI API ({ffi:?})"
         );
+        #[cfg(not(windows))]
         assert!(
             high == openssl,
             "site {site:?} revocation result disagrees between high-level API ({high:?}) and OpenSSL API ({openssl:?})"
