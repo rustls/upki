@@ -126,6 +126,7 @@ pub struct RevocationCheckInput {
     pub issuer_spki_hash: IssuerSpkiHash,
     /// CT log IDs and inclusion timestamps present in the end-entity certificate.
     pub sct_timestamps: Vec<CtTimestamp>,
+    issuer_serial_hash: [u8; 32],
 }
 
 impl RevocationCheckInput {
@@ -164,15 +165,38 @@ impl RevocationCheckInput {
             });
         }
 
-        Ok(Self {
-            cert_serial: CertSerial(end_entity.serial().into()),
+        Ok(Self::new(
+            CertSerial(end_entity.serial().to_vec()),
             issuer_spki_hash,
             sct_timestamps,
-        })
+        ))
+    }
+
+    /// Construct a `RevocationCheckInput` from its constituent parts.
+    pub fn new(
+        cert_serial: CertSerial,
+        issuer_spki_hash: IssuerSpkiHash,
+        sct_timestamps: Vec<CtTimestamp>,
+    ) -> Self {
+        let mut issuer_serial_context = sha256::Context::new();
+        issuer_serial_context.update(&issuer_spki_hash.0);
+        issuer_serial_context.update(&cert_serial.0);
+        let issuer_serial_hash = issuer_serial_context.finish().0;
+
+        Self {
+            cert_serial,
+            issuer_spki_hash,
+            sct_timestamps,
+            issuer_serial_hash,
+        }
     }
 
     fn key(&self) -> CRLiteKey<'_> {
-        CRLiteKey::new(&self.issuer_spki_hash, &self.cert_serial.0)
+        CRLiteKey::with_hash(
+            &self.issuer_spki_hash,
+            &self.cert_serial.0,
+            self.issuer_serial_hash,
+        )
     }
 }
 
