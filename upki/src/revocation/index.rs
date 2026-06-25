@@ -452,14 +452,14 @@ mod tests {
     }
 
     fn test_input() -> RevocationCheckInput {
-        RevocationCheckInput {
-            cert_serial: CertSerial(vec![1, 2, 3]),
-            issuer_spki_hash: IssuerSpkiHash([0xaa; 32]),
-            sct_timestamps: vec![CtTimestamp {
+        RevocationCheckInput::new(
+            CertSerial(vec![1, 2, 3]),
+            IssuerSpkiHash([0xaa; 32]),
+            vec![CtTimestamp {
                 log_id: [0xbb; 32],
                 timestamp: 1000,
             }],
-        }
+        )
     }
 
     #[expect(clippy::type_complexity)]

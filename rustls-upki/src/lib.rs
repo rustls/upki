@@ -117,16 +117,16 @@ impl ServerVerifier {
             return self.policy.cert_has_no_scts.as_result();
         }
 
-        let input = RevocationCheckInput {
-            cert_serial: CertSerial(
+        let input = RevocationCheckInput::new(
+            CertSerial(
                 verified_path
                     .end_entity()
                     .serial()
                     .to_vec(),
             ),
-            issuer_spki_hash: IssuerSpkiHash(issuer_spki_hash),
+            IssuerSpkiHash(issuer_spki_hash),
             sct_timestamps,
-        };
+        );
 
         match Index::from_cache(&self.config).and_then(|mut index| index.check(&input)) {
             Ok(rs) => Ok(rs),
