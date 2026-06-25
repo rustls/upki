@@ -1,6 +1,6 @@
 [package]
 name = "upki"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
