@@ -1,6 +1,6 @@
 [package]
 name = "upki-cli"
-version = "1.0.0-beta.1"
+version = "1.0.0-beta.2"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
@@ -12,7 +12,7 @@ description = "Platform-independent browser-grade certificate infrastructure"
 clap.workspace = true
 eyre.workspace = true
 rustls-pki-types.workspace = true
-upki = { version = "=1.0.0-beta.1", path = "../upki", features = ["fetch"] }
+upki = { version = "=1.0.0-beta.2", path = "../upki", features = ["fetch"] }
 tokio.workspace = true
 toml.workspace = true
 tracing.workspace = true
