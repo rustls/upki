@@ -183,12 +183,6 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.21.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
-
-[[package]]
-name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
@@ -401,11 +395,11 @@ dependencies = [
 
 [[package]]
 name = "clubcard-crlite"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94db8308070798e004eba1d535f6fb78e3ba7170deb40ab767776d3025747707"
+checksum = "a6c94d9aa9e9986a62176f935ea8e74cebea6570e433795c0e52d479e6ef4f15"
 dependencies = [
- "base64 0.21.7",
+ "base64",
  "bincode",
  "clubcard",
  "serde",
@@ -1068,7 +1062,7 @@ version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -1867,7 +1861,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b11be62ac29861f5e3205a0941578e265c93fa566fd1c36cfdb20a16ae3efc5"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -1906,7 +1900,7 @@ name = "revoke-test"
 version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
- "base64 0.22.1",
+ "base64",
  "codspeed-criterion-compat",
  "criterion",
  "eyre",
@@ -2709,7 +2703,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 name = "upki"
 version = "1.0.0-beta.1"
 dependencies = [
- "base64 0.22.1",
+ "base64",
  "cbindgen",
  "chrono",
  "clubcard-crlite",
