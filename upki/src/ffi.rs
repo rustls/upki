@@ -8,7 +8,9 @@ use std::slice;
 
 use rustls_pki_types::CertificateDer;
 
-use crate::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
+use crate::revocation::{
+    self, Index, RevocationCheckInput, RevocationStatus, aws_lc_rs_sha256_hash,
+};
 use crate::{Config, ConfigPath, Error};
 
 /// Check the revocation status of a certificate.
@@ -42,7 +44,7 @@ pub unsafe extern "C" fn upki_check_revocation(
             .map(|c| CertificateDer::from(unsafe { slice::from_raw_parts(c.data, c.len) }))
             .collect::<Vec<_>>();
 
-        let input = match RevocationCheckInput::from_certificates(&certs) {
+        let input = match RevocationCheckInput::from_certificates(aws_lc_rs_sha256_hash, &certs) {
             Ok(input) => input,
             Err(err) => return Error::Revocation(err).into(),
         };

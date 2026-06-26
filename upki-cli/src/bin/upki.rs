@@ -12,7 +12,7 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upki::revocation::{Index, Manifest, RevocationCheckInput, fetch};
+use upki::revocation::{Index, Manifest, RevocationCheckInput, aws_lc_rs_sha256_hash, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -61,7 +61,7 @@ async fn main() -> Result<ExitCode, Report> {
                 certs.push(cert.wrap_err("cannot read certificate from stdin")?);
             }
 
-            let input = RevocationCheckInput::from_certificates(&certs)?;
+            let input = RevocationCheckInput::from_certificates(aws_lc_rs_sha256_hash, &certs)?;
             Index::from_cache(&config)?
                 .check(&input)?
                 .to_cli()

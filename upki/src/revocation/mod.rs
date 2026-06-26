@@ -139,7 +139,10 @@ impl RevocationCheckInput {
     /// **not** check any of the certificates for validity: it assumes the caller has done any
     /// required checks before calling this interface (path building, naming validation,
     /// expiry checking, etc.).
-    pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Error> {
+    pub fn from_certificates(
+        hash: impl Fn(&[&[u8]]) -> [u8; 32],
+        certificates: &[CertificateDer<'_>],
+    ) -> Result<Self, Error> {
         let (end_entity, rest) = certificates
             .split_first()
             .ok_or(Error::TooFewCertificates)?;
@@ -147,12 +150,7 @@ impl RevocationCheckInput {
             .map_err(|error| Error::InvalidEndEntityCertificate(Box::new(error)))?;
 
         let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
-        let issuer_spki_hash = IssuerSpkiHash(
-            digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
-                .as_ref()
-                .try_into()
-                .expect("sha256 output must be [u8;32]"),
-        );
+        let issuer_spki_hash = IssuerSpkiHash(hash(&[&webpki::spki_for_anchor(&issuer)]));
 
         let mut sct_timestamps = vec![];
         let iter = end_entity
@@ -177,6 +175,18 @@ impl RevocationCheckInput {
     fn key(&self) -> CRLiteKey<'_> {
         CRLiteKey::new(&self.issuer_spki_hash, &self.cert_serial.0)
     }
+}
+
+/// Calculate SHA256 using aws-lc-rs
+pub fn aws_lc_rs_sha256_hash(input: &[&[u8]]) -> [u8; 32] {
+    let mut ctx = digest::Context::new(&digest::SHA256);
+    for i in input {
+        ctx.update(i);
+    }
+    ctx.finish()
+        .as_ref()
+        .try_into()
+        .expect("sha256 output must be [u8; 32]")
 }
 
 /// A certificate serial number.
