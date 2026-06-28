@@ -108,7 +108,7 @@ pub unsafe extern "C" fn upki_config_new(
             }
         };
 
-        match Config::from_file(path.as_ref()) {
+        match Config::from_file_or_user_default(&path) {
             Ok(config) => {
                 unsafe { *out = Box::into_raw(Box::new(upki_config(config))) };
                 upki_result::UPKI_OK
