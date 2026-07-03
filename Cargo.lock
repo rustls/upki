@@ -2727,7 +2727,6 @@ dependencies = [
  "similar-asserts",
  "tempfile",
  "tiny_http",
- "tokio",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
 ]
