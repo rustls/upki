@@ -2715,10 +2715,6 @@ dependencies = [
  "clubcard-crlite",
  "directories",
  "hex",
- "insta",
- "insta-cmd",
- "rand 0.10.1",
- "regex",
  "reqwest",
  "rustls-pki-types",
  "rustls-webpki 0.104.0-alpha.7",
@@ -2726,7 +2722,6 @@ dependencies = [
  "serde_json",
  "similar-asserts",
  "tempfile",
- "tiny_http",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
 ]
