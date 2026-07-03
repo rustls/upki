@@ -357,6 +357,9 @@ const INDEX_MAGIC: &[u8; 8] = b"upkiidx0";
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
     use super::*;
     use crate::revocation::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationConfig};
 
