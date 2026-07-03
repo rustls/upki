@@ -19,12 +19,11 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use aws_lc_rs::digest;
 use tracing::{debug, info};
 
 use super::index::INDEX_BIN;
 use super::{Error, Index, Manifest, ManifestFile};
-use crate::Config;
+use crate::{Config, sha256};
 
 /// Update the local revocation cache by fetching updates over the network.
 ///
@@ -404,9 +403,9 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
     Ok(())
 }
 
-fn hash_file(path: &Path) -> Result<digest::Digest, io::Error> {
+fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
     let mut file = File::open(path)?;
-    let mut hasher = digest::Context::new(&digest::SHA256);
+    let mut hasher = sha256::Context::new();
     let mut buffer = [0; 4096];
     loop {
         let n = file.read(&mut buffer)?;

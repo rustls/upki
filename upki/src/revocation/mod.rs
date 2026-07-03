@@ -9,7 +9,6 @@ use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use aws_lc_rs::digest;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use chrono::{DateTime, Utc};
@@ -21,6 +20,7 @@ use tracing::info;
 
 #[cfg(feature = "fetch")]
 use crate::Config;
+use crate::sha256;
 
 #[cfg(feature = "fetch")]
 mod fetch;
@@ -148,10 +148,7 @@ impl RevocationCheckInput {
 
         let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
         let issuer_spki_hash = IssuerSpkiHash(
-            digest::digest(&digest::SHA256, &webpki::spki_for_anchor(&issuer))
-                .as_ref()
-                .try_into()
-                .expect("sha256 output must be [u8;32]"),
+            sha256::Digest::from(&[webpki::spki_for_anchor(&issuer).as_ref()][..]).0,
         );
 
         let mut sct_timestamps = vec![];
