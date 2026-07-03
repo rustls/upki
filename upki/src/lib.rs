@@ -10,6 +10,8 @@ use std::{fmt, fs, io};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 
+pub(crate) mod sha256;
+
 /// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
 use crate::revocation::RevocationConfig;
