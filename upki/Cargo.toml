@@ -20,7 +20,7 @@ rustls-pki-types.workspace = true
 rustls-webpki.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
-tempfile.workspace = true
+tempfile = { workspace = true, optional = true }
 toml.workspace = true
 tracing.workspace = true
 
@@ -37,7 +37,7 @@ tiny_http.workspace = true
 [features]
 default = []
 capi = []
-fetch = ["dep:reqwest", "dep:serde_json"]
+fetch = ["dep:reqwest", "dep:serde_json", "dep:tempfile"]
 
 [lints]
 workspace = true
