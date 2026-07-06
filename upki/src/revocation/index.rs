@@ -188,95 +188,94 @@ impl Index {
 
     /// Perform a revocation check using the index.
     ///
-    /// Uses binary search over the log-ID directory to find relevant entries,
-    /// then seeks into the index file to read only those entries. Finally loads
-    /// the matching filter file and checks the certificate against it.
+    /// Uses binary search over the log-ID directory to find relevant entries, then seeks into
+    /// the index file to read only those entries. Loads matching filter files and queries
+    /// them for the certificate's revocation status.
     pub fn check(&mut self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let dir_data = &self.tables[self.logs_offset..];
+        let mut maybe_good = false;
 
-        let covering_filter = 'filter: {
-            'timestamp: for sct in &input.sct_timestamps {
-                // Binary search the sorted log_id directory (stride LOG_DIR_ENTRY_SIZE)
-                let mut lo = 0;
-                let mut hi = self.num_logs;
-                let entry_offset = loop {
-                    if lo >= hi {
-                        continue 'timestamp;
-                    }
+        'timestamp: for sct in &input.sct_timestamps {
+            // Binary search the sorted log_id directory (stride LOG_DIR_ENTRY_SIZE)
+            let mut lo = 0;
+            let mut hi = self.num_logs;
+            let entry_offset = loop {
+                if lo >= hi {
+                    continue 'timestamp;
+                }
 
-                    let mid = lo + (hi - lo) / 2;
-                    let offset = mid * LOG_DIR_ENTRY_SIZE;
-                    let log_id = &dir_data[offset..offset + 32];
-                    match log_id.cmp(sct.log_id.as_slice()) {
-                        Ordering::Less => lo = mid + 1,
-                        Ordering::Equal => break offset,
-                        Ordering::Greater => hi = mid,
+                let mid = lo + (hi - lo) / 2;
+                let offset = mid * LOG_DIR_ENTRY_SIZE;
+                let log_id = &dir_data[offset..offset + 32];
+                match log_id.cmp(sct.log_id.as_slice()) {
+                    Ordering::Less => lo = mid + 1,
+                    Ordering::Equal => break offset,
+                    Ordering::Greater => hi = mid,
+                }
+            };
+
+            let mut entry_data = &dir_data[entry_offset + 32..];
+            let offset = u64::read_be(&mut entry_data)?;
+            let count = u16::read_be(&mut entry_data)?;
+
+            self.file
+                .seek(SeekFrom::Start(offset))
+                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+
+            let mut buf = vec![0u8; count as usize * ENTRY_SIZE];
+            self.file
+                .read_exact(&mut buf)
+                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+
+            let mut data = &buf[..];
+            for _ in 0..count {
+                let filter_index = u8::read_be(&mut data)? as usize;
+                let min_ts = u64::read_be(&mut data)?;
+                let max_ts = u64::read_be(&mut data)?;
+                if min_ts > sct.timestamp || sct.timestamp > max_ts {
+                    continue;
+                }
+
+                let filename = self.filename(filter_index)?;
+                let path = self.cache_dir.join(filename);
+                let bytes = match fs::read(&path) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return Err(Error::FileRead {
+                            error,
+                            path: Some(path),
+                        });
                     }
                 };
 
-                let mut entry_data = &dir_data[entry_offset + 32..];
-                let offset = u64::read_be(&mut entry_data)?;
-                let count = u16::read_be(&mut entry_data)?;
+                let filter =
+                    CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
+                        error: format!("cannot decode crlite filter: {error:?}").into(),
+                        path: Some(path),
+                    })?;
 
-                self.file
-                    .seek(SeekFrom::Start(offset))
-                    .map_err(|e| Error::IndexDecode(Box::new(e)))?;
-
-                let mut buf = vec![0u8; count as usize * ENTRY_SIZE];
-                self.file
-                    .read_exact(&mut buf)
-                    .map_err(|e| Error::IndexDecode(Box::new(e)))?;
-
-                let mut data = &buf[..];
-                for _ in 0..count {
-                    let filter_index = u8::read_be(&mut data)? as usize;
-                    let min_ts = u64::read_be(&mut data)?;
-                    let max_ts = u64::read_be(&mut data)?;
-                    if min_ts <= sct.timestamp && sct.timestamp <= max_ts {
-                        break 'filter Some(filter_index);
+                match filter.contains(
+                    &key,
+                    input
+                        .sct_timestamps
+                        .iter()
+                        .map(|ct_ts| (LogId(ct_ts.log_id), Timestamp(ct_ts.timestamp))),
+                ) {
+                    CRLiteStatus::Revoked => return Ok(RevocationStatus::CertainlyRevoked),
+                    CRLiteStatus::Good => {
+                        maybe_good = true;
+                        continue;
                     }
+                    CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => continue,
                 }
             }
-            None
-        };
+        }
 
-        let Some(filter_index) = covering_filter else {
-            return Ok(RevocationStatus::NotCoveredByRevocationData);
-        };
-
-        let filename = self.filename(filter_index)?;
-        let path = self.cache_dir.join(filename);
-        let bytes = match fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                return Err(Error::FileRead {
-                    error,
-                    path: Some(path),
-                });
-            }
-        };
-
-        let filter = CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
-            error: format!("cannot decode crlite filter: {error:?}").into(),
-            path: Some(path),
-        })?;
-
-        Ok(
-            match filter.contains(
-                &key,
-                input
-                    .sct_timestamps
-                    .iter()
-                    .map(|ct_ts| (LogId(ct_ts.log_id), Timestamp(ct_ts.timestamp))),
-            ) {
-                CRLiteStatus::Revoked => RevocationStatus::CertainlyRevoked,
-                CRLiteStatus::Good => RevocationStatus::NotRevoked,
-                CRLiteStatus::NotEnrolled | CRLiteStatus::NotCovered => {
-                    RevocationStatus::NotCoveredByRevocationData
-                }
-            },
-        )
+        Ok(match maybe_good {
+            true => RevocationStatus::NotRevoked,
+            false => RevocationStatus::NotCoveredByRevocationData,
+        })
     }
 
     /// Look up the `i`-th filename in the fixed-size filename table.
