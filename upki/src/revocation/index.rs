@@ -356,8 +356,14 @@ const INDEX_MAGIC: &[u8; 8] = b"upkiidx0";
 
 #[cfg(test)]
 mod tests {
+    use core::error::Error as StdError;
     use std::collections::BTreeMap;
     use std::path::Path;
+
+    use base64::Engine;
+    use clubcard::builder::{ApproximateRibbon, ClubcardBuilder, ExactRibbon};
+    use clubcard_crlite::builder::CRLiteBuilderItem;
+    use clubcard_crlite::{CRLiteClubcard, CRLiteCoverage, CRLiteQuery, Encoding};
 
     use super::*;
     use crate::revocation::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationConfig};
@@ -366,7 +372,7 @@ mod tests {
     fn check_empty_index() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        write_index(dir.path(), &build_index(&[]));
+        write_file(dir.path(), INDEX_BIN, &build_index(&[]));
         assert_eq!(
             Index::from_cache(&config)
                 .unwrap()
@@ -382,7 +388,7 @@ mod tests {
         let config = test_config(dir.path());
         // Input has log_id [0xbb; 32], index has [0xcc; 32]
         let data = build_index(&[("test.filter", &[([0xcc; 32], 500, 1500)])]);
-        write_index(dir.path(), &data);
+        write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
             Index::from_cache(&config)
                 .unwrap()
@@ -398,7 +404,7 @@ mod tests {
         let config = test_config(dir.path());
         // Input has timestamp 1000, index range is 2000..3000
         let data = build_index(&[("test.filter", &[([0xbb; 32], 2000, 3000)])]);
-        write_index(dir.path(), &data);
+        write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
             Index::from_cache(&config)
                 .unwrap()
@@ -412,7 +418,7 @@ mod tests {
     fn invalid_magic() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        write_index(dir.path(), b"wrongmag\x00\x00\x00\x00\x00");
+        write_file(dir.path(), INDEX_BIN, b"wrongmag\x00\x00\x00\x00\x00");
         let err = Index::from_cache(&config).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
@@ -421,7 +427,7 @@ mod tests {
     fn truncated_after_magic() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        write_index(dir.path(), INDEX_MAGIC);
+        write_file(dir.path(), INDEX_BIN, INDEX_MAGIC);
         let err = Index::from_cache(&config).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
@@ -430,7 +436,7 @@ mod tests {
     fn truncated_before_magic() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        write_index(dir.path(), b"upki");
+        write_file(dir.path(), INDEX_BIN, b"upki");
         let err = Index::from_cache(&config).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
@@ -443,22 +449,359 @@ mod tests {
         assert!(matches!(err, Error::FileRead { .. }));
     }
 
-    fn test_config(dir: &Path) -> Config {
-        Config {
-            cache_dir: dir.to_owned(),
-            revocation: RevocationConfig::default(),
-        }
+    #[test]
+    fn check_single_filter_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        // The filter enrolls our issuer and revokes our serial for log [0xbb; 32].
+        let filter = build_filter([0xaa; 32], &[&[1, 2, 3]], &[([0xbb; 32], 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &filter);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&test_input())?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
     }
 
-    fn test_input() -> RevocationCheckInput {
-        RevocationCheckInput::new(
-            CertSerial(vec![1, 2, 3]),
-            IssuerSpkiHash([0xaa; 32]),
-            vec![CtTimestamp {
-                log_id: [0xbb; 32],
-                timestamp: 1000,
-            }],
-        )
+    #[test]
+    fn check_single_filter_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        // The filter enrolls our issuer but revokes a different serial, so our
+        // serial is definitively not revoked.
+        let filter = build_filter([0xaa; 32], &[&[9, 9, 9]], &[([0xbb; 32], 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &filter);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&test_input())?,
+            RevocationStatus::NotRevoked,
+        );
+
+        Ok(())
+    }
+
+    // The certificate has two SCTs. The filter covering the first does not enroll
+    // our issuer, while the filter covering the second revokes it. Checking must
+    // continue past the first (inconclusive) filter to reach the verdict.
+    #[test]
+    fn check_continues_past_not_enrolled_to_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        // f1 covers log_b and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Same shape as above, but the second filter reports the certificate as not
+    // revoked. That verdict must still be reached past the inconclusive first filter.
+    #[test]
+    fn check_continues_past_not_enrolled_to_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        // f1 enrolls our issuer but revokes a different serial -> not revoked.
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::NotRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Every covering filter is inconclusive (none enrolls our issuer), so the
+    // certificate is reported as not covered.
+    #[test]
+    fn check_all_filters_not_enrolled() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xdd; 32], &[&[8, 8]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::NotCoveredByRevocationData,
+        );
+
+        Ok(())
+    }
+
+    // An earlier filter that revokes takes precedence: checking stops at the first
+    // conclusive verdict without consulting (or even reading) later filters. Only
+    // f0's file exists on disk; if the check tried to load f1 it would error.
+    #[test]
+    fn check_stops_at_first_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 covers log_a and revokes our serial.
+        let f0 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // A `Good` verdict must not short-circuit the check: the first filter reports
+    // the certificate as not revoked, but a later filter revokes it. Revocation
+    // wins, so the overall verdict is `CertainlyRevoked`.
+    #[test]
+    fn check_continues_past_not_revoked_to_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 enrolls our issuer but revokes a different serial -> not revoked.
+        let f0 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        // f1 covers log_b and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // A single log_id can have more than one covering filter. The first does not
+    // enroll our issuer, but the second (for the same log and timestamp) revokes
+    // our serial. All covering filters for the log must be consulted, not just the
+    // first one.
+    #[test]
+    fn check_multiple_filters_same_log_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let log_a = [0xb1; 32];
+        // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        // f1 also covers log_a and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_a, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Same shape as above, but the second covering filter for the log reports the
+    // certificate as not revoked. Reaching that verdict past the inconclusive first
+    // filter yields `NotRevoked` rather than `NotCoveredByRevocationData`.
+    #[test]
+    fn check_multiple_filters_same_log_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let log_a = [0xb1; 32];
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        // f1 also covers log_a, enrolls our issuer, but revokes a different serial.
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_a, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            RevocationStatus::NotRevoked,
+        );
+
+        Ok(())
+    }
+
+    // A log has two covering filters whose timestamp ranges do not overlap. The
+    // first entry's range does not contain the SCT timestamp, but the second's
+    // does and revokes our serial. A non-matching timestamp range must skip only
+    // that entry, not abandon the remaining entries for the same log.
+    #[test]
+    fn check_later_timestamp_entry_same_log_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let log_a = [0xb1; 32];
+        // f0 covers log_a for 2000..3000, which does not contain the SCT (1000).
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 2000, 3000)]);
+        // f1 covers log_a for 0..2000, contains the SCT, and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 2000, 3000)]),
+                ("f1.filter", &[(log_a, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Same shape as above, but the timestamp-matching entry reports the certificate
+    // as not revoked. That verdict must still be reached past the earlier entry
+    // whose range does not cover the SCT.
+    #[test]
+    fn check_later_timestamp_entry_same_log_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let log_a = [0xb1; 32];
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 2000, 3000)]);
+        // f1 covers the SCT, enrolls our issuer, but revokes a different serial.
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 2000, 3000)]),
+                ("f1.filter", &[(log_a, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            RevocationStatus::NotRevoked,
+        );
+
+        Ok(())
+    }
+
+    // The SCT timestamp falls in the range of a later entry only; an entry whose
+    // range misses must not stop the scan before the covering entry is consulted.
+    // The earlier entry's filter file is absent on disk, so the check would error
+    // if it wrongly tried to load it.
+    #[test]
+    fn check_skips_non_matching_entry_without_loading_filter() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let log_a = [0xb1; 32];
+        // f1 covers the SCT and revokes our serial; only its file exists on disk.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 2000, 3000)]),
+                ("f1.filter", &[(log_a, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
     }
 
     #[expect(clippy::type_complexity)]
@@ -515,9 +858,91 @@ mod tests {
         buf
     }
 
-    fn write_index(dir: &Path, data: &[u8]) {
+    /// Build a serialized CRLite filter that enrolls `issuer`, marks each serial in
+    /// `revoked` as revoked, and covers each `(log_id, min_ts, max_ts)` interval.
+    fn build_filter(
+        issuer: [u8; 32],
+        revoked: &[&[u8]],
+        coverage: &[([u8; 32], u64, u64)],
+    ) -> Vec<u8> {
+        let issuer = IssuerSpkiHash(issuer);
+        let universe_size = 1 << 8;
+
+        let mut builder = ClubcardBuilder::new();
+        let mut approx = builder.new_approx_builder(&issuer.0);
+        for serial in revoked {
+            approx.insert(CRLiteBuilderItem::revoked(issuer, serial.to_vec()));
+        }
+        approx.set_universe_size(universe_size);
+        builder.collect_approx_ribbons(vec![ApproximateRibbon::from(approx)]);
+
+        let mut exact = builder.new_exact_builder(&issuer.0);
+        for serial in revoked {
+            exact.insert(CRLiteBuilderItem::revoked(issuer, serial.to_vec()));
+        }
+        // The exact filter needs the full universe; fill it out with non-revoked
+        // serials that cannot collide with the (short) revoked serials above.
+        for j in 0usize..universe_size {
+            exact.insert(CRLiteBuilderItem::not_revoked(
+                issuer,
+                j.to_le_bytes().to_vec(),
+            ));
+        }
+        builder.collect_exact_ribbons(vec![ExactRibbon::from(exact)]);
+
+        let entries = coverage
+            .iter()
+            .map(|(log_id, min_ts, max_ts)| {
+                format!(
+                    "{{\"LogID\":\"{}\",\"MaxTimestamp\":{max_ts},\"MinTimestamp\":{min_ts},\"MMD\":0,\"MinEntry\":0}}",
+                    base64::prelude::BASE64_STANDARD.encode(log_id),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let json = format!("[{entries}]");
+        let coverage = CRLiteCoverage::from_mozilla_ct_logs_json(json.as_bytes());
+
+        let clubcard = builder.build::<CRLiteQuery<'_>>(coverage, ());
+        CRLiteClubcard::from(clubcard)
+            .to_bytes(Encoding::V4)
+            .unwrap()
+    }
+
+    fn multi_sct_input(scts: &[([u8; 32], u64)]) -> RevocationCheckInput {
+        RevocationCheckInput::new(
+            CertSerial(vec![1, 2, 3]),
+            IssuerSpkiHash([0xaa; 32]),
+            scts.iter()
+                .map(|(log_id, timestamp)| CtTimestamp {
+                    log_id: *log_id,
+                    timestamp: *timestamp,
+                })
+                .collect(),
+        )
+    }
+
+    fn test_config(dir: &Path) -> Config {
+        Config {
+            cache_dir: dir.to_owned(),
+            revocation: RevocationConfig::default(),
+        }
+    }
+
+    fn test_input() -> RevocationCheckInput {
+        RevocationCheckInput::new(
+            CertSerial(vec![1, 2, 3]),
+            IssuerSpkiHash([0xaa; 32]),
+            vec![CtTimestamp {
+                log_id: [0xbb; 32],
+                timestamp: 1000,
+            }],
+        )
+    }
+
+    fn write_file(dir: &Path, name: &str, data: &[u8]) {
         let revocation_dir = dir.join("revocation");
         fs::create_dir_all(&revocation_dir).unwrap();
-        fs::write(revocation_dir.join(INDEX_BIN), data).unwrap();
+        fs::write(revocation_dir.join(name), data).unwrap();
     }
 }

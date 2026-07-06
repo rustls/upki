@@ -25,6 +25,8 @@ tracing.workspace = true
 
 [dev-dependencies]
 cbindgen.workspace = true
+clubcard.workspace = true
+clubcard-crlite = { workspace = true, features = ["builder"] }
 similar-asserts.workspace = true
 tempfile.workspace = true
 
