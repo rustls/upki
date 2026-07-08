@@ -33,12 +33,19 @@ fn real_world_system_tests() {
     .unwrap();
     fs::write(TEST_CONFIG_PATH, TEST_CONFIG).unwrap();
 
-    upki()
+    let fetch = upki()
         .arg("--config-file")
         .arg(TEST_CONFIG_PATH)
         .arg("fetch")
         .output()
         .expect("cannot execute 'upki fetch'");
+    assert!(
+        fetch.status.success(),
+        "'upki fetch' failed ({})\nstdout:\n{}\nstderr:\n{}",
+        fetch.status,
+        String::from_utf8_lossy(&fetch.stdout),
+        String::from_utf8_lossy(&fetch.stderr),
+    );
 
     let tests = serde_json::from_reader::<_, RevocationTestSites<'static>>(
         File::open("../revoke-test/test-sites.json")
