@@ -82,8 +82,11 @@ fn real_world_system_tests() {
         #[cfg(not(windows))]
         let ((((site, high), rustls), ffi), openssl) = cases;
 
+        // When rustls reports the cert as expired it short-circuits before doing any revocation
+        // check, so its verdict says nothing about revocation status. The high-level API does no
+        // expiry check, so the two are not comparable in that case; skip the comparison.
         assert!(
-            high == rustls || *high == rustls.expired_as_revoked(),
+            high == rustls || *rustls == TestResult::Expired,
             "site {site:?} revocation result disagrees between high-level API ({high:?})  and rustls verifier ({rustls:?})"
         );
         assert!(
@@ -269,18 +272,6 @@ enum TestResult {
     IncorrectlyNotRevoked,
     DecorationFailed,
     Expired,
-}
-
-impl TestResult {
-    fn expired_as_revoked(&self) -> Self {
-        // The high-level CLI doesn't do expiry checks, while the rustls verifier does.
-        // So we treat expiry as a class of revocation for the purpose of checking
-        // that the APIs agree.
-        match self {
-            Self::Expired => Self::CorrectlyRevoked,
-            other => *other,
-        }
-    }
 }
 
 const TEST_CONFIG_PATH: &str = "tmp/system-test/config.toml";
