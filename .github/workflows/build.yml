@@ -124,4 +124,4 @@ jobs:
           toolchain: "1.85"
 
       - name: Check MSRV
-        run: cargo check --locked --all-features
+        run: cargo check --locked --all-features -p upki -p rustls-upki -p upki-openssl -p upki-cli
