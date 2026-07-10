@@ -8,11 +8,17 @@ license.workspace = true
 readme = "README.md"
 description = "Platform-independent browser-grade certificate infrastructure"
 
+[features]
+default = ["fetch"]
+fetch = ["upki/fetch", "__fetch"]
+fetch-native-tls = ["upki/fetch-native-tls", "__fetch"]
+__fetch = ["upki/__fetch"]
+
 [dependencies]
 clap.workspace = true
 eyre.workspace = true
 rustls-pki-types.workspace = true
-upki = { version = "=1.0.0-beta.2", path = "../upki", features = ["fetch"] }
+upki = { version = "=1.0.0-beta.2", path = "../upki" }
 tokio.workspace = true
 toml.workspace = true
 tracing.workspace = true
