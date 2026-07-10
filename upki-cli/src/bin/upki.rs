@@ -12,7 +12,9 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upki::revocation::{Index, Manifest, RevocationCheckInput, fetch};
+use upki::revocation::{Index, RevocationCheckInput};
+#[cfg(feature = "__fetch")]
+use upki::revocation::{Manifest, fetch};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -44,7 +46,9 @@ async fn main() -> Result<ExitCode, Report> {
     let config = Config::from_file_or_user_default(&config_path)?;
 
     Ok(match args.command {
+        #[cfg(feature = "__fetch")]
         Command::Fetch { dry_run } => fetch(dry_run, &config).await?,
+        #[cfg(feature = "__fetch")]
         Command::Verify => Manifest::from_config(&config)?.verify(&config)?,
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
@@ -93,6 +97,7 @@ enum Command {
     /// If the `revocation.cache_dir` path does not exist, this tool creates it and parent directories.
     ///
     /// This also deletes filters that become unreferenced.
+    #[cfg(feature = "__fetch")]
     Fetch {
         /// Download the new manifest, and then describe what actions are needed to
         /// synchronize with the remote server.
@@ -107,6 +112,7 @@ enum Command {
     /// Exits non-zero if the manifest if any filter file is missing or corrupt.
     ///
     /// This command does no network I/O.  It does not say anything whether the files are up-to-date or recent.
+    #[cfg(feature = "__fetch")]
     Verify,
 
     /// Checks the revocation status of a certificate.

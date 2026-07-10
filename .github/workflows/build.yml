@@ -70,6 +70,10 @@ jobs:
         run: cargo test -p revoke-test -p rustls-upki -p upki
       - name: Without features
         run: cargo check --locked -p upki --no-default-features
+      - name: CLI without features
+        run: cargo check --locked -p upki-cli --no-default-features
+      - name: CLI with native-tls
+        run: cargo check --locked -p upki-cli --no-default-features --features fetch-native-tls
 
       - name: Build FFI
         run: cargo cbuild --locked -p upki
