@@ -38,8 +38,12 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     );
 
     let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
-    let client = reqwest::Client::builder()
-        .use_rustls_tls()
+    #[cfg(feature = "fetch")]
+    let builder = reqwest::Client::builder().use_rustls_tls();
+    #[cfg(all(feature = "fetch-native-tls", not(feature = "fetch")))]
+    let builder = reqwest::Client::builder().use_native_tls();
+
+    let client = builder
         .timeout(Duration::from_secs(REQUEST_TIMEOUT))
         .user_agent(format!(
             "{}/{} ({})",
