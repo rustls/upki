@@ -8,6 +8,11 @@ license.workspace = true
 readme = "README.md"
 description = "Platform-independent browser-grade certificate infrastructure"
 
+[features]
+default = []
+capi = []
+fetch = ["dep:reqwest", "dep:serde_json", "dep:tempfile"]
+
 [dependencies]
 base64.workspace = true
 chrono.workspace = true
@@ -29,11 +34,6 @@ clubcard.workspace = true
 clubcard-crlite = { workspace = true, features = ["builder"] }
 similar-asserts.workspace = true
 tempfile.workspace = true
-
-[features]
-default = []
-capi = []
-fetch = ["dep:reqwest", "dep:serde_json", "dep:tempfile"]
 
 [lints]
 workspace = true
