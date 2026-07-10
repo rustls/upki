@@ -1,10 +1,10 @@
 use core::error::Error as StdError;
 use core::str::FromStr;
 use core::{fmt, str};
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use std::fs::File;
 use std::io;
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -18,15 +18,15 @@ use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use crate::Config;
 use crate::sha256;
 
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 mod fetch;
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use fetch::Plan;
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 pub use fetch::fetch;
 
 mod index;
@@ -50,7 +50,7 @@ pub struct Manifest {
 
 impl Manifest {
     /// Load the revocation manifest from the cache directory specified in the configuration.
-    #[cfg(feature = "fetch")]
+    #[cfg(feature = "__fetch")]
     pub fn from_config(config: &Config) -> Result<Self, Error> {
         let mut file_name = config.revocation_cache_dir();
         file_name.push("manifest.json");
@@ -74,7 +74,7 @@ impl Manifest {
     /// Verify the current contents of the cache against this manifest.
     ///
     /// This performs disk IO but does not perform network IO.
-    #[cfg(feature = "fetch")]
+    #[cfg(feature = "__fetch")]
     pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
         self.introduce()?;
         let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;

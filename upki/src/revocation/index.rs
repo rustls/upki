@@ -1,18 +1,18 @@
 use core::cmp::Ordering;
 use core::{fmt, str};
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use std::path::Path;
 use std::path::PathBuf;
 
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use clubcard_crlite::TimestampInterval;
 use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 
-#[cfg(feature = "fetch")]
+#[cfg(feature = "__fetch")]
 use super::Manifest;
 use super::{Error, RevocationCheckInput, RevocationStatus};
 use crate::Config;
@@ -102,7 +102,7 @@ impl Index {
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
     ///
     /// Returns `None` if any filter file cannot be read or decoded.
-    #[cfg(feature = "fetch")]
+    #[cfg(feature = "__fetch")]
     pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
         let mut by_log_id: BTreeMap<LogId, Vec<(u8, TimestampInterval)>> = BTreeMap::new();
 
