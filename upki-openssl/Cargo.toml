@@ -6,6 +6,9 @@ rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
 
+[features]
+capi = []
+
 [dependencies]
 openssl-sys = { workspace = true }
 rustls-pki-types.workspace = true
@@ -17,9 +20,6 @@ similar-asserts.workspace = true
 
 [lints]
 workspace = true
-
-[features]
-capi = []
 
 [package.metadata.capi.header]
 generation = false
