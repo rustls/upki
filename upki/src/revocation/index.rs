@@ -85,6 +85,20 @@ impl Index {
         // Read 2: filename table + log table
         let logs_offset = num_filenames * FILENAME_SIZE;
         let tables_len = logs_offset + num_logs * LOG_DIR_ENTRY_SIZE;
+
+        // A corrupt `num_log_ids` could demand an unreasonable sized allocation. Cap the table
+        // allocation to the file's overall size.
+        let file_len = file
+            .metadata()
+            .map_err(|error| Error::FileRead {
+                error,
+                path: Some(index_path),
+            })?
+            .len();
+        if (HEADER_SIZE + tables_len) as u64 > file_len {
+            return Err(Error::IndexDecode("index tables truncated".into()));
+        }
+
         let mut tables = vec![0u8; tables_len];
         file.read_exact(&mut tables)
             .map_err(|e| Error::IndexDecode(Box::new(e)))?;
@@ -446,6 +460,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, b"upki");
+        let err = Index::from_cache(&config).unwrap_err();
+        assert!(matches!(err, Error::IndexDecode(_)));
+    }
+
+    // A valid header whose counts imply tables far larger than the file must be
+    // rejected before the table allocation is made.
+    #[test]
+    fn oversized_table_counts() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let mut data = INDEX_MAGIC.to_vec();
+        data.push(u8::MAX);
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        write_file(dir.path(), INDEX_BIN, &data);
         let err = Index::from_cache(&config).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
