@@ -190,11 +190,13 @@ impl Index {
     ///
     /// Uses binary search over the log-ID directory to find relevant entries, then seeks into
     /// the index file to read only those entries. Loads matching filter files and queries
-    /// them for the certificate's revocation status.
+    /// them for the certificate's revocation status. Each distinct filter file is read and
+    /// parsed at most once per check.
     pub fn check(&mut self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let dir_data = &self.tables[self.logs_offset..];
         let mut maybe_good = false;
+        let mut seen = [false; 256];
 
         'timestamp: for sct in &input.sct_timestamps {
             // Binary search the sorted log_id directory (stride LOG_DIR_ENTRY_SIZE)
@@ -236,6 +238,13 @@ impl Index {
                 if min_ts > sct.timestamp || sct.timestamp > max_ts {
                     continue;
                 }
+
+                // A filter is queried with every SCT timestamp, so consulting it
+                // again for a later SCT cannot produce a different answer.
+                if seen[filter_index] {
+                    continue;
+                }
+                seen[filter_index] = true;
 
                 let filename = self.filename(filter_index)?;
                 let path = self.cache_dir.join(filename);
@@ -799,6 +808,73 @@ mod tests {
         assert_eq!(
             Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // One filter covers both SCT logs but does not enroll our issuer. Its second
+    // encounter (for the second SCT) is skipped as already-queried, and that skip
+    // must not prevent the second log's other covering filter from being consulted
+    // and revoking.
+    #[test]
+    fn check_skips_queried_filter_but_not_later_filters() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 covers both logs but enrolls a different issuer -> NotEnrolled for us.
+        let f0 = build_filter(
+            [0xcc; 32],
+            &[&[7, 7]],
+            &[(log_a, 0, 2000), (log_b, 0, 2000)],
+        );
+        // f1 covers log_b and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000), (log_b, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // A single filter covers both SCT logs and answers conclusively "not revoked".
+    // The verdict from its first (and only) query must survive the deduplicated
+    // second encounter.
+    #[test]
+    fn check_single_filter_covering_multiple_scts_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 enrolls our issuer but revokes a different serial -> not revoked.
+        let f0 = build_filter(
+            [0xaa; 32],
+            &[&[9, 9, 9]],
+            &[(log_a, 0, 2000), (log_b, 0, 2000)],
+        );
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[(log_a, 0, 2000), (log_b, 0, 2000)])]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::NotRevoked,
         );
 
         Ok(())
