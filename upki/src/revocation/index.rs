@@ -28,9 +28,9 @@ use crate::Config;
 /// All integers are big-endian. Filenames are fixed 32-byte slots, NULL-padded.
 ///
 /// ```text
-/// HEADER (first read, 13 bytes):
-///   magic: [u8; 8]                    "upkiidx0"
-///   num_filenames: u8
+/// HEADER (first reads, 14 bytes):
+///   magic: [u8; 8]                    "upkiidx1"
+///   num_filenames: u16
 ///   num_log_ids: u32
 ///
 /// TABLES (second read):
@@ -43,10 +43,14 @@ use crate::Config;
 ///
 /// ENTRY SECTIONS (seek + third read):
 ///   Per entry:
-///     filter_index: u8
+///     filter_index: u16
 ///     min_timestamp: u64
 ///     max_timestamp: u64
 /// ```
+///
+/// Indexes with the legacy "upkiidx0" magic encode `num_filenames` and
+/// `filter_index` as `u8`. Both versions are read, but writing always produces
+/// "upkiidx1".
 ///
 /// This type stores a [`File`] for on-demand reading of entry sections.
 pub struct Index {
@@ -54,6 +58,8 @@ pub struct Index {
     num_filenames: usize,
     num_logs: usize,
     logs_offset: usize,
+    /// Size of one entry section entry, determined by the index magic version.
+    entry_size: usize,
     /// Contains the filename table followed by the log table.
     tables: Vec<u8>,
     file: File,
@@ -72,17 +78,31 @@ impl Index {
             path: Some(index_path.clone()),
         })?;
 
-        // Read 1: magic + num_filenames + num_log_ids
-        let mut header = [0u8; HEADER_SIZE];
-        file.read_exact(&mut header)
+        // Read 1: magic, determining the version-dependent header and entry sizes
+        let mut magic = [0u8; 8];
+        file.read_exact(&mut magic)
             .map_err(|e| Error::IndexDecode(Box::new(e)))?;
-        if header[..8] != *INDEX_MAGIC {
+        let (header_size, entry_size) = if magic == *INDEX_MAGIC_V1 {
+            (HEADER_SIZE_V1, ENTRY_SIZE_V1)
+        } else if magic == *INDEX_MAGIC_V0 {
+            (HEADER_SIZE_V0, ENTRY_SIZE_V0)
+        } else {
             return Err(Error::IndexDecode("invalid index magic".into()));
-        }
-        let num_filenames = header[8] as usize;
-        let num_logs = u32::from_be_bytes([header[9], header[10], header[11], header[12]]) as usize;
+        };
 
-        // Read 2: filename table + log table
+        // Read 2: num_filenames + num_log_ids
+        let mut header = [0u8; HEADER_SIZE_V1 - 8];
+        let header = &mut header[..header_size - 8];
+        file.read_exact(header)
+            .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+        let mut data = &*header;
+        let num_filenames = match entry_size {
+            ENTRY_SIZE_V0 => u8::read_be(&mut data)? as usize,
+            _ => u16::read_be(&mut data)? as usize,
+        };
+        let num_logs = u32::read_be(&mut data)? as usize;
+
+        // Read 3: filename table + log table
         let logs_offset = num_filenames * FILENAME_SIZE;
         let tables_len = logs_offset + num_logs * LOG_DIR_ENTRY_SIZE;
 
@@ -95,7 +115,7 @@ impl Index {
                 path: Some(index_path),
             })?
             .len();
-        if (HEADER_SIZE + tables_len) as u64 > file_len {
+        if (header_size + tables_len) as u64 > file_len {
             return Err(Error::IndexDecode("index tables truncated".into()));
         }
 
@@ -108,6 +128,7 @@ impl Index {
             num_filenames,
             num_logs,
             logs_offset,
+            entry_size,
             tables,
             file,
         })
@@ -118,7 +139,7 @@ impl Index {
     /// Returns `None` if any filter file cannot be read or decoded.
     #[cfg(feature = "__fetch")]
     pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
-        let mut by_log_id: BTreeMap<LogId, Vec<(u8, TimestampInterval)>> = BTreeMap::new();
+        let mut by_log_id: BTreeMap<LogId, Vec<(u16, TimestampInterval)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
             if filter.filename.len() > FILENAME_SIZE {
@@ -150,19 +171,19 @@ impl Index {
                 by_log_id
                     .entry(*log_id)
                     .or_default()
-                    .push((filter_idx as u8, *interval));
+                    .push((filter_idx as u16, *interval));
             }
         }
 
         // Compute header size to determine entry section offsets
-        let header_size = HEADER_SIZE
+        let header_size = HEADER_SIZE_V1
             + manifest.files.len() * FILENAME_SIZE
             + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
 
         // Write header
         let mut buf = Vec::new();
-        buf.extend_from_slice(INDEX_MAGIC);
-        buf.push(manifest.files.len() as u8);
+        buf.extend_from_slice(INDEX_MAGIC_V1);
+        buf.extend_from_slice(&(manifest.files.len() as u16).to_be_bytes());
         buf.extend_from_slice(&(by_log_id.len() as u32).to_be_bytes());
 
         // Write filename table (fixed 32-byte slots, NULL-padded)
@@ -178,7 +199,7 @@ impl Index {
         let mut dir_entries: Vec<(&LogId, u64, u16)> = Vec::new();
         for (log_id, entries) in &by_log_id {
             dir_entries.push((log_id, current_offset as u64, entries.len() as u16));
-            current_offset += entries.len() * ENTRY_SIZE;
+            current_offset += entries.len() * ENTRY_SIZE_V1;
         }
 
         // Write log_id directory
@@ -191,7 +212,7 @@ impl Index {
         // Write entry sections
         for entries in by_log_id.values() {
             for (filter_idx, interval) in entries {
-                buf.push(*filter_idx);
+                buf.extend_from_slice(&filter_idx.to_be_bytes());
                 buf.extend_from_slice(&interval.low.0.to_be_bytes());
                 buf.extend_from_slice(&interval.high.0.to_be_bytes());
             }
@@ -210,7 +231,7 @@ impl Index {
         let key = input.key();
         let dir_data = &self.tables[self.logs_offset..];
         let mut maybe_good = false;
-        let mut seen = [false; 256];
+        let mut seen = vec![false; self.num_filenames];
 
         'timestamp: for sct in &input.sct_timestamps {
             // Binary search the sorted log_id directory (stride LOG_DIR_ENTRY_SIZE)
@@ -239,19 +260,26 @@ impl Index {
                 .seek(SeekFrom::Start(offset))
                 .map_err(|e| Error::IndexDecode(Box::new(e)))?;
 
-            let mut buf = vec![0u8; count as usize * ENTRY_SIZE];
+            let mut buf = vec![0u8; count as usize * self.entry_size];
             self.file
                 .read_exact(&mut buf)
                 .map_err(|e| Error::IndexDecode(Box::new(e)))?;
 
             let mut data = &buf[..];
             for _ in 0..count {
-                let filter_index = u8::read_be(&mut data)? as usize;
+                let filter_index = match self.entry_size {
+                    ENTRY_SIZE_V0 => u8::read_be(&mut data)? as usize,
+                    _ => u16::read_be(&mut data)? as usize,
+                };
                 let min_ts = u64::read_be(&mut data)?;
                 let max_ts = u64::read_be(&mut data)?;
                 if min_ts > sct.timestamp || sct.timestamp > max_ts {
                     continue;
                 }
+
+                // Errors on `filter_index >= num_filenames`, so the `seen`
+                // indexing below is in range.
+                let filename = self.filename(filter_index)?;
 
                 // A filter is queried with every SCT timestamp, so consulting it
                 // again for a later SCT cannot produce a different answer.
@@ -260,7 +288,6 @@ impl Index {
                 }
                 seen[filter_index] = true;
 
-                let filename = self.filename(filter_index)?;
                 let path = self.cache_dir.join(filename);
                 let bytes = match fs::read(&path) {
                     Ok(bytes) => bytes,
@@ -324,6 +351,7 @@ impl fmt::Debug for Index {
             num_filenames,
             num_logs,
             logs_offset,
+            entry_size: _,
             tables: _,
             file: _,
         } = self;
@@ -339,6 +367,12 @@ impl fmt::Debug for Index {
 
 impl FromBeBytes<8> for u64 {
     fn from_be_bytes(bytes: &[u8; 8]) -> Self {
+        Self::from_be_bytes(*bytes)
+    }
+}
+
+impl FromBeBytes<4> for u32 {
+    fn from_be_bytes(bytes: &[u8; 4]) -> Self {
         Self::from_be_bytes(*bytes)
     }
 }
@@ -369,13 +403,16 @@ trait FromBeBytes<const N: usize>: Sized {
     fn from_be_bytes(bytes: &[u8; N]) -> Self;
 }
 
-const HEADER_SIZE: usize = 8 + 1 + 4;
+const HEADER_SIZE_V1: usize = 8 + 2 + 4;
+const HEADER_SIZE_V0: usize = 8 + 1 + 4;
 const FILENAME_SIZE: usize = 32;
 const LOG_DIR_ENTRY_SIZE: usize = 32 + 8 + 2;
-const ENTRY_SIZE: usize = 1 + 8 + 8;
+const ENTRY_SIZE_V1: usize = 2 + 8 + 8;
+const ENTRY_SIZE_V0: usize = 1 + 8 + 8;
 
 pub(super) const INDEX_BIN: &str = "index.bin";
-const INDEX_MAGIC: &[u8; 8] = b"upkiidx0";
+const INDEX_MAGIC_V1: &[u8; 8] = b"upkiidx1";
+const INDEX_MAGIC_V0: &[u8; 8] = b"upkiidx0";
 
 #[cfg(test)]
 mod tests {
@@ -450,7 +487,7 @@ mod tests {
     fn truncated_after_magic() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        write_file(dir.path(), INDEX_BIN, INDEX_MAGIC);
+        write_file(dir.path(), INDEX_BIN, INDEX_MAGIC_V1);
         let err = Index::from_cache(&config).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
@@ -470,8 +507,8 @@ mod tests {
     fn oversized_table_counts() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
-        let mut data = INDEX_MAGIC.to_vec();
-        data.push(u8::MAX);
+        let mut data = INDEX_MAGIC_V1.to_vec();
+        data.extend_from_slice(&u16::MAX.to_be_bytes());
         data.extend_from_slice(&u32::MAX.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
         let err = Index::from_cache(&config).unwrap_err();
@@ -908,27 +945,142 @@ mod tests {
         Ok(())
     }
 
+    // Checking a legacy "upkiidx0" index for a revoked result.
+    #[test]
+    fn check_v0_index_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
+        // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        // f1 covers log_b and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &f0);
+        write_file(dir.path(), "f1.filter", &f1);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index_v0(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter", &[(log_b, 0, 2000)]),
+            ]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            RevocationStatus::CertainlyRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Checking a legacy "upkiidx0" index for a not revoked result.
+    #[test]
+    fn check_v0_index_not_revoked() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let config = test_config(dir.path());
+
+        let filter = build_filter([0xaa; 32], &[&[9, 9, 9]], &[([0xbb; 32], 0, 2000)]);
+        write_file(dir.path(), "f0.filter", &filter);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index_v0(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        assert_eq!(
+            Index::from_cache(&config)?.check(&test_input())?,
+            RevocationStatus::NotRevoked,
+        );
+
+        Ok(())
+    }
+
+    // Checking a legacy "upkiidx0" index that's empty shoud produce not covered.
+    #[test]
+    fn check_empty_v0_index() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        write_file(dir.path(), INDEX_BIN, &build_index_v0(&[]));
+        assert_eq!(
+            Index::from_cache(&config)
+                .unwrap()
+                .check(&test_input())
+                .unwrap(),
+            RevocationStatus::NotCoveredByRevocationData,
+        );
+    }
+
+    // Checking a malformed filter that has a filter index beyond the filename table must err.
+    #[test]
+    fn check_filter_index_out_of_bounds() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+
+        let mut data = build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]);
+        // Overwrite the sole entry's filter_index (first two bytes of the entry
+        // section, which build_index places at the end of the tables).
+        let entry_offset = data.len() - ENTRY_SIZE_V1;
+        data[entry_offset..entry_offset + 2].copy_from_slice(&500u16.to_be_bytes());
+        write_file(dir.path(), INDEX_BIN, &data);
+
+        let err = Index::from_cache(&config)
+            .unwrap()
+            .check(&test_input())
+            .unwrap_err();
+        assert!(matches!(err, Error::IndexDecode(_)));
+    }
+
+    /// Build a test index with INDEX_MAGIC_V1 with u16 filter indexes.
     #[expect(clippy::type_complexity)]
     fn build_index(filters: &[(&str, &[([u8; 32], u64, u64)])]) -> Vec<u8> {
+        build_index_with_magic(INDEX_MAGIC_V1, filters)
+    }
+
+    /// Build a test legacy INDEX_MAGIC_V0 index with u8 filter indexes.
+    #[expect(clippy::type_complexity)]
+    fn build_index_v0(filters: &[(&str, &[([u8; 32], u64, u64)])]) -> Vec<u8> {
+        build_index_with_magic(INDEX_MAGIC_V0, filters)
+    }
+
+    /// Build a test index with the given magic header bytes.
+    ///
+    /// The data types used for `num_filenames` and the entry `filter_index` are
+    /// determined by the magic bytes, using u8 for INDEX_MAGIC_V0, and u16
+    /// otherwise.
+    #[expect(clippy::type_complexity)]
+    fn build_index_with_magic(
+        magic: &[u8; 8],
+        filters: &[(&str, &[([u8; 32], u64, u64)])],
+    ) -> Vec<u8> {
+        let (base_size, entry_size) = match magic {
+            INDEX_MAGIC_V0 => (HEADER_SIZE_V0, ENTRY_SIZE_V0),
+            _ => (HEADER_SIZE_V1, ENTRY_SIZE_V1),
+        };
+
         // Aggregate by log_id using BTreeMap for sorted order
-        let mut by_log_id: BTreeMap<[u8; 32], Vec<(u8, u64, u64)>> = BTreeMap::new();
+        let mut by_log_id: BTreeMap<[u8; 32], Vec<(u16, u64, u64)>> = BTreeMap::new();
         for (filter_idx, (_, entries)) in filters.iter().enumerate() {
             for (log_id, min_ts, max_ts) in *entries {
                 by_log_id
                     .entry(*log_id)
                     .or_default()
-                    .push((filter_idx as u8, *min_ts, *max_ts));
+                    .push((filter_idx as u16, *min_ts, *max_ts));
             }
         }
 
         // Compute header size
         let header_size =
-            HEADER_SIZE + filters.len() * FILENAME_SIZE + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
+            base_size + filters.len() * FILENAME_SIZE + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
 
         // Write header
         let mut buf = Vec::new();
-        buf.extend_from_slice(INDEX_MAGIC);
-        buf.push(filters.len() as u8);
+        buf.extend_from_slice(magic);
+        match entry_size {
+            ENTRY_SIZE_V0 => buf.push(filters.len() as u8),
+            _ => buf.extend_from_slice(&(filters.len() as u16).to_be_bytes()),
+        }
         buf.extend_from_slice(&(by_log_id.len() as u32).to_be_bytes());
 
         // Write filename table (fixed 32-byte slots, NULL-padded)
@@ -946,14 +1098,17 @@ mod tests {
             buf.extend_from_slice(log_id);
             buf.extend_from_slice(&(current_offset as u64).to_be_bytes());
             buf.extend_from_slice(&(entries.len() as u16).to_be_bytes());
-            current_offset += entries.len() * ENTRY_SIZE;
+            current_offset += entries.len() * entry_size;
             entry_counts.push(entries.len());
         }
 
         // Write entry sections
         for entries in by_log_id.values() {
             for (filter_idx, min_ts, max_ts) in entries {
-                buf.push(*filter_idx);
+                match entry_size {
+                    ENTRY_SIZE_V0 => buf.push(*filter_idx as u8),
+                    _ => buf.extend_from_slice(&filter_idx.to_be_bytes()),
+                }
                 buf.extend_from_slice(&min_ts.to_be_bytes());
                 buf.extend_from_slice(&max_ts.to_be_bytes());
             }
