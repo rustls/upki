@@ -997,7 +997,7 @@ mod tests {
         Ok(())
     }
 
-    // Checking a legacy "upkiidx0" index that's empty shoud produce not covered.
+    // Checking a legacy "upkiidx0" index that's empty should produce not covered.
     #[test]
     fn check_empty_v0_index() {
         let dir = tempfile::tempdir().unwrap();
