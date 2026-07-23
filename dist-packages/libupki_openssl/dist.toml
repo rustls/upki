@@ -1,0 +1,17 @@
+[package]
+name = "libupki_openssl"
+version = "1.0.0-beta.2"
+repository = "https://github.com/rustls/upki"
+build-command = ["sh", "build-ffi.sh"]
+cdylibs = ["upki_openssl"]
+
+[dist]
+package-libraries = ["cdylib"]
+include = ["upki-openssl.h", "upki.h"]
+# No Windows targets: upki-openssl requires OpenSSL, which isn't available on
+# the Windows runners (see the equivalent skips in build.yml).
+targets = [
+    "aarch64-apple-darwin",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+]

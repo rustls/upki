@@ -1,6 +1,6 @@
 [package]
 name = "upki-openssl"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.2" # Sync with `dist-packages/libupki_openssl/dist.toml`
 license.workspace = true
 rust-version.workspace = true
 edition.workspace = true

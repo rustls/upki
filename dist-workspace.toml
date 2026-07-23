@@ -1,5 +1,9 @@
 [workspace]
-members = ["cargo:.", "dist:dist-packages/libupki"]
+members = [
+    "cargo:.",
+    "dist:dist-packages/libupki",
+    "dist:dist-packages/libupki_openssl",
+]
 
 [dist]
 cargo-dist-version = "0.32.0"
