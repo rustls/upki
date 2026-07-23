@@ -1,6 +1,6 @@
 [package]
 name = "rustls-upki"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 license.workspace = true
 edition.workspace = true
 description = "A rustls verifier with upki revocation integration"
@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 rustls = { workspace = true, features = ["std", "tls12"] }
 rustls-webpki.workspace = true
-upki = { version = "=1.0.0-beta.2", path = "../upki" }
+upki = { version = "=1.0.0-beta.3", path = "../upki" }
 
 [dev-dependencies]
 rustls = { workspace = true, features = ["aws-lc-rs"] }

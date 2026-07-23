@@ -1,6 +1,6 @@
 [package]
 name = "libupki_openssl"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 repository = "https://github.com/rustls/upki"
 build-command = ["sh", "build-ffi.sh"]
 cdylibs = ["upki_openssl"]
