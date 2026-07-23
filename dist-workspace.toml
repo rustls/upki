@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "cargo:.",
+    "cargo:upki",
     "dist:dist-packages/libupki",
     "dist:dist-packages/libupki_openssl",
 ]
