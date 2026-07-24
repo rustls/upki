@@ -529,7 +529,7 @@ mod tests {
         let config = test_config(dir.path());
 
         // The filter enrolls our issuer and revokes our serial for log [0xbb; 32].
-        let filter = build_filter([0xaa; 32], &[&[1, 2, 3]], &[([0xbb; 32], 0, 2000)]);
+        let filter = build_filter([0xaa; 32], &[SERIAL], &[], &[([0xbb; 32], 0, 2000)]);
         write_file(dir.path(), "f0.filter", &filter);
         write_file(
             dir.path(),
@@ -552,7 +552,12 @@ mod tests {
 
         // The filter enrolls our issuer but revokes a different serial, so our
         // serial is definitively not revoked.
-        let filter = build_filter([0xaa; 32], &[&[9, 9, 9]], &[([0xbb; 32], 0, 2000)]);
+        let filter = build_filter(
+            [0xaa; 32],
+            &[&[9, 9, 9]],
+            &[SERIAL],
+            &[([0xbb; 32], 0, 2000)],
+        );
         write_file(dir.path(), "f0.filter", &filter);
         write_file(
             dir.path(),
@@ -578,9 +583,9 @@ mod tests {
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
         // f1 covers log_b and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -608,9 +613,9 @@ mod tests {
         let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
         // f1 enrolls our issuer but revokes a different serial -> not revoked.
-        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_b, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[SERIAL], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -638,8 +643,8 @@ mod tests {
         let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
-        let f1 = build_filter([0xdd; 32], &[&[8, 8]], &[(log_b, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xdd; 32], &[&[8, 8]], &[], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -669,7 +674,7 @@ mod tests {
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a and revokes our serial.
-        let f0 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(
             dir.path(),
@@ -698,9 +703,9 @@ mod tests {
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 enrolls our issuer but revokes a different serial -> not revoked.
-        let f0 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[SERIAL], &[(log_a, 0, 2000)]);
         // f1 covers log_b and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -731,9 +736,9 @@ mod tests {
 
         let log_a = [0xb1; 32];
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
         // f1 also covers log_a and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -762,9 +767,9 @@ mod tests {
         let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
         // f1 also covers log_a, enrolls our issuer, but revokes a different serial.
-        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[SERIAL], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -795,9 +800,9 @@ mod tests {
 
         let log_a = [0xb1; 32];
         // f0 covers log_a for 2000..3000, which does not contain the SCT (1000).
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 2000, 3000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 2000, 3000)]);
         // f1 covers log_a for 0..2000, contains the SCT, and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -826,9 +831,9 @@ mod tests {
         let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 2000, 3000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 2000, 3000)]);
         // f1 covers the SCT, enrolls our issuer, but revokes a different serial.
-        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[SERIAL], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -859,7 +864,7 @@ mod tests {
 
         let log_a = [0xb1; 32];
         // f1 covers the SCT and revokes our serial; only its file exists on disk.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_a, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_a, 0, 2000)]);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
             dir.path(),
@@ -892,10 +897,11 @@ mod tests {
         let f0 = build_filter(
             [0xcc; 32],
             &[&[7, 7]],
+            &[],
             &[(log_a, 0, 2000), (log_b, 0, 2000)],
         );
         // f1 covers log_b and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -928,6 +934,7 @@ mod tests {
         let f0 = build_filter(
             [0xaa; 32],
             &[&[9, 9, 9]],
+            &[SERIAL],
             &[(log_a, 0, 2000), (log_b, 0, 2000)],
         );
         write_file(dir.path(), "f0.filter", &f0);
@@ -953,9 +960,9 @@ mod tests {
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
-        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[(log_a, 0, 2000)]);
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
         // f1 covers log_b and revokes our serial.
-        let f1 = build_filter([0xaa; 32], &[&[1, 2, 3]], &[(log_b, 0, 2000)]);
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_b, 0, 2000)]);
         write_file(dir.path(), "f0.filter", &f0);
         write_file(dir.path(), "f1.filter", &f1);
         write_file(
@@ -981,7 +988,12 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let config = test_config(dir.path());
 
-        let filter = build_filter([0xaa; 32], &[&[9, 9, 9]], &[([0xbb; 32], 0, 2000)]);
+        let filter = build_filter(
+            [0xaa; 32],
+            &[&[9, 9, 9]],
+            &[SERIAL],
+            &[([0xbb; 32], 0, 2000)],
+        );
         write_file(dir.path(), "f0.filter", &filter);
         write_file(
             dir.path(),
@@ -1118,10 +1130,17 @@ mod tests {
     }
 
     /// Build a serialized CRLite filter that enrolls `issuer`, marks each serial in
-    /// `revoked` as revoked, and covers each `(log_id, min_ts, max_ts)` interval.
+    /// `revoked` as revoked, each serial in `not_revoked` as not revoked, and
+    /// covers each `(log_id, min_ts, max_ts)` interval.
+    ///
+    /// The filter is only exact for serials in its universe: a serial whose
+    /// verdict a test relies on must be listed in `revoked` or `not_revoked`, or
+    /// that verdict is probabilistic (a ~1/256 chance of a false "revoked",
+    /// varying per run since clubcard randomizes ribbon solutions).
     fn build_filter(
         issuer: [u8; 32],
         revoked: &[&[u8]],
+        unrevoked: &[&[u8]],
         coverage: &[([u8; 32], u64, u64)],
     ) -> Vec<u8> {
         let issuer = IssuerSpkiHash(issuer);
@@ -1139,6 +1158,10 @@ mod tests {
         for serial in revoked {
             exact.insert(CRLiteBuilderItem::revoked(issuer, serial.to_vec()));
         }
+        for serial in unrevoked {
+            exact.insert(CRLiteBuilderItem::not_revoked(issuer, serial.to_vec()));
+        }
+
         // The exact filter needs the full universe; fill it out with non-revoked
         // serials that cannot collide with the (short) revoked serials above.
         for j in 0usize..universe_size {
@@ -1170,7 +1193,7 @@ mod tests {
 
     fn multi_sct_input(scts: &[([u8; 32], u64)]) -> RevocationCheckInput {
         RevocationCheckInput::new(
-            CertSerial(vec![1, 2, 3]),
+            CertSerial(SERIAL.to_vec()),
             IssuerSpkiHash([0xaa; 32]),
             scts.iter()
                 .map(|(log_id, timestamp)| CtTimestamp {
@@ -1190,7 +1213,7 @@ mod tests {
 
     fn test_input() -> RevocationCheckInput {
         RevocationCheckInput::new(
-            CertSerial(vec![1, 2, 3]),
+            CertSerial(SERIAL.to_vec()),
             IssuerSpkiHash([0xaa; 32]),
             vec![CtTimestamp {
                 log_id: [0xbb; 32],
@@ -1204,4 +1227,7 @@ mod tests {
         fs::create_dir_all(&revocation_dir).unwrap();
         fs::write(revocation_dir.join(name), data).unwrap();
     }
+
+    /// The serial number of the certificate checked by [`test_input`] and [`multi_sct_input`].
+    const SERIAL: &[u8] = &[1, 2, 3];
 }
