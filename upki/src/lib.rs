@@ -31,7 +31,8 @@ pub mod ffi;
 /// Update the local caches by fetching new data from the network.
 #[cfg(feature = "__fetch")]
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
-    revocation::fetch(dry_run, config).await
+    revocation::fetch(dry_run, config).await?;
+    intermediates::fetch(dry_run, config).await
 }
 
 /// `upki` configuration.
@@ -95,6 +96,11 @@ impl Config {
 
     pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("revocation")
+    }
+
+    #[cfg(feature = "__fetch")]
+    pub(crate) fn intermediates_cache_dir(&self) -> PathBuf {
+        self.cache_dir.join("intermediates")
     }
 }
 

@@ -175,6 +175,7 @@ impl FetchContext<'_> {
     fn should_clean_up_file_name(&self, name: &str) -> bool {
         match self.typ {
             FetchType::Revocation => name.ends_with(".filter") || name.ends_with(".delta"),
+            FetchType::Intermediates => name.ends_with(".pem"),
         }
     }
 
@@ -185,6 +186,7 @@ impl FetchContext<'_> {
 
 pub(crate) enum FetchType {
     Revocation,
+    Intermediates,
 }
 
 pub(crate) struct Plan {

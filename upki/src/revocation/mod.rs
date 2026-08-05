@@ -25,7 +25,7 @@ mod fetch;
 #[cfg(feature = "__fetch")]
 pub(crate) use fetch::fetch;
 #[cfg(feature = "__fetch")]
-use fetch::{FetchContext, FetchType, Plan};
+pub(crate) use fetch::{FetchContext, FetchType, Plan};
 
 mod index;
 use index::Index;
