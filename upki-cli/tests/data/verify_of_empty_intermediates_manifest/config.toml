@@ -1,0 +1,7 @@
+cache-dir = "tests/data/verify_of_empty_intermediates_manifest/"
+
+[revocation]
+fetch-url = ""
+
+[intermediates]
+fetch-url = ""
