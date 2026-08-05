@@ -167,7 +167,7 @@ fn fetch_of_empty_manifest() {
     let _filters = apply_common_filters();
     let (server, _filters) =
         http_server(PathBuf::from("tests/data/verify_of_empty_manifest/"), false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     assert_cmd_snapshot!(
         upki()
@@ -264,7 +264,7 @@ fn fetched_cache_paths_are_world_readable() {
 fn fetch_fails_when_index_cannot_be_built() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(PathBuf::from("tests/data/invalid_filter/"), false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     assert_cmd_snapshot!(
         upki()
@@ -304,7 +304,7 @@ fn fetch_fails_when_index_cannot_be_built() {
 fn hash_mismatch_does_not_replace_existing_filter() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(PathBuf::from("tests/data/hash_mismatch/"), false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
     let filter = temp
         .path()
         .join("revocation/replace.filter");
@@ -333,7 +333,7 @@ fn hash_mismatch_does_not_replace_existing_filter() {
 fn full_fetch() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     assert_cmd_snapshot!(
         upki()
@@ -371,7 +371,7 @@ fn full_fetch() {
 fn full_fetch_and_incremental_update() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     assert_cmd_snapshot!(
         upki()
@@ -475,7 +475,7 @@ fn full_fetch_and_incremental_update() {
 fn typical_incremental_fetch() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     TYPICAL.seed_partial_cache(temp.path());
 
@@ -518,7 +518,7 @@ fn typical_incremental_fetch() {
 fn fetch_not_modified() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, true);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     assert_cmd_snapshot!(
         upki()
@@ -578,7 +578,7 @@ fn fetch_not_modified() {
 fn fetch_with_stale_local_manifest() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, true);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
 
     let manifest = temp
         .path()
@@ -629,7 +629,7 @@ fn fetch_with_stale_local_manifest() {
 fn typical_incremental_fetch_dry_run() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);
-    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url(), write_config);
     TYPICAL.seed_partial_cache(temp.path());
 
     assert_cmd_snapshot!(
@@ -693,9 +693,12 @@ fn list_dir(path: &Path) -> Vec<String> {
     list
 }
 
-fn temp_dir_and_config(fetch_url: &str) -> (TempDir, PathBuf, SettingsBindDropGuard) {
+fn temp_dir_and_config(
+    fetch_url: &str,
+    config: impl FnOnce(&TempDir, &str),
+) -> (TempDir, PathBuf, SettingsBindDropGuard) {
     let temp = TempDir::new().unwrap();
-    write_config(&temp, fetch_url);
+    config(&temp, fetch_url);
 
     let mut settings = insta::Settings::clone_current();
     // remove tempdirs references
