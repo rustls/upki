@@ -3,13 +3,7 @@ use core::error::Error as StdError;
 use core::iter;
 use core::str::FromStr;
 use core::{fmt, str};
-#[cfg(feature = "__fetch")]
-use std::fs::File;
 use std::io;
-#[cfg(feature = "__fetch")]
-use std::io::BufReader;
-#[cfg(feature = "__fetch")]
-use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -17,15 +11,13 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
-#[cfg(feature = "__fetch")]
-use jiff::Timestamp;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "__fetch")]
-use tracing::info;
 
 #[cfg(feature = "__fetch")]
 use crate::FetchError;
+#[cfg(feature = "__fetch")]
+use crate::data::Manifest;
 use crate::{Config, sha256};
 
 #[cfg(feature = "__fetch")]
@@ -84,80 +76,6 @@ impl Store {
     pub fn validate(&self) -> Result<(), Error> {
         Index::from_path(&self.cache_dir).map(|_| ())
     }
-}
-
-/// The structure contained in a manifest.json
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Manifest {
-    /// When this file was generated.
-    ///
-    /// UNIX timestamp in seconds.
-    pub generated_at: u64,
-
-    /// Some human-readable text.
-    pub comment: String,
-
-    /// List of required files.
-    #[serde(alias = "filters")]
-    pub files: Vec<ManifestFile>,
-}
-
-impl Manifest {
-    #[cfg(feature = "__fetch")]
-    fn from_cache(cache_dir: &Path) -> Result<Self, FetchError> {
-        let file_name = cache_dir.join("manifest.json");
-        let file = match File::open(&file_name) {
-            Ok(f) => f,
-            Err(error) => {
-                return Err(FetchError::FileRead {
-                    error,
-                    path: Some(file_name),
-                });
-            }
-        };
-
-        serde_json::from_reader(BufReader::new(file)).map_err(|error| FetchError::FileDecode {
-            error: Box::new(error),
-            path: Some(file_name),
-        })
-    }
-
-    /// Logs metadata fields in this manifest.
-    #[cfg(feature = "__fetch")]
-    fn introduce(&self) -> Result<(), FetchError> {
-        let dt = i64::try_from(self.generated_at)
-            .ok()
-            .and_then(|secs| Timestamp::from_second(secs).ok());
-        let Some(dt) = dt else {
-            return Err(FetchError::InvalidTimestamp {
-                input: self.generated_at.to_string(),
-                context: "manifest generated (in s)",
-            });
-        };
-
-        info!(
-            comment = self.comment,
-            date = %dt,
-            "parsed manifest"
-        );
-        Ok(())
-    }
-}
-
-/// Manifest data for a single crlite filter file.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ManifestFile {
-    /// Relative filename.
-    ///
-    /// This is also the suggested local filename.
-    pub filename: String,
-
-    /// File size, indicative.  Allows a fetcher to predict data usage.
-    pub size: usize,
-
-    /// SHA256 hash of file contents.
-    #[serde(with = "hex::serde")]
-    pub hash: Vec<u8>,
 }
 
 /// Input parameters for a revocation check.

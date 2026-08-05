@@ -25,8 +25,9 @@ use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
+use super::Index;
 use super::index::INDEX_BIN;
-use super::{Index, Manifest, ManifestFile};
+use crate::data::{Manifest, ManifestFile};
 use crate::{Config, FetchError, sha256};
 
 /// Update the local revocation cache by fetching updates over the network.
