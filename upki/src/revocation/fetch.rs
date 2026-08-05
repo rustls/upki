@@ -44,6 +44,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchErr
     FetchContext {
         cache_dir,
         fetch_url: &config.revocation.fetch_url,
+        typ: FetchType::Revocation,
     }
     .fetch(dry_run)
     .await
@@ -52,6 +53,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchErr
 pub(crate) struct FetchContext<'a> {
     pub(crate) cache_dir: PathBuf,
     pub(crate) fetch_url: &'a str,
+    pub(crate) typ: FetchType,
 }
 
 impl FetchContext<'_> {
@@ -168,6 +170,20 @@ impl FetchContext<'_> {
         info!("success");
         Ok(())
     }
+
+    fn should_clean_up_file_name(&self, name: &str) -> bool {
+        match self.typ {
+            FetchType::Revocation => name.ends_with(".filter") || name.ends_with(".delta"),
+        }
+    }
+
+    fn requires_revocation_index(&self) -> bool {
+        matches!(self.typ, FetchType::Revocation)
+    }
+}
+
+pub(crate) enum FetchType {
+    Revocation,
 }
 
 pub(crate) struct Plan {
@@ -203,7 +219,7 @@ impl Plan {
 
                 let path = Path::new(&entry.file_name()).to_owned();
                 let name = path.to_string_lossy();
-                if name.ends_with(".filter") || name.ends_with(".delta") {
+                if ctx.should_clean_up_file_name(&name) {
                     unwanted_files.insert(path);
                 }
             }
@@ -229,10 +245,12 @@ impl Plan {
             }
         }
 
-        steps.push(PlanStep::SaveIndex {
-            manifest: manifest.clone(),
-            local_dir: ctx.cache_dir.to_owned(),
-        });
+        if ctx.requires_revocation_index() {
+            steps.push(PlanStep::SaveIndex {
+                manifest: manifest.clone(),
+                local_dir: ctx.cache_dir.to_owned(),
+            });
+        }
 
         steps.push(PlanStep::SaveManifest {
             manifest: manifest.clone(),

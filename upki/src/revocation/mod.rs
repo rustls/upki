@@ -33,7 +33,7 @@ mod fetch;
 #[cfg(feature = "__fetch")]
 pub(crate) use fetch::fetch;
 #[cfg(feature = "__fetch")]
-use fetch::{FetchContext, Plan};
+use fetch::{FetchContext, FetchType, Plan};
 
 mod index;
 use index::Index;
@@ -66,6 +66,7 @@ impl Store {
             &FetchContext {
                 cache_dir: self.cache_dir.clone(),
                 fetch_url: "https://.../",
+                typ: FetchType::Revocation,
             },
         )?;
         match plan.download_bytes() {
