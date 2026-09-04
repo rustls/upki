@@ -54,7 +54,8 @@ void upki_openssl_set_config(SSL_CTX *ctx, const upki_config *config);
  * the `X509_V_ERR_APPLICATION_VERIFICATION` error on `x509_ctx` (using
  * `X509_STORE_CTX_set_error(3SSL)`).
  *
- * On unexpected/unrecoverable errors, this function returns 0.
+ * On unexpected/unrecoverable errors, this function returns 0 and may add a report
+ * to the OpenSSL error stack giving more detail.
  *
  * # Safety
  *
