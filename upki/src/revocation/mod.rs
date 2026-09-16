@@ -26,17 +26,33 @@ use tracing::info;
 
 #[cfg(feature = "__fetch")]
 use crate::FetchError;
+#[cfg(feature = "__fetch")]
+use crate::fetch::{FetchContext, Plan};
 use crate::{Config, sha256};
 
-#[cfg(feature = "__fetch")]
-mod fetch;
-#[cfg(feature = "__fetch")]
-pub(crate) use fetch::fetch;
-#[cfg(feature = "__fetch")]
-use fetch::{FetchContext, Plan};
-
-mod index;
+pub(crate) mod index;
 use index::Index;
+
+/// Update the local revocation cache by fetching updates over the network.
+///
+/// `dry_run` means this call fetches the new manifest, but does not fetch any
+/// required files; but the necessary files are printed to stdout.  Therefore
+/// such a call is not completely "dry" -- perhaps "moist".
+#[cfg(feature = "__fetch")]
+pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
+    let cache_dir = config.revocation_cache_dir();
+    info!(
+        "fetching {} into {:?}...",
+        &config.revocation.fetch_url, &cache_dir,
+    );
+
+    FetchContext {
+        cache_dir,
+        fetch_url: &config.revocation.fetch_url,
+    }
+    .fetch(dry_run)
+    .await
+}
 
 /// Revocation data store used for querying the revocation status of certificates.
 pub struct Store {
@@ -103,7 +119,7 @@ pub struct Manifest {
 
 impl Manifest {
     #[cfg(feature = "__fetch")]
-    fn from_cache(cache_dir: &Path) -> Result<Self, FetchError> {
+    pub(crate) fn from_cache(cache_dir: &Path) -> Result<Self, FetchError> {
         let file_name = cache_dir.join("manifest.json");
         let file = match File::open(&file_name) {
             Ok(f) => f,
@@ -123,7 +139,7 @@ impl Manifest {
 
     /// Logs metadata fields in this manifest.
     #[cfg(feature = "__fetch")]
-    fn introduce(&self) -> Result<(), FetchError> {
+    pub(crate) fn introduce(&self) -> Result<(), FetchError> {
         let dt = i64::try_from(self.generated_at)
             .ok()
             .and_then(|secs| Timestamp::from_second(secs).ok());

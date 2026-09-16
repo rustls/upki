@@ -12,6 +12,10 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) mod sha256;
 
+/// Synchronising a local cache directory with a remote mirror.
+#[cfg(feature = "__fetch")]
+pub(crate) mod fetch;
+
 /// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
 use crate::revocation::RevocationConfig;
