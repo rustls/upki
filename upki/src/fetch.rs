@@ -36,6 +36,12 @@ pub(crate) struct FetchContext<'a> {
 
     /// The base URL that `cache_dir` mirrors.  Ends in a `/`.
     pub(crate) fetch_url: &'a str,
+
+    /// Extensions of the files in `cache_dir` that this fetcher owns.
+    ///
+    /// Files with these extensions are deleted once no manifest mentions them.
+    /// Anything else in `cache_dir` is left alone.
+    pub(crate) managed_extensions: &'static [&'static str],
 }
 
 impl FetchContext<'_> {
@@ -152,6 +158,17 @@ impl FetchContext<'_> {
         info!("success");
         Ok(())
     }
+
+    /// Is `name` a file this fetcher owns, and may therefore delete?
+    fn manages(&self, name: &str) -> bool {
+        self.managed_extensions
+            .iter()
+            .any(|ext| {
+                Path::new(name)
+                    .extension()
+                    .is_some_and(|e| e == *ext)
+            })
+    }
 }
 
 pub(crate) struct Plan {
@@ -189,7 +206,7 @@ impl Plan {
 
                 let path = Path::new(&entry.file_name()).to_owned();
                 let name = path.to_string_lossy();
-                if name.ends_with(".filter") || name.ends_with(".delta") {
+                if cx.manages(&name) {
                     unwanted_files.insert(path);
                 }
             }
