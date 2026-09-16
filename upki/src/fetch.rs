@@ -25,8 +25,8 @@ use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
+use crate::data::{Manifest, ManifestFile};
 use crate::revocation::index::{INDEX_BIN, Index};
-use crate::revocation::{Manifest, ManifestFile};
 use crate::{FetchError, sha256};
 
 /// Everything `fetch()` needs to know about one cache directory.

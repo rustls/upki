@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) mod sha256;
 
+/// Descriptions of the data that upki mirrors.
+pub mod data;
+
 /// Synchronising a local cache directory with a remote mirror.
 #[cfg(feature = "__fetch")]
 pub(crate) mod fetch;
