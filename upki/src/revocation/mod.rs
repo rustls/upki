@@ -75,11 +75,11 @@ impl Manifest {
     ///
     /// This performs disk IO but does not perform network IO.
     #[cfg(feature = "__fetch")]
-    pub fn verify(&self, config: &Config) -> Result<ExitCode, Error> {
+    pub fn verify(&self, config: &Config) -> Result<(), Error> {
         self.introduce()?;
         let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
         match plan.download_bytes() {
-            0 => Ok(ExitCode::SUCCESS),
+            0 => Ok(()),
             bytes => Err(Error::Outdated(bytes)),
         }
     }

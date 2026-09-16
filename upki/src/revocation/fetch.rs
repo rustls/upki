@@ -17,7 +17,6 @@ use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
 
 use tracing::{debug, info};
 
@@ -30,7 +29,7 @@ use crate::{Config, sha256};
 /// `dry_run` means this call fetches the new manifest, but does not fetch any
 /// required files; but the necessary files are printed to stdout.  Therefore
 /// such a call is not completely "dry" -- perhaps "moist".
-pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
+pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
     let cache_dir = config.revocation_cache_dir();
     info!(
         "fetching {} into {:?}...",
@@ -99,7 +98,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
         for step in plan.steps {
             println!("- {step}");
         }
-        return Ok(ExitCode::SUCCESS);
+        return Ok(());
     }
 
     info!(
@@ -113,7 +112,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<ExitCode, Error> {
     }
 
     info!("success");
-    Ok(ExitCode::SUCCESS)
+    Ok(())
 }
 
 pub(crate) struct Plan {

@@ -47,9 +47,15 @@ async fn main() -> Result<ExitCode, Report> {
 
     Ok(match args.command {
         #[cfg(feature = "__fetch")]
-        Command::Fetch { dry_run } => fetch(dry_run, &config).await?,
+        Command::Fetch { dry_run } => {
+            fetch(dry_run, &config).await?;
+            ExitCode::SUCCESS
+        }
         #[cfg(feature = "__fetch")]
-        Command::Verify => Manifest::from_config(&config)?.verify(&config)?,
+        Command::Verify => {
+            Manifest::from_config(&config)?.verify(&config)?;
+            ExitCode::SUCCESS
+        }
         Command::ShowConfigPath => unreachable!(),
         Command::ShowConfig => {
             print!(
