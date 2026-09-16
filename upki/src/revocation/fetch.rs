@@ -41,118 +41,137 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchErr
         &config.revocation.fetch_url, &cache_dir,
     );
 
-    let manifest_url = format!("{}{MANIFEST_JSON}", config.revocation.fetch_url);
-    #[cfg(feature = "fetch")]
-    let builder = reqwest::Client::builder().use_rustls_tls();
-    #[cfg(all(feature = "fetch-native-tls", not(feature = "fetch")))]
-    let builder = reqwest::Client::builder().use_native_tls();
-
-    let client = builder
-        .timeout(Duration::from_secs(REQUEST_TIMEOUT))
-        .user_agent(format!(
-            "{}/{} ({})",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION"),
-            env!("CARGO_PKG_REPOSITORY")
-        ))
-        .build()
-        .map_err(|error| FetchError::HttpFetch {
-            error: Box::new(error),
-            url: manifest_url.clone(),
-        })?;
-
-    let old_manifest = Manifest::from_cache(&cache_dir).ok();
-    let local_modified = old_manifest.as_ref().and_then(|_| {
-        let path = cache_dir.join(MANIFEST_JSON);
-        match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
-            Ok(modified) => Some(modified),
-            Err(error) => {
-                debug!("cannot read modification time of {path:?}: {error}");
-                None
-            }
-        }
-    });
-
-    let mut request = client.get(&manifest_url);
-    if let Some(date) = local_modified.and_then(http_date) {
-        debug!("requesting manifest modified since {date}");
-        request = request.header(IF_MODIFIED_SINCE, date);
+    FetchContext {
+        cache_dir,
+        fetch_url: &config.revocation.fetch_url,
     }
+    .fetch(dry_run)
+    .await
+}
 
-    let response = request
-        .send()
-        .await
-        .map_err(|error| FetchError::HttpFetch {
-            error: Box::new(error),
-            url: manifest_url.clone(),
-        })?
-        .error_for_status()
-        .map_err(|error| FetchError::HttpFetch {
-            error: Box::new(error),
-            url: manifest_url.clone(),
-        })?;
+/// Everything `fetch()` needs to know about one cache directory.
+pub(crate) struct FetchContext<'a> {
+    /// The local directory that mirrors `fetch_url`.
+    pub(crate) cache_dir: PathBuf,
 
-    let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
-        (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
-        (_, old) => (
-            response
-                .json::<Manifest>()
-                .await
-                .map_err(|error| FetchError::FileDecode {
-                    error: Box::new(error),
-                    path: None,
-                })?,
-            true,
-            old,
-        ),
-    };
+    /// The base URL that `cache_dir` mirrors.  Ends in a `/`.
+    pub(crate) fetch_url: &'a str,
+}
 
-    let old_manifest = match (modified, old_manifest.as_ref()) {
-        // If it was modified and there was an old manifest, return the old manifest
-        (true, Some(manifest)) => Some(manifest),
-        // If it was modified but there was no old manifest, return None
-        (true, None) => None,
-        // If it was not modified, we promoted the old manifest; return it
-        (false, _) => Some(&manifest),
-    };
+impl FetchContext<'_> {
+    pub(crate) async fn fetch(&self, dry_run: bool) -> Result<(), FetchError> {
+        let manifest_url = format!("{}{MANIFEST_JSON}", self.fetch_url);
+        #[cfg(feature = "fetch")]
+        let builder = reqwest::Client::builder().use_rustls_tls();
+        #[cfg(all(feature = "fetch-native-tls", not(feature = "fetch")))]
+        let builder = reqwest::Client::builder().use_native_tls();
 
-    manifest.introduce()?;
+        let client = builder
+            .timeout(Duration::from_secs(REQUEST_TIMEOUT))
+            .user_agent(format!(
+                "{}/{} ({})",
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_PKG_VERSION"),
+                env!("CARGO_PKG_REPOSITORY")
+            ))
+            .build()
+            .map_err(|error| FetchError::HttpFetch {
+                error: Box::new(error),
+                url: manifest_url.clone(),
+            })?;
 
-    let plan = Plan::construct(
-        &manifest,
-        old_manifest.as_ref().map(|m| {
-            m.files
-                .iter()
-                .map(|f| f.filename.as_str())
-        }),
-        &config.revocation.fetch_url,
-        &cache_dir,
-    )?;
+        let old_manifest = Manifest::from_cache(&self.cache_dir).ok();
+        let local_modified = old_manifest.as_ref().and_then(|_| {
+            let path = self.cache_dir.join(MANIFEST_JSON);
+            match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
+                Ok(modified) => Some(modified),
+                Err(error) => {
+                    debug!("cannot read modification time of {path:?}: {error}");
+                    None
+                }
+            }
+        });
 
-    if dry_run {
-        println!(
-            "{} steps required ({} bytes to download)",
+        let mut request = client.get(&manifest_url);
+        if let Some(date) = local_modified.and_then(http_date) {
+            debug!("requesting manifest modified since {date}");
+            request = request.header(IF_MODIFIED_SINCE, date);
+        }
+
+        let response = request
+            .send()
+            .await
+            .map_err(|error| FetchError::HttpFetch {
+                error: Box::new(error),
+                url: manifest_url.clone(),
+            })?
+            .error_for_status()
+            .map_err(|error| FetchError::HttpFetch {
+                error: Box::new(error),
+                url: manifest_url.clone(),
+            })?;
+
+        let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
+            (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
+            (_, old) => (
+                response
+                    .json::<Manifest>()
+                    .await
+                    .map_err(|error| FetchError::FileDecode {
+                        error: Box::new(error),
+                        path: None,
+                    })?,
+                true,
+                old,
+            ),
+        };
+
+        let old_manifest = match (modified, old_manifest.as_ref()) {
+            // If it was modified and there was an old manifest, return the old manifest
+            (true, Some(manifest)) => Some(manifest),
+            // If it was modified but there was no old manifest, return None
+            (true, None) => None,
+            // If it was not modified, we promoted the old manifest; return it
+            (false, _) => Some(&manifest),
+        };
+
+        manifest.introduce()?;
+
+        let plan = Plan::construct(
+            &manifest,
+            old_manifest.as_ref().map(|m| {
+                m.files
+                    .iter()
+                    .map(|f| f.filename.as_str())
+            }),
+            self,
+        )?;
+
+        if dry_run {
+            println!(
+                "{} steps required ({} bytes to download)",
+                plan.steps.len(),
+                plan.download_bytes()
+            );
+            for step in plan.steps {
+                println!("- {step}");
+            }
+            return Ok(());
+        }
+
+        info!(
+            "{} steps required ({} bytes to download).",
             plan.steps.len(),
             plan.download_bytes()
         );
+
         for step in plan.steps {
-            println!("- {step}");
+            step.execute(&client).await?;
         }
-        return Ok(());
+
+        info!("success");
+        Ok(())
     }
-
-    info!(
-        "{} steps required ({} bytes to download).",
-        plan.steps.len(),
-        plan.download_bytes()
-    );
-
-    for step in plan.steps {
-        step.execute(&client).await?;
-    }
-
-    info!("success");
-    Ok(())
 }
 
 pub(crate) struct Plan {
@@ -163,15 +182,14 @@ impl Plan {
     /// Form a plan of how to synchronize with the remote server.
     ///
     /// - `manifest` describes the contents of the remote server.
-    /// - `old_manifest` is an alleged current manifest, whose files are left alone.
-    /// - `remote_url` is the base URL.
-    /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
+    /// - `old_files` are the files of an alleged current manifest, which are left alone.
+    /// - `cx` describes the local directory being synchronized, and where from.
     pub(crate) fn construct<'a>(
         manifest: &Manifest,
         old_files: Option<impl Iterator<Item = &'a str>>,
-        remote_url: &str,
-        local: &Path,
+        cx: &FetchContext<'_>,
     ) -> Result<Self, FetchError> {
+        let local = cx.cache_dir.as_path();
         let mut steps = Vec::new();
 
         // Collect unwanted files for deletion
@@ -208,7 +226,7 @@ impl Plan {
                 _ => {}
             }
 
-            steps.push(PlanStep::download(file, remote_url, local));
+            steps.push(PlanStep::download(file, cx.fetch_url, local));
         }
 
         if let Some(old_files) = old_files {
