@@ -43,6 +43,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchErr
     FetchContext {
         cache_dir,
         fetch_url: &config.revocation.fetch_url,
+        managed_extensions: MANAGED_EXTENSIONS,
     }
     .fetch(dry_run)
     .await
@@ -76,6 +77,7 @@ impl Store {
             &FetchContext {
                 cache_dir: self.cache_dir.clone(),
                 fetch_url: "https://.../",
+                managed_extensions: MANAGED_EXTENSIONS,
             },
         )?;
         match plan.download_bytes() {
@@ -282,6 +284,10 @@ impl Default for RevocationConfig {
         }
     }
 }
+
+/// The files `revocation::fetch()` owns in the revocation cache directory.
+#[cfg(feature = "__fetch")]
+const MANAGED_EXTENSIONS: &[&str] = &["filter", "delta"];
 
 fn find_issuer<'a>(
     name: &[u8],
