@@ -31,9 +31,9 @@ use crate::{Config, sha256};
 #[cfg(feature = "__fetch")]
 mod fetch;
 #[cfg(feature = "__fetch")]
-use fetch::Plan;
-#[cfg(feature = "__fetch")]
 pub(crate) use fetch::fetch;
+#[cfg(feature = "__fetch")]
+use fetch::{FetchContext, Plan};
 
 mod index;
 use index::Index;
@@ -63,8 +63,10 @@ impl Store {
         let plan = Plan::construct(
             &manifest,
             None::<iter::Empty<&str>>,
-            "https://.../",
-            &self.cache_dir,
+            &FetchContext {
+                cache_dir: self.cache_dir.clone(),
+                fetch_url: "https://.../",
+            },
         )?;
         match plan.download_bytes() {
             0 => Ok(()),
