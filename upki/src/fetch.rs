@@ -1,6 +1,6 @@
 //! upki fetcher.
 //!
-//! This program synchronises a local directory with the crlite files contained on a
+//! This program synchronises a local directory with the files contained on a
 //! remote server.  There is a manifest file that gives the names, sizes and hashes of
 //! all valid files; this is fetched first. Then a plan is formed by comparing this against
 //! the local filesystem contents. Finally, the plan is executed. If that succeeds
@@ -25,29 +25,9 @@ use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
-use super::index::INDEX_BIN;
-use super::{Index, Manifest, ManifestFile};
-use crate::{Config, FetchError, sha256};
-
-/// Update the local revocation cache by fetching updates over the network.
-///
-/// `dry_run` means this call fetches the new manifest, but does not fetch any
-/// required files; but the necessary files are printed to stdout.  Therefore
-/// such a call is not completely "dry" -- perhaps "moist".
-pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
-    let cache_dir = config.revocation_cache_dir();
-    info!(
-        "fetching {} into {:?}...",
-        &config.revocation.fetch_url, &cache_dir,
-    );
-
-    FetchContext {
-        cache_dir,
-        fetch_url: &config.revocation.fetch_url,
-    }
-    .fetch(dry_run)
-    .await
-}
+use crate::revocation::index::{INDEX_BIN, Index};
+use crate::revocation::{Manifest, ManifestFile};
+use crate::{FetchError, sha256};
 
 /// Everything `fetch()` needs to know about one cache directory.
 pub(crate) struct FetchContext<'a> {

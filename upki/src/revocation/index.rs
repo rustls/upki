@@ -50,7 +50,7 @@ use super::{Error, RevocationCheckInput, RevocationStatus};
 /// "upkiidx1".
 ///
 /// This type stores a [`File`] for on-demand reading of entry sections.
-pub(super) struct Index {
+pub(crate) struct Index {
     num_filenames: usize,
     num_logs: usize,
     logs_offset: usize,
@@ -153,7 +153,7 @@ impl Index {
     ///
     /// Returns `None` if any filter file cannot be read or decoded.
     #[cfg(feature = "__fetch")]
-    pub(super) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
+    pub(crate) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
         let mut by_log_id: BTreeMap<LogId, Vec<(u16, TimestampInterval)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
@@ -427,7 +427,7 @@ const LOG_DIR_ENTRY_SIZE: usize = 32 + 8 + 2;
 const ENTRY_SIZE_V1: usize = 2 + 8 + 8;
 const ENTRY_SIZE_V0: usize = 1 + 8 + 8;
 
-pub(super) const INDEX_BIN: &str = "index.bin";
+pub(crate) const INDEX_BIN: &str = "index.bin";
 const INDEX_MAGIC_V1: &[u8; 8] = b"upkiidx1";
 const INDEX_MAGIC_V0: &[u8; 8] = b"upkiidx0";
 
