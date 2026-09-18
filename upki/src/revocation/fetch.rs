@@ -84,7 +84,11 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
 
     let plan = Plan::construct(
         &manifest,
-        &old_manifest,
+        old_manifest.as_ref().map(|m| {
+            m.files
+                .iter()
+                .map(|f| f.filename.as_str())
+        }),
         &config.revocation.fetch_url,
         &cache_dir,
     )?;
@@ -126,9 +130,9 @@ impl Plan {
     /// - `old_manifest` is an alleged current manifest, whose files are left alone.
     /// - `remote_url` is the base URL.
     /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
-    pub(crate) fn construct(
+    pub(crate) fn construct<'a>(
         manifest: &Manifest,
-        old_manifest: &Option<Manifest>,
+        old_files: Option<impl Iterator<Item = &'a str>>,
         remote_url: &str,
         local: &Path,
     ) -> Result<Self, Error> {
@@ -171,9 +175,9 @@ impl Plan {
             steps.push(PlanStep::download(file, remote_url, local));
         }
 
-        if let Some(old_manifest) = &old_manifest {
-            for file in &old_manifest.files {
-                unwanted_files.remove(Path::new(&file.filename));
+        if let Some(old_files) = old_files {
+            for file in old_files {
+                unwanted_files.remove(Path::new(&file));
             }
         }
 
