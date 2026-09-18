@@ -11,7 +11,6 @@ repository = "https://github.com/rustls/upki"
 [workspace.dependencies]
 aws-lc-rs = "1.15.2"
 base64 = "0.23.0"
-chrono = { version = "0.4.42", features = ["alloc"], default-features = false }
 clap = { version = "4.5", features = ["derive"] }
 clubcard = { version = "0.3.3", features = ["builder"] }
 clubcard-crlite = { version = "0.6", default-features = false, features = ["bincode"] }
@@ -23,6 +22,7 @@ hex = { version = "0.4", features = ["serde"] }
 http = "1"
 insta = { version = "1.44.3", features = ["filters"] }
 insta-cmd = "0.7"
+jiff = { version = "0.2.37", default-features = false, features = ["alloc"] }
 openssl-sys = "0.9"
 reqwest = { version = "0.13", default-features = false, features = ["charset", "h2", "http2", "json"] }
 rand = "0.10"

@@ -16,10 +16,10 @@ __fetch = ["dep:reqwest", "dep:serde_json", "dep:tempfile"]
 
 [dependencies]
 base64.workspace = true
-chrono.workspace = true
 clubcard-crlite.workspace = true
 directories.workspace = true
 hex.workspace = true
+jiff.workspace = true
 reqwest = { workspace = true, optional = true }
 rustls-pki-types.workspace = true
 rustls-webpki.workspace = true

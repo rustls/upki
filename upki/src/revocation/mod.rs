@@ -11,9 +11,9 @@ use std::process::ExitCode;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use chrono::{DateTime, Utc};
 use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
+use jiff::Timestamp;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -86,17 +86,21 @@ impl Manifest {
 
     /// Logs metadata fields in this manifest.
     pub fn introduce(&self) -> Result<(), Error> {
-        let dt = match DateTime::<Utc>::from_timestamp(self.generated_at as i64, 0) {
-            Some(dt) => dt.to_rfc3339(),
-            None => {
-                return Err(Error::InvalidTimestamp {
-                    input: self.generated_at.to_string(),
-                    context: "manifest generated (in s)",
-                });
-            }
+        let dt = i64::try_from(self.generated_at)
+            .ok()
+            .and_then(|secs| Timestamp::from_second(secs).ok());
+        let Some(dt) = dt else {
+            return Err(Error::InvalidTimestamp {
+                input: self.generated_at.to_string(),
+                context: "manifest generated (in s)",
+            });
         };
 
-        info!(comment = self.comment, date = dt, "parsed manifest");
+        info!(
+            comment = self.comment,
+            date = %dt,
+            "parsed manifest"
+        );
         Ok(())
     }
 }
