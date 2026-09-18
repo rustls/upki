@@ -102,9 +102,10 @@ impl Index {
         };
         let num_logs = u32::read_be(&mut data)? as usize;
 
-        // Read 3: filename table + log table
-        let logs_offset = num_filenames * FILENAME_SIZE;
-        let tables_len = logs_offset + num_logs * LOG_DIR_ENTRY_SIZE;
+        // Read 3: filename table + log table.  Compute the sizes in u64: a
+        // corrupt header can declare counts that overflow a 32-bit usize.
+        let logs_offset = num_filenames as u64 * FILENAME_SIZE as u64;
+        let tables_len = logs_offset + num_logs as u64 * LOG_DIR_ENTRY_SIZE as u64;
 
         // A corrupt `num_log_ids` could demand an unreasonable sized allocation. Cap the table
         // allocation to the file's overall size.
@@ -115,9 +116,16 @@ impl Index {
                 path: Some(index_path),
             })?
             .len();
-        if (header_size + tables_len) as u64 > file_len {
+        if header_size as u64 + tables_len > file_len {
             return Err(Error::IndexDecode("index tables truncated".into()));
         }
+
+        // The sizes are now bounded by the file size, so these conversions
+        // can only fail for unusually large files on 32-bit targets.
+        let logs_offset = usize::try_from(logs_offset)
+            .map_err(|_| Error::IndexDecode("index tables too large".into()))?;
+        let tables_len = usize::try_from(tables_len)
+            .map_err(|_| Error::IndexDecode("index tables too large".into()))?;
 
         let mut tables = vec![0u8; tables_len];
         file.read_exact(&mut tables)
