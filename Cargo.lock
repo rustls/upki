@@ -2859,6 +2859,7 @@ dependencies = [
  "eyre",
  "insta",
  "insta-cmd",
+ "jiff",
  "rand 0.10.2",
  "regex",
  "rustls-pki-types",

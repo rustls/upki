@@ -24,6 +24,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+jiff.workspace = true
 insta.workspace = true
 insta-cmd.workspace = true
 rand.workspace = true
