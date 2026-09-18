@@ -1,4 +1,6 @@
 use core::error::Error as StdError;
+#[cfg(feature = "__fetch")]
+use core::iter;
 use core::str::FromStr;
 use core::{fmt, str};
 #[cfg(feature = "__fetch")]
@@ -79,7 +81,12 @@ impl Manifest {
     #[cfg(feature = "__fetch")]
     pub fn verify(&self, config: &Config) -> Result<(), Error> {
         self.introduce()?;
-        let plan = Plan::construct(self, &None, "https://.../", &config.revocation_cache_dir())?;
+        let plan = Plan::construct(
+            self,
+            None::<iter::Empty<&str>>,
+            "https://.../",
+            &config.revocation_cache_dir(),
+        )?;
         match plan.download_bytes() {
             0 => Ok(()),
             bytes => Err(Error::Outdated(bytes)),
