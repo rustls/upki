@@ -17,7 +17,12 @@ use std::io::{self, Read, Write};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
+use jiff::Timestamp;
+use jiff::fmt::rfc2822::DateTimePrinter;
+use reqwest::StatusCode;
+use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
 use super::index::INDEX_BIN;
@@ -56,8 +61,25 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
             url: manifest_url.clone(),
         })?;
 
-    let response = client
-        .get(&manifest_url)
+    let old_manifest = Manifest::from_config(config).ok();
+    let local_modified = old_manifest.as_ref().and_then(|_| {
+        let path = cache_dir.join(MANIFEST_JSON);
+        match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
+            Ok(modified) => Some(modified),
+            Err(error) => {
+                debug!("cannot read modification time of {path:?}: {error}");
+                None
+            }
+        }
+    });
+
+    let mut request = client.get(&manifest_url);
+    if let Some(date) = local_modified.and_then(http_date) {
+        debug!("requesting manifest modified since {date}");
+        request = request.header(IF_MODIFIED_SINCE, date);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|error| Error::HttpFetch {
@@ -70,21 +92,39 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
             url: manifest_url.clone(),
         })?;
 
-    let manifest = response
-        .json::<Manifest>()
-        .await
-        .map_err(|error| Error::FileDecode {
-            error: Box::new(error),
-            path: None,
-        })?;
+    let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
+        (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
+        (_, old) => (
+            response
+                .json::<Manifest>()
+                .await
+                .map_err(|error| Error::FileDecode {
+                    error: Box::new(error),
+                    path: None,
+                })?,
+            true,
+            old,
+        ),
+    };
+
+    let old_manifest = match (modified, old_manifest.as_ref()) {
+        // If it was modified and there was an old manifest, return the old manifest
+        (true, Some(manifest)) => Some(manifest),
+        // If it was modified but there was no old manifest, return None
+        (true, None) => None,
+        // If it was not modified, we promoted the old manifest; return it
+        (false, _) => Some(&manifest),
+    };
 
     manifest.introduce()?;
 
-    let old_manifest = Manifest::from_config(config).ok();
-
     let plan = Plan::construct(
         &manifest,
-        &old_manifest,
+        old_manifest.as_ref().map(|m| {
+            m.files
+                .iter()
+                .map(|f| f.filename.as_str())
+        }),
         &config.revocation.fetch_url,
         &cache_dir,
     )?;
@@ -126,9 +166,9 @@ impl Plan {
     /// - `old_manifest` is an alleged current manifest, whose files are left alone.
     /// - `remote_url` is the base URL.
     /// - `local` is the path into which files are downloaded.  The caller ensures this exists.
-    pub(crate) fn construct(
+    pub(crate) fn construct<'a>(
         manifest: &Manifest,
-        old_manifest: &Option<Manifest>,
+        old_files: Option<impl Iterator<Item = &'a str>>,
         remote_url: &str,
         local: &Path,
     ) -> Result<Self, Error> {
@@ -171,9 +211,9 @@ impl Plan {
             steps.push(PlanStep::download(file, remote_url, local));
         }
 
-        if let Some(old_manifest) = &old_manifest {
-            for file in &old_manifest.files {
-                unwanted_files.remove(Path::new(&file.filename));
+        if let Some(old_files) = old_files {
+            for file in old_files {
+                unwanted_files.remove(Path::new(&file));
             }
         }
 
@@ -406,6 +446,18 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
     Ok(())
 }
 
+/// Format `time` as an HTTP-date, as used for `If-Modified-Since`.
+fn http_date(time: SystemTime) -> Option<String> {
+    let secs = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    let time = Timestamp::new(i64::try_from(secs).ok()?, 0).ok()?;
+    HTTP_DATE
+        .timestamp_to_rfc9110_string(&time)
+        .ok()
+}
+
 fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
     let mut file = File::open(path)?;
     let mut hasher = sha256::Context::new();
@@ -422,5 +474,18 @@ fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
     Ok(hasher.finish())
 }
 
+const HTTP_DATE: DateTimePrinter = DateTimePrinter::new();
 const MANIFEST_JSON: &str = "manifest.json";
 const REQUEST_TIMEOUT: u64 = 30;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn http_dates() {
+        let time = SystemTime::UNIX_EPOCH + Duration::from_secs(784_111_777);
+        let date = http_date(time).unwrap();
+        assert_eq!(date, "Sun, 06 Nov 1994 08:49:37 GMT");
+    }
+}
