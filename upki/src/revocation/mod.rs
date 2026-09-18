@@ -13,9 +13,11 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
+#[cfg(feature = "__fetch")]
 use jiff::Timestamp;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "__fetch")]
 use tracing::info;
 
 #[cfg(feature = "__fetch")]
@@ -85,6 +87,7 @@ impl Manifest {
     }
 
     /// Logs metadata fields in this manifest.
+    #[cfg(feature = "__fetch")]
     pub fn introduce(&self) -> Result<(), Error> {
         let dt = i64::try_from(self.generated_at)
             .ok()
