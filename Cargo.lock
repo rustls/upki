@@ -2063,7 +2063,7 @@ checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
 
 [[package]]
 name = "rustls-upki"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 dependencies = [
  "rustls",
  "rustls-native-certs",
@@ -2743,7 +2743,7 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "upki"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 dependencies = [
  "base64 0.23.1",
  "cbindgen",
@@ -2765,7 +2765,7 @@ dependencies = [
 
 [[package]]
 name = "upki-cli"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 dependencies = [
  "clap",
  "eyre",
@@ -2802,7 +2802,7 @@ dependencies = [
 
 [[package]]
 name = "upki-openssl"
-version = "1.0.0-beta.3"
+version = "1.0.0-beta.4"
 dependencies = [
  "cbindgen",
  "openssl-sys",
