@@ -505,14 +505,20 @@ mod tests {
     // rejected before the table allocation is made.
     #[test]
     fn oversized_table_counts() {
+        let err = header_only_index_error(u16::MAX, u32::MAX);
+        assert!(matches!(err, Error::IndexDecode(_)));
+    }
+
+    /// Write a V1 index consisting of only a header with the given table counts
+    /// and return the resulting decode error.
+    fn header_only_index_error(num_filenames: u16, num_logs: u32) -> Error {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
         let mut data = INDEX_MAGIC_V1.to_vec();
-        data.extend_from_slice(&u16::MAX.to_be_bytes());
-        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        data.extend_from_slice(&num_filenames.to_be_bytes());
+        data.extend_from_slice(&num_logs.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
-        let err = Index::from_cache(&config).unwrap_err();
-        assert!(matches!(err, Error::IndexDecode(_)));
+        Index::from_cache(&config).unwrap_err()
     }
 
     #[test]
