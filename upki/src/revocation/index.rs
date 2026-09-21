@@ -103,8 +103,16 @@ impl Index {
         let num_logs = u32::read_be(&mut data)? as usize;
 
         // Read 3: filename table + log table
+        // `num_filenames` is at most `u16::MAX`, so this cannot overflow even on 32-bit targets.
         let logs_offset = num_filenames * FILENAME_SIZE;
-        let tables_len = logs_offset + num_logs * LOG_DIR_ENTRY_SIZE;
+
+        let Some(logs_size) = num_logs.checked_mul(LOG_DIR_ENTRY_SIZE) else {
+            return Err(Error::IndexDecode("log table size overflow".into()));
+        };
+
+        let Some(tables_len) = logs_offset.checked_add(logs_size) else {
+            return Err(Error::IndexDecode("table size overflow".into()));
+        };
 
         // A corrupt `num_log_ids` could demand an unreasonable sized allocation. Cap the table
         // allocation to the file's overall size.
@@ -115,7 +123,12 @@ impl Index {
                 path: Some(index_path),
             })?
             .len();
-        if (header_size + tables_len) as u64 > file_len {
+
+        let Some(tables_end) = header_size.checked_add(tables_len) else {
+            return Err(Error::IndexDecode("table end overflow".into()));
+        };
+
+        if tables_end as u64 > file_len {
             return Err(Error::IndexDecode("index tables truncated".into()));
         }
 
@@ -502,11 +515,46 @@ mod tests {
     }
 
     // A valid header whose counts imply tables far larger than the file must be
-    // rejected before the table allocation is made.
+    // rejected before the table allocation is made. On 32-bit targets, the log
+    // table size does not even fit in `usize`.
     #[test]
     fn oversized_table_counts() {
         let err = header_only_index_error(u16::MAX, u32::MAX);
-        assert!(matches!(err, Error::IndexDecode(_)));
+        assert_index_decode(&err, "log table size overflow", "index tables truncated");
+    }
+
+    // The log table size fits in `usize` on 32-bit targets, but adding the
+    // filename table size overflows.
+    #[test]
+    fn table_sum_overflow() {
+        let err = header_only_index_error(u16::MAX, 102_261_126);
+        assert_index_decode(&err, "table size overflow", "index tables truncated");
+    }
+
+    // The combined table size fits in `usize` on 32-bit targets, but adding
+    // the header size overflows.
+    #[test]
+    fn table_end_overflow() {
+        let err = header_only_index_error(65_524, 102_211_203);
+        assert_index_decode(&err, "table end overflow", "index tables truncated");
+    }
+
+    /// Assert that `err` is an [`Error::IndexDecode`] with message `narrow` on
+    /// 32-bit targets, where the table sizes overflow `usize`, or `wide` on wider
+    /// targets, where they merely exceed the file size.
+    #[track_caller]
+    fn assert_index_decode(err: &Error, narrow: &str, wide: &str) {
+        let Error::IndexDecode(inner) = err else {
+            panic!("expected IndexDecode error, got {err}");
+        };
+
+        assert_eq!(
+            inner.to_string(),
+            match usize::BITS {
+                32 => narrow,
+                _ => wide,
+            }
+        );
     }
 
     /// Write a V1 index consisting of only a header with the given table counts
