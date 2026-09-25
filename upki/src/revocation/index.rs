@@ -3,7 +3,7 @@ use core::{fmt, str};
 #[cfg(feature = "__fetch")]
 use std::collections::BTreeMap;
 use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{self, Read, Seek, SeekFrom};
 #[cfg(feature = "__fetch")]
 use std::path::Path;
 use std::path::PathBuf;
@@ -73,10 +73,18 @@ impl Index {
     pub fn from_cache(config: &Config) -> Result<Self, Error> {
         let cache_dir = config.revocation_cache_dir();
         let index_path = cache_dir.join(INDEX_BIN);
-        let mut file = File::open(&index_path).map_err(|error| Error::FileRead {
-            error,
-            path: Some(index_path.clone()),
-        })?;
+        let mut file = match File::open(&index_path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(Error::NoData { path: index_path });
+            }
+            Err(error) => {
+                return Err(Error::FileRead {
+                    error,
+                    path: Some(index_path),
+                });
+            }
+        };
 
         // Read 1: magic, determining the version-dependent header and entry sizes
         let mut magic = [0u8; 8];
@@ -574,7 +582,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
         let err = Index::from_cache(&config).unwrap_err();
-        assert!(matches!(err, Error::FileRead { .. }));
+        assert!(matches!(err, Error::NoData { .. }));
     }
 
     #[test]

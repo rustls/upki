@@ -6,7 +6,7 @@ use openssl_sys::{
     OPENSSL_STACK, OPENSSL_sk_free, OPENSSL_sk_new_null, OPENSSL_sk_push, SSL, SSL_CTX,
     SSL_CTX_free, SSL_CTX_new, SSL_free, SSL_get_ex_data_X509_STORE_CTX_idx, SSL_new,
     TLS_client_method, X509_STORE_CTX, X509_STORE_CTX_free, X509_STORE_CTX_get_error,
-    X509_STORE_CTX_new, X509_V_ERR_CERT_REVOKED, d2i_X509, stack_st_X509,
+    X509_STORE_CTX_new, X509_STORE_CTX_set_error, X509_V_ERR_CERT_REVOKED, d2i_X509, stack_st_X509,
 };
 use revoke_test::CertificateDetail;
 use upki::ffi::{upki_config_new, upki_result};
@@ -15,6 +15,16 @@ use upki_openssl::{upki_openssl_set_config, upki_openssl_verify_callback};
 use super::{TEST_CONFIG_PATH, TestResult};
 
 pub(super) fn openssl(detail: &CertificateDetail) -> TestResult {
+    let (rc, error) = verify(detail, TEST_CONFIG_PATH);
+
+    match rc {
+        1 => TestResult::IncorrectlyNotRevoked,
+        0 if error == X509_V_ERR_CERT_REVOKED => TestResult::CorrectlyRevoked,
+        _ => panic!("upki_openssl_verify_callback failed with rc={rc:?} store_ctx.error={error:?}"),
+    }
+}
+
+pub(super) fn verify(detail: &CertificateDetail, config_path: &str) -> (c_int, c_int) {
     let mut chain = Chain::new();
 
     for cert in [detail.end_entity_cert_der().unwrap()]
@@ -33,7 +43,7 @@ pub(super) fn openssl(detail: &CertificateDetail) -> TestResult {
     assert!(matches!(
         unsafe {
             upki_config_new(
-                CString::new(TEST_CONFIG_PATH)
+                CString::new(config_path)
                     .unwrap()
                     .as_ptr(),
                 &mut config,
@@ -50,19 +60,14 @@ pub(super) fn openssl(detail: &CertificateDetail) -> TestResult {
     let mut store_ctx = StoreCtx::new();
     store_ctx.attach_ssl(ssl);
     store_ctx.set_error_depth(0);
+    store_ctx.set_error(UNTOUCHED_ERROR);
     store_ctx.set_verified_chain(chain);
 
     let rc = unsafe { upki_openssl_verify_callback(1, store_ctx.ptr) };
-
-    match rc {
-        1 => TestResult::IncorrectlyNotRevoked,
-        0 if store_ctx.error() == X509_V_ERR_CERT_REVOKED => TestResult::CorrectlyRevoked,
-        _ => panic!(
-            "upki_openssl_verify_callback failed with rc={rc:?} store_ctx.error={:?}",
-            store_ctx.error()
-        ),
-    }
+    (rc, store_ctx.error())
 }
+
+pub(super) const UNTOUCHED_ERROR: c_int = 12345678;
 
 struct SslCtx(*mut SSL_CTX);
 
@@ -105,6 +110,10 @@ impl StoreCtx {
 
     fn error(&self) -> c_int {
         unsafe { X509_STORE_CTX_get_error(self.ptr) }
+    }
+
+    fn set_error(&mut self, error: c_int) {
+        unsafe { X509_STORE_CTX_set_error(self.ptr, error) };
     }
 
     fn set_error_depth(&mut self, depth: i32) {
