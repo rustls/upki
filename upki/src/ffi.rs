@@ -217,6 +217,8 @@ pub enum upki_result {
     UPKI_ERR_REVOCATION_TOO_FEW_CERTS = 81,
     /// Failed to decode the index file.
     UPKI_ERR_REVOCATION_INDEX_DECODE = 82,
+    /// No revocation data is present in the cache.
+    UPKI_ERR_REVOCATION_NO_DATA = 83,
 }
 
 impl upki_result {
@@ -273,6 +275,7 @@ impl upki_result {
                 c"certificate chain must contain at least 2 certificates"
             }
             Self::UPKI_ERR_REVOCATION_INDEX_DECODE => c"failed to decode the index file",
+            Self::UPKI_ERR_REVOCATION_NO_DATA => c"no revocation data is present in the cache",
         }
     }
 
@@ -310,6 +313,7 @@ impl upki_result {
         Self::UPKI_ERR_REVOCATION_REMOVE_FILE,
         Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS,
         Self::UPKI_ERR_REVOCATION_INDEX_DECODE,
+        Self::UPKI_ERR_REVOCATION_NO_DATA,
     ];
 }
 
@@ -373,6 +377,9 @@ impl From<Error> for upki_result {
             }
             Error::Revocation(revocation::Error::IndexDecode(_)) => {
                 Self::UPKI_ERR_REVOCATION_INDEX_DECODE
+            }
+            Error::Revocation(revocation::Error::NoData { .. }) => {
+                Self::UPKI_ERR_REVOCATION_NO_DATA
             }
         }
     }

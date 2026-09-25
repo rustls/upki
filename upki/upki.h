@@ -141,6 +141,10 @@ typedef enum upki_result {
    * Failed to decode the index file.
    */
   UPKI_ERR_REVOCATION_INDEX_DECODE = 82,
+  /**
+   * No revocation data is present in the cache.
+   */
+  UPKI_ERR_REVOCATION_NO_DATA = 83,
 } upki_result;
 
 /**
