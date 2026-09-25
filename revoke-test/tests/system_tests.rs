@@ -47,11 +47,7 @@ fn real_world_system_tests() {
         String::from_utf8_lossy(&fetch.stderr),
     );
 
-    let tests = serde_json::from_reader::<_, RevocationTestSites<'static>>(
-        File::open("../revoke-test/test-sites.json")
-            .expect("cannot find ../revoke-test/test-sites.json"),
-    )
-    .expect("cannot parse test-sites.json");
+    let tests = test_sites();
     assert!(
         !tests.expired(),
         "test-sites.json is expired, please regenerate"
@@ -106,6 +102,80 @@ fn real_world_system_tests() {
             "site {site:?} revocation result disagrees between high-level API ({high:?}) and OpenSSL API ({openssl:?})"
         );
     }
+}
+
+/// Without any revocation data, `upki_openssl_verify_callback` should allow verification
+/// to proceed.
+#[cfg(not(windows))]
+#[test]
+fn openssl_allows_missing_revocation_data() {
+    let config_path = empty_cache_config("tmp/openssl-missing-data");
+
+    with_each_test_certificate(|detail| {
+        assert_eq!(
+            openssl::verify(detail, &config_path),
+            (1, openssl::UNTOUCHED_ERROR)
+        );
+    });
+}
+
+/// Revocation data that is present but damaged must still fail verification.
+#[cfg(not(windows))]
+#[test]
+fn openssl_rejects_corrupt_revocation_data() {
+    let cache_dir = "tmp/openssl-corrupt-data";
+    let config_path = empty_cache_config(cache_dir);
+    let revocation_dir = Path::new(cache_dir).join("revocation");
+    fs::create_dir_all(&revocation_dir).unwrap();
+    fs::write(revocation_dir.join("index.bin"), b"not an index").unwrap();
+
+    with_each_test_certificate(|detail| {
+        assert_eq!(
+            openssl::verify(detail, &config_path),
+            (0, openssl_sys::X509_V_ERR_APPLICATION_VERIFICATION)
+        );
+    });
+}
+
+/// Write a configuration file that uses a new, empty, cache directory at `cache_dir`.
+///
+/// Returns the path to the configuration file.
+#[cfg(not(windows))]
+fn empty_cache_config(cache_dir: &str) -> String {
+    let _ = fs::remove_dir_all(cache_dir);
+    fs::create_dir_all(cache_dir).unwrap();
+
+    let config_path = format!("{cache_dir}/config.toml");
+    fs::write(
+        &config_path,
+        format!(
+            "cache-dir=\"{cache_dir}\"\n\
+            [revocation]\n\
+            fetch-url=\"https://upki.rustls.dev/revocation/\"\n"
+        ),
+    )
+    .unwrap();
+    config_path
+}
+
+#[cfg(not(windows))]
+fn with_each_test_certificate(f: impl Fn(&CertificateDetail)) {
+    let sites = test_sites();
+    let details = sites
+        .sites
+        .iter()
+        .filter_map(|site| site.detail.as_ref())
+        .collect::<Vec<_>>();
+    assert!(!details.is_empty());
+    details.into_iter().for_each(f);
+}
+
+fn test_sites() -> RevocationTestSites<'static> {
+    serde_json::from_reader::<_, RevocationTestSites<'static>>(
+        File::open("../revoke-test/test-sites.json")
+            .expect("cannot find ../revoke-test/test-sites.json"),
+    )
+    .expect("cannot parse test-sites.json")
 }
 
 impl TestCase for ServerVerifier {
