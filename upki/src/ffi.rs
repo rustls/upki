@@ -215,6 +215,8 @@ pub enum upki_result {
     UPKI_ERR_REVOCATION_REMOVE_FILE = 80,
     /// Certificate chain must contain at least 2 certificates.
     UPKI_ERR_REVOCATION_TOO_FEW_CERTS = 81,
+    /// Failed to decode the index file.
+    UPKI_ERR_REVOCATION_INDEX_DECODE = 82,
 }
 
 impl upki_result {
@@ -270,6 +272,7 @@ impl upki_result {
             Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS => {
                 c"certificate chain must contain at least 2 certificates"
             }
+            Self::UPKI_ERR_REVOCATION_INDEX_DECODE => c"failed to decode the index file",
         }
     }
 
@@ -306,6 +309,7 @@ impl upki_result {
         Self::UPKI_ERR_REVOCATION_OUTDATED,
         Self::UPKI_ERR_REVOCATION_REMOVE_FILE,
         Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS,
+        Self::UPKI_ERR_REVOCATION_INDEX_DECODE,
     ];
 }
 
@@ -367,7 +371,9 @@ impl From<Error> for upki_result {
             Error::Revocation(revocation::Error::TooFewCertificates) => {
                 Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS
             }
-            _ => Self::UPKI_ERR_UNKNOWN,
+            Error::Revocation(revocation::Error::IndexDecode(_)) => {
+                Self::UPKI_ERR_REVOCATION_INDEX_DECODE
+            }
         }
     }
 }
