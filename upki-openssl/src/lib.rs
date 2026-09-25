@@ -159,6 +159,8 @@ pub unsafe extern "C" fn upki_openssl_verify_callback(
             preverify_ok = 0;
         }
         upki_result::UPKI_REVOCATION_NOT_COVERED | upki_result::UPKI_REVOCATION_NOT_REVOKED => {}
+        // soft-fail on the case where no revocation data exists
+        upki_result::UPKI_ERR_REVOCATION_NO_DATA => {}
         e => {
             x509_ctx.set_detailed_error(X509_V_ERR_APPLICATION_VERIFICATION, e, line!());
             preverify_ok = 0;
