@@ -427,6 +427,15 @@ pub enum Error {
         /// Path to the manifest file.
         path: PathBuf,
     },
+    /// No revocation data is present in the cache.
+    ///
+    /// This happens before revocation data is fetched for the first time.
+    /// In contrast, other errors like [`Error::FileRead`] mean the cache
+    /// is present but damaged or incomplete.
+    NoData {
+        /// Path to the index file that was not found.
+        path: PathBuf,
+    },
     /// No issuer found for the end-entity certificate in the provided chain.
     NoIssuer,
     /// Number of bytes that need to be downloaded to update the local cache.
@@ -487,6 +496,7 @@ impl fmt::Display for Error {
             Self::ManifestEncode { path, .. } => {
                 write!(f, "cannot encode manifest file at {path:?}")
             }
+            Self::NoData { path } => write!(f, "no revocation data found at {path:?}"),
             Self::NoIssuer => write!(f, "no issuer found for end-entity certificate"),
             Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
             Self::RemoveFile { path, .. } => write!(f, "cannot remove file {path:?}"),
@@ -515,6 +525,7 @@ impl StdError for Error {
             Self::InvalidSctInCertificate(error) => Some(&**error),
             Self::InvalidTimestamp { .. } => None,
             Self::ManifestEncode { error, .. } => Some(&**error),
+            Self::NoData { .. } => None,
             Self::NoIssuer => None,
             Self::Outdated(_) => None,
             Self::RemoveFile { error, .. } => Some(error),
