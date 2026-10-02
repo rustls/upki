@@ -8,6 +8,8 @@ use std::fs::File;
 use std::io;
 #[cfg(feature = "__fetch")]
 use std::io::BufReader;
+#[cfg(feature = "__fetch")]
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -80,9 +82,12 @@ impl Manifest {
     /// Load the revocation manifest from the cache directory specified in the configuration.
     #[cfg(feature = "__fetch")]
     pub fn from_config(config: &Config) -> Result<Self, Error> {
-        let mut file_name = config.revocation_cache_dir();
-        file_name.push("manifest.json");
+        Self::from_cache(&config.revocation_cache_dir())
+    }
 
+    #[cfg(feature = "__fetch")]
+    fn from_cache(cache_dir: &Path) -> Result<Self, Error> {
+        let file_name = cache_dir.join("manifest.json");
         let file = match File::open(&file_name) {
             Ok(f) => f,
             Err(error) => {
