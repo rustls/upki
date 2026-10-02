@@ -79,6 +79,9 @@ async fn dissect(url: &str, tls_connector: &TlsConnector) -> Result<CertificateD
     if ENTRUST_SUCKS.contains(&url) {
         eyre::bail!("entrust cannot run a website");
     }
+    if SSL_COM_CANNOT_RUN_A_WEBSERVER.contains(&url) {
+        eyre::bail!("ssl.com cannot run a website");
+    }
 
     // Parse URL to extract host and port
     let url_parsed = Uri::from_str(url)?;
@@ -110,3 +113,7 @@ async fn dissect(url: &str, tls_connector: &TlsConnector) -> Result<CertificateD
 }
 
 const ENTRUST_SUCKS: &[&str] = &["https://entrustrootcertificationauthorityec1.sectigo.com:444"];
+const SSL_COM_CANNOT_RUN_A_WEBSERVER: &[&str] = &[
+    "https://revoked-ecc-ev.ssl.com",
+    "https://revoked-rsa-ev.ssl.com/",
+];
