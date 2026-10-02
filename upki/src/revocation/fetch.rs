@@ -61,7 +61,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
             url: manifest_url.clone(),
         })?;
 
-    let old_manifest = Manifest::from_config(config).ok();
+    let old_manifest = Manifest::from_cache(&cache_dir).ok();
     let local_modified = old_manifest.as_ref().and_then(|_| {
         let path = cache_dir.join(MANIFEST_JSON);
         match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
