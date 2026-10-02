@@ -51,6 +51,25 @@ impl Store {
         }
     }
 
+    /// Verify the current contents of the cache against this manifest.
+    ///
+    /// This performs disk IO but does not perform network IO.
+    #[cfg(feature = "__fetch")]
+    pub fn verify(&self) -> Result<(), Error> {
+        let manifest = Manifest::from_cache(&self.cache_dir)?;
+        manifest.introduce()?;
+        let plan = Plan::construct(
+            &manifest,
+            None::<iter::Empty<&str>>,
+            "https://.../",
+            &self.cache_dir,
+        )?;
+        match plan.download_bytes() {
+            0 => Ok(()),
+            bytes => Err(Error::Outdated(bytes)),
+        }
+    }
+
     /// Perform a revocation check.
     pub fn check(&self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
         Index::from_path(&self.cache_dir)?.check(input, &self.cache_dir)
@@ -102,24 +121,6 @@ impl Manifest {
             error: Box::new(error),
             path: Some(file_name),
         })
-    }
-
-    /// Verify the current contents of the cache against this manifest.
-    ///
-    /// This performs disk IO but does not perform network IO.
-    #[cfg(feature = "__fetch")]
-    pub fn verify(&self, config: &Config) -> Result<(), Error> {
-        self.introduce()?;
-        let plan = Plan::construct(
-            self,
-            None::<iter::Empty<&str>>,
-            "https://.../",
-            &config.revocation_cache_dir(),
-        )?;
-        match plan.download_bytes() {
-            0 => Ok(()),
-            bytes => Err(Error::Outdated(bytes)),
-        }
     }
 
     /// Logs metadata fields in this manifest.
