@@ -14,7 +14,7 @@ use rustls::{
     ExtendedKeyPurpose, RootCertStore, SignatureScheme, SupportedCipherSuite,
 };
 use upki::revocation::{
-    self, CertSerial, CtTimestamp, Index, IssuerSpkiHash, RevocationCheckInput, RevocationStatus,
+    self, CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus, Store,
 };
 use upki::{self, Config, ConfigPath};
 use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, VerifiedPath};
@@ -69,7 +69,8 @@ impl ServerVerifier {
 
         // Pre-roll storage to check it works, and bring (eg. permanent configuration) errors
         // to forefront prior to any networking.
-        if let Err(revocation::Error::NoData { .. }) = Index::from_cache(&config) {
+        let store = Store::from_config(&config);
+        if let Err(revocation::Error::NoData { .. }) = store.validate() {
             let _ = policy.missing_data.as_result()?;
         };
 
@@ -128,7 +129,7 @@ impl ServerVerifier {
             sct_timestamps,
         );
 
-        match Index::from_cache(&self.config).and_then(|mut index| index.check(&input)) {
+        match Store::from_config(&self.config).check(&input) {
             Ok(rs) => Ok(rs),
             Err(revocation::Error::NoData { .. }) => self.policy.missing_data.as_result(),
             Err(e) => Err(rustls::Error::General(e.to_string())),
