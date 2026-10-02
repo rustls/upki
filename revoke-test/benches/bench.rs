@@ -10,7 +10,7 @@ use codspeed_criterion_compat::{Criterion, criterion_group, criterion_main};
 use criterion::{Criterion, criterion_group, criterion_main};
 use revoke_test::RevocationTestSites;
 use rustls_pki_types::CertificateDer;
-use upki::revocation::{Manifest, RevocationCheckInput, RevocationStatus, Store};
+use upki::revocation::{RevocationCheckInput, RevocationStatus, Store};
 use upki::{Config, ConfigPath};
 
 fn revocation(c: &mut Criterion) {
@@ -20,17 +20,6 @@ fn revocation(c: &mut Criterion) {
                 "benches/data/config.toml",
             )))
             .unwrap()
-        })
-    });
-
-    c.bench_function("load-manifest", |b| {
-        let config = Config::from_file_or_user_default(&ConfigPath::Specified(PathBuf::from(
-            "benches/data/config.toml",
-        )))
-        .unwrap();
-
-        b.iter(|| {
-            black_box(Manifest::from_config(&config).unwrap());
         })
     });
 
