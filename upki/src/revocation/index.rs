@@ -71,7 +71,10 @@ impl Index {
     /// Only the header (filename table and log-ID directory) is loaded into memory.
     /// Entry sections are read on demand during [`check`](Self::check) via seeking.
     pub fn from_cache(config: &Config) -> Result<Self, Error> {
-        let cache_dir = config.revocation_cache_dir();
+        Self::from_path(config.revocation_cache_dir())
+    }
+
+    fn from_path(cache_dir: PathBuf) -> Result<Self, Error> {
         let index_path = cache_dir.join(INDEX_BIN);
         let mut file = match File::open(&index_path) {
             Ok(file) => file,
