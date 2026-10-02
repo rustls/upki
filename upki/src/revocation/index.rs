@@ -450,15 +450,14 @@ mod tests {
     use clubcard_crlite::{CRLiteClubcard, CRLiteCoverage, CRLiteQuery, Encoding};
 
     use super::*;
-    use crate::revocation::{CertSerial, CtTimestamp, IssuerSpkiHash, RevocationConfig};
+    use crate::revocation::{CertSerial, CtTimestamp, IssuerSpkiHash};
 
     #[test]
     fn check_empty_index() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, &build_index(&[]));
         assert_eq!(
-            Index::from_cache(&config)
+            Index::from_path(dir.path().to_owned())
                 .unwrap()
                 .check(&test_input())
                 .unwrap(),
@@ -469,12 +468,11 @@ mod tests {
     #[test]
     fn check_no_matching_log_id() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         // Input has log_id [0xbb; 32], index has [0xcc; 32]
         let data = build_index(&[("test.filter", &[([0xcc; 32], 500, 1500)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_cache(&config)
+            Index::from_path(dir.path().to_owned())
                 .unwrap()
                 .check(&test_input())
                 .unwrap(),
@@ -485,12 +483,11 @@ mod tests {
     #[test]
     fn check_no_matching_timestamp_range() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         // Input has timestamp 1000, index range is 2000..3000
         let data = build_index(&[("test.filter", &[([0xbb; 32], 2000, 3000)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_cache(&config)
+            Index::from_path(dir.path().to_owned())
                 .unwrap()
                 .check(&test_input())
                 .unwrap(),
@@ -501,27 +498,24 @@ mod tests {
     #[test]
     fn invalid_magic() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, b"wrongmag\x00\x00\x00\x00\x00");
-        let err = Index::from_cache(&config).unwrap_err();
+        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
     #[test]
     fn truncated_after_magic() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, INDEX_MAGIC_V1);
-        let err = Index::from_cache(&config).unwrap_err();
+        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
     #[test]
     fn truncated_before_magic() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, b"upki");
-        let err = Index::from_cache(&config).unwrap_err();
+        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
@@ -572,26 +566,23 @@ mod tests {
     /// and return the resulting decode error.
     fn header_only_index_error(num_filenames: u16, num_logs: u32) -> Error {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         let mut data = INDEX_MAGIC_V1.to_vec();
         data.extend_from_slice(&num_filenames.to_be_bytes());
         data.extend_from_slice(&num_logs.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
-        Index::from_cache(&config).unwrap_err()
+        Index::from_path(dir.path().to_owned()).unwrap_err()
     }
 
     #[test]
     fn missing_index() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
-        let err = Index::from_cache(&config).unwrap_err();
+        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
         assert!(matches!(err, Error::NoData { .. }));
     }
 
     #[test]
     fn check_single_filter_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         // The filter enrolls our issuer and revokes our serial for log [0xbb; 32].
         let filter = build_filter([0xaa; 32], &[SERIAL], &[], &[([0xbb; 32], 0, 2000)]);
@@ -603,7 +594,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&test_input())?,
+            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -613,7 +604,6 @@ mod tests {
     #[test]
     fn check_single_filter_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         // The filter enrolls our issuer but revokes a different serial, so our
         // serial is definitively not revoked.
@@ -631,7 +621,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&test_input())?,
+            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -644,7 +634,6 @@ mod tests {
     #[test]
     fn check_continues_past_not_enrolled_to_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
@@ -663,7 +652,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -675,7 +665,6 @@ mod tests {
     #[test]
     fn check_continues_past_not_enrolled_to_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
@@ -693,7 +682,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -705,7 +695,6 @@ mod tests {
     #[test]
     fn check_all_filters_not_enrolled() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
@@ -722,7 +711,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::NotCoveredByRevocationData,
         );
 
@@ -735,7 +725,6 @@ mod tests {
     #[test]
     fn check_stops_at_first_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a and revokes our serial.
@@ -751,7 +740,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -764,7 +754,6 @@ mod tests {
     #[test]
     fn check_continues_past_not_revoked_to_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 enrolls our issuer but revokes a different serial -> not revoked.
@@ -783,7 +772,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -797,7 +787,6 @@ mod tests {
     #[test]
     fn check_multiple_filters_same_log_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
@@ -816,7 +805,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -829,7 +818,6 @@ mod tests {
     #[test]
     fn check_multiple_filters_same_log_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
         let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
@@ -847,7 +835,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -861,7 +849,6 @@ mod tests {
     #[test]
     fn check_later_timestamp_entry_same_log_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
         // f0 covers log_a for 2000..3000, which does not contain the SCT (1000).
@@ -880,7 +867,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -893,7 +880,6 @@ mod tests {
     #[test]
     fn check_later_timestamp_entry_same_log_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
         let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 2000, 3000)]);
@@ -911,7 +897,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -925,7 +911,6 @@ mod tests {
     #[test]
     fn check_skips_non_matching_entry_without_loading_filter() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let log_a = [0xb1; 32];
         // f1 covers the SCT and revokes our serial; only its file exists on disk.
@@ -941,7 +926,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -955,7 +940,6 @@ mod tests {
     #[test]
     fn check_skips_queried_filter_but_not_later_filters() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers both logs but enrolls a different issuer -> NotEnrolled for us.
@@ -979,7 +963,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -992,7 +977,6 @@ mod tests {
     #[test]
     fn check_single_filter_covering_multiple_scts_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 enrolls our issuer but revokes a different serial -> not revoked.
@@ -1010,7 +994,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -1021,7 +1006,6 @@ mod tests {
     #[test]
     fn check_v0_index_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let (log_a, log_b) = ([0xb1; 32], [0xb2; 32]);
         // f0 covers log_a but enrolls a different issuer -> NotEnrolled for us.
@@ -1040,7 +1024,8 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path().to_owned())?
+                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -1051,7 +1036,6 @@ mod tests {
     #[test]
     fn check_v0_index_not_revoked() -> Result<(), Box<dyn StdError>> {
         let dir = tempfile::tempdir()?;
-        let config = test_config(dir.path());
 
         let filter = build_filter(
             [0xaa; 32],
@@ -1067,7 +1051,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_cache(&config)?.check(&test_input())?,
+            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -1078,10 +1062,9 @@ mod tests {
     #[test]
     fn check_empty_v0_index() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
         write_file(dir.path(), INDEX_BIN, &build_index_v0(&[]));
         assert_eq!(
-            Index::from_cache(&config)
+            Index::from_path(dir.path().to_owned())
                 .unwrap()
                 .check(&test_input())
                 .unwrap(),
@@ -1093,7 +1076,6 @@ mod tests {
     #[test]
     fn check_filter_index_out_of_bounds() {
         let dir = tempfile::tempdir().unwrap();
-        let config = test_config(dir.path());
 
         let mut data = build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]);
         // Overwrite the sole entry's filter_index (first two bytes of the entry
@@ -1102,7 +1084,7 @@ mod tests {
         data[entry_offset..entry_offset + 2].copy_from_slice(&500u16.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
 
-        let err = Index::from_cache(&config)
+        let err = Index::from_path(dir.path().to_owned())
             .unwrap()
             .check(&test_input())
             .unwrap_err();
@@ -1269,13 +1251,6 @@ mod tests {
         )
     }
 
-    fn test_config(dir: &Path) -> Config {
-        Config {
-            cache_dir: dir.to_owned(),
-            revocation: RevocationConfig::default(),
-        }
-    }
-
     fn test_input() -> RevocationCheckInput {
         RevocationCheckInput::new(
             CertSerial(SERIAL.to_vec()),
@@ -1288,9 +1263,7 @@ mod tests {
     }
 
     fn write_file(dir: &Path, name: &str, data: &[u8]) {
-        let revocation_dir = dir.join("revocation");
-        fs::create_dir_all(&revocation_dir).unwrap();
-        fs::write(revocation_dir.join(name), data).unwrap();
+        fs::write(dir.join(name), data).unwrap();
     }
 
     /// The serial number of the certificate checked by [`test_input`] and [`multi_sct_input`].
