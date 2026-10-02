@@ -12,9 +12,9 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use upki::revocation::{Index, RevocationCheckInput};
 #[cfg(feature = "__fetch")]
 use upki::revocation::{Manifest, fetch};
+use upki::revocation::{RevocationCheckInput, Store};
 use upki::{Config, ConfigPath};
 
 #[tokio::main(flavor = "current_thread")]
@@ -72,7 +72,7 @@ async fn main() -> Result<ExitCode, Report> {
             }
 
             let input = RevocationCheckInput::from_certificates(&certs)?;
-            Index::from_cache(&config)?
+            Store::from_config(&config)
                 .check(&input)?
                 .to_cli()
         }

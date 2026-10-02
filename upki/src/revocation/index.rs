@@ -4,9 +4,7 @@ use core::{fmt, str};
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom};
-#[cfg(feature = "__fetch")]
 use std::path::Path;
-use std::path::PathBuf;
 
 #[cfg(feature = "__fetch")]
 use clubcard_crlite::TimestampInterval;
@@ -15,7 +13,6 @@ use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 #[cfg(feature = "__fetch")]
 use super::Manifest;
 use super::{Error, RevocationCheckInput, RevocationStatus};
-use crate::Config;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
 ///
@@ -53,8 +50,7 @@ use crate::Config;
 /// "upkiidx1".
 ///
 /// This type stores a [`File`] for on-demand reading of entry sections.
-pub struct Index {
-    cache_dir: PathBuf,
+pub(super) struct Index {
     num_filenames: usize,
     num_logs: usize,
     logs_offset: usize,
@@ -70,11 +66,7 @@ impl Index {
     ///
     /// Only the header (filename table and log-ID directory) is loaded into memory.
     /// Entry sections are read on demand during [`check`](Self::check) via seeking.
-    pub fn from_cache(config: &Config) -> Result<Self, Error> {
-        Self::from_path(config.revocation_cache_dir())
-    }
-
-    fn from_path(cache_dir: PathBuf) -> Result<Self, Error> {
+    pub(super) fn from_path(cache_dir: &Path) -> Result<Self, Error> {
         let index_path = cache_dir.join(INDEX_BIN);
         let mut file = match File::open(&index_path) {
             Ok(file) => file,
@@ -148,7 +140,6 @@ impl Index {
             .map_err(|e| Error::IndexDecode(Box::new(e)))?;
 
         Ok(Self {
-            cache_dir,
             num_filenames,
             num_logs,
             logs_offset,
@@ -251,7 +242,11 @@ impl Index {
     /// the index file to read only those entries. Loads matching filter files and queries
     /// them for the certificate's revocation status. Each distinct filter file is read and
     /// parsed at most once per check.
-    pub fn check(&mut self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
+    pub(super) fn check(
+        &mut self,
+        input: &RevocationCheckInput,
+        cache_dir: &Path,
+    ) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let dir_data = &self.tables[self.logs_offset..];
         let mut maybe_good = false;
@@ -312,7 +307,7 @@ impl Index {
                 }
                 seen[filter_index] = true;
 
-                let path = self.cache_dir.join(filename);
+                let path = cache_dir.join(filename);
                 let bytes = match fs::read(&path) {
                     Ok(bytes) => bytes,
                     Err(error) => {
@@ -371,7 +366,6 @@ impl Index {
 impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
-            cache_dir,
             num_filenames,
             num_logs,
             logs_offset,
@@ -381,7 +375,6 @@ impl fmt::Debug for Index {
         } = self;
 
         f.debug_struct("Index")
-            .field("cache_dir", cache_dir)
             .field("filenames", num_filenames)
             .field("num_logs", num_logs)
             .field("logs_offset", logs_offset)
@@ -457,9 +450,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, &build_index(&[]));
         assert_eq!(
-            Index::from_path(dir.path().to_owned())
+            Index::from_path(dir.path())
                 .unwrap()
-                .check(&test_input())
+                .check(&test_input(), dir.path())
                 .unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
@@ -472,9 +465,9 @@ mod tests {
         let data = build_index(&[("test.filter", &[([0xcc; 32], 500, 1500)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_path(dir.path().to_owned())
+            Index::from_path(dir.path())
                 .unwrap()
-                .check(&test_input())
+                .check(&test_input(), dir.path())
                 .unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
@@ -487,9 +480,9 @@ mod tests {
         let data = build_index(&[("test.filter", &[([0xbb; 32], 2000, 3000)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_path(dir.path().to_owned())
+            Index::from_path(dir.path())
                 .unwrap()
-                .check(&test_input())
+                .check(&test_input(), dir.path())
                 .unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
@@ -499,7 +492,7 @@ mod tests {
     fn invalid_magic() {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, b"wrongmag\x00\x00\x00\x00\x00");
-        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
+        let err = Index::from_path(dir.path()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
@@ -507,7 +500,7 @@ mod tests {
     fn truncated_after_magic() {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, INDEX_MAGIC_V1);
-        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
+        let err = Index::from_path(dir.path()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
@@ -515,7 +508,7 @@ mod tests {
     fn truncated_before_magic() {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, b"upki");
-        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
+        let err = Index::from_path(dir.path()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
@@ -570,13 +563,13 @@ mod tests {
         data.extend_from_slice(&num_filenames.to_be_bytes());
         data.extend_from_slice(&num_logs.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
-        Index::from_path(dir.path().to_owned()).unwrap_err()
+        Index::from_path(dir.path()).unwrap_err()
     }
 
     #[test]
     fn missing_index() {
         let dir = tempfile::tempdir().unwrap();
-        let err = Index::from_path(dir.path().to_owned()).unwrap_err();
+        let err = Index::from_path(dir.path()).unwrap_err();
         assert!(matches!(err, Error::NoData { .. }));
     }
 
@@ -594,7 +587,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
+            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -621,7 +614,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
+            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -652,8 +645,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -682,8 +677,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::NotRevoked,
         );
 
@@ -711,8 +708,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::NotCoveredByRevocationData,
         );
 
@@ -740,8 +739,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -772,8 +773,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -805,7 +808,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -835,7 +838,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -867,7 +870,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -897,7 +900,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -926,7 +929,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&multi_sct_input(&[(log_a, 1000)]))?,
+            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -963,8 +966,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -994,8 +999,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::NotRevoked,
         );
 
@@ -1024,8 +1031,10 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?
-                .check(&multi_sct_input(&[(log_a, 1000), (log_b, 1000)]))?,
+            Index::from_path(dir.path())?.check(
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                dir.path()
+            )?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -1051,7 +1060,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path().to_owned())?.check(&test_input())?,
+            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -1064,9 +1073,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, &build_index_v0(&[]));
         assert_eq!(
-            Index::from_path(dir.path().to_owned())
+            Index::from_path(dir.path())
                 .unwrap()
-                .check(&test_input())
+                .check(&test_input(), dir.path())
                 .unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
@@ -1084,9 +1093,9 @@ mod tests {
         data[entry_offset..entry_offset + 2].copy_from_slice(&500u16.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
 
-        let err = Index::from_path(dir.path().to_owned())
+        let err = Index::from_path(dir.path())
             .unwrap()
-            .check(&test_input())
+            .check(&test_input(), dir.path())
             .unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }

@@ -22,9 +22,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
 use tracing::info;
 
-#[cfg(feature = "__fetch")]
-use crate::Config;
-use crate::sha256;
+use crate::{Config, sha256};
 
 #[cfg(feature = "__fetch")]
 mod fetch;
@@ -34,7 +32,33 @@ use fetch::Plan;
 pub use fetch::fetch;
 
 mod index;
-pub use index::Index;
+use index::Index;
+
+/// Revocation data store used for querying the revocation status of certificates.
+pub struct Store {
+    cache_dir: PathBuf,
+}
+
+impl Store {
+    /// Create a new `Store` from the given configuration.
+    ///
+    /// The `Store` will use the cache directory specified in the configuration.
+    pub fn from_config(config: &Config) -> Self {
+        Self {
+            cache_dir: config.revocation_cache_dir(),
+        }
+    }
+
+    /// Perform a revocation check.
+    pub fn check(&self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
+        Index::from_path(&self.cache_dir)?.check(input, &self.cache_dir)
+    }
+
+    /// Validate the revocation data store.
+    pub fn validate(&self) -> Result<(), Error> {
+        Index::from_path(&self.cache_dir).map(|_| ())
+    }
+}
 
 /// The structure contained in a manifest.json
 #[derive(Clone, Debug, Deserialize, Serialize)]

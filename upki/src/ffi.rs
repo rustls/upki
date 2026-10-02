@@ -8,7 +8,7 @@ use std::slice;
 
 use rustls_pki_types::CertificateDer;
 
-use crate::revocation::{self, Index, RevocationCheckInput, RevocationStatus};
+use crate::revocation::{self, RevocationCheckInput, RevocationStatus, Store};
 use crate::{Config, ConfigPath, Error};
 
 /// Check the revocation status of a certificate.
@@ -47,12 +47,8 @@ pub unsafe extern "C" fn upki_check_revocation(
             Err(err) => return Error::Revocation(err).into(),
         };
 
-        let mut index = match Index::from_cache(config) {
-            Ok(index) => index,
-            Err(err) => return Error::Revocation(err).into(),
-        };
-
-        match index.check(&input) {
+        let store = Store::from_config(config);
+        match store.check(&input) {
             Ok(status) => match status {
                 RevocationStatus::NotCoveredByRevocationData => {
                     upki_result::UPKI_REVOCATION_NOT_COVERED
