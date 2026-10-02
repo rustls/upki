@@ -98,12 +98,6 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Load the revocation manifest from the cache directory specified in the configuration.
-    #[cfg(feature = "__fetch")]
-    pub fn from_config(config: &Config) -> Result<Self, Error> {
-        Self::from_cache(&config.revocation_cache_dir())
-    }
-
     #[cfg(feature = "__fetch")]
     fn from_cache(cache_dir: &Path) -> Result<Self, Error> {
         let file_name = cache_dir.join("manifest.json");
@@ -125,7 +119,7 @@ impl Manifest {
 
     /// Logs metadata fields in this manifest.
     #[cfg(feature = "__fetch")]
-    pub fn introduce(&self) -> Result<(), Error> {
+    fn introduce(&self) -> Result<(), Error> {
         let dt = i64::try_from(self.generated_at)
             .ok()
             .and_then(|secs| Timestamp::from_second(secs).ok());
