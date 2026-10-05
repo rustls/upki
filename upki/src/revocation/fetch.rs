@@ -178,7 +178,7 @@ impl Plan {
         let mut unwanted_files = HashSet::new();
 
         if local.exists() {
-            let iter = fs::read_dir(local).map_err(|error| FetchError::CreateDirectory {
+            let iter = fs::read_dir(local).map_err(|error| FetchError::DirectoryCreate {
                 error,
                 path: local.to_owned(),
             })?;
@@ -279,7 +279,7 @@ impl PlanStep {
     async fn execute(self, client: &reqwest::Client) -> Result<(), FetchError> {
         match self {
             Self::CreateDir(path) => fs::create_dir_all(&path)
-                .map_err(|error| FetchError::CreateDirectory { error, path })?,
+                .map_err(|error| FetchError::DirectoryCreate { error, path })?,
             Self::Download {
                 file,
                 remote_url,
