@@ -10,6 +10,9 @@ cargo-dist-version = "0.32.0"
 ci = "github"
 installers = []
 github-build-setup = "../cargo-c-setup.yml"
+# Build only the packages being released: the default `--workspace` build also compiles
+# upki-openssl, which needs OpenSSL and so fails on the Windows and musl targets.
+precise-builds = true
 targets = [
     "aarch64-apple-darwin",
     "aarch64-unknown-linux-gnu",
