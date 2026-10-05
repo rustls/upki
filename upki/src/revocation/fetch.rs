@@ -329,7 +329,7 @@ impl PlanStep {
             }
             Self::Delete(target) => {
                 debug!("deleting unreferenced file {target:?}");
-                fs::remove_file(&target).map_err(|error| FetchError::RemoveFile {
+                fs::remove_file(&target).map_err(|error| FetchError::FileRemove {
                     error,
                     path: target,
                 })?;
