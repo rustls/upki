@@ -21,8 +21,9 @@ use crate::revocation::RevocationConfig;
 pub mod ffi;
 
 /// Update the local caches by fetching new data from the network.
-pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
-    Ok(revocation::fetch(dry_run, config).await?)
+#[cfg(feature = "__fetch")]
+pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
+    revocation::fetch(dry_run, config).await
 }
 
 /// `upki` configuration.
@@ -253,6 +254,121 @@ impl fmt::Display for Error {
 impl From<revocation::Error> for Error {
     fn from(value: revocation::Error) -> Self {
         Self::Revocation(value)
+    }
+}
+
+/// Fetch errors
+#[cfg(feature = "__fetch")]
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum FetchError {
+    /// Failed to create a directory.
+    CreateDirectory {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the directory being created.
+        path: PathBuf,
+    },
+    /// Failed to decode a file.
+    FileDecode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the file.
+        path: Option<PathBuf>,
+    },
+    /// Failed to read a file.
+    FileRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file.
+        path: Option<PathBuf>,
+    },
+    /// Failed to write a file.
+    FileWrite {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being written.
+        path: PathBuf,
+    },
+    /// A downloaded file did not match the expected hash.
+    HashMismatch(PathBuf),
+    /// Failed to fetch a file over HTTP.
+    HttpFetch {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// URL being accessed.
+        url: String,
+    },
+    /// A timestamp could not be parsed.
+    InvalidTimestamp {
+        /// Input value that failed to parse as a timestamp.
+        input: String,
+        /// Context in which the timestamp was being parsed.
+        context: &'static str,
+    },
+    /// Failed to encode a manifest file.
+    ManifestEncode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the manifest file.
+        path: PathBuf,
+    },
+    /// Number of bytes that need to be downloaded to update the local cache.
+    Outdated(usize),
+    /// Failed to remove a file.
+    RemoveFile {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being removed.
+        path: PathBuf,
+    },
+}
+
+#[cfg(feature = "__fetch")]
+impl fmt::Display for FetchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CreateDirectory { path, .. } => {
+                write!(f, "cannot create directory {path:?}")
+            }
+            Self::FileDecode { path, .. } => match path {
+                Some(path) => write!(f, "cannot decode file {path:?}"),
+                None => write!(f, "cannot decode file"),
+            },
+            Self::FileRead { path, .. } => match path {
+                Some(path) => write!(f, "cannot read file {path:?}"),
+                None => write!(f, "cannot read file"),
+            },
+            Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
+            Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
+            Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
+            Self::InvalidTimestamp { input, context } => {
+                write!(f, "invalid timestamp for {context}: '{input}'")
+            }
+            Self::ManifestEncode { path, .. } => {
+                write!(f, "cannot encode manifest file at {path:?}")
+            }
+            Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
+            Self::RemoveFile { path, .. } => write!(f, "cannot remove file {path:?}"),
+        }
+    }
+}
+
+#[cfg(feature = "__fetch")]
+impl StdError for FetchError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::CreateDirectory { error, .. } => Some(error),
+            Self::FileDecode { error, .. } => Some(&**error),
+            Self::FileRead { error, .. } => Some(error),
+            Self::FileWrite { error, .. } => Some(error),
+            Self::HashMismatch(_) => None,
+            Self::HttpFetch { error, .. } => Some(&**error),
+            Self::InvalidTimestamp { .. } => None,
+            Self::ManifestEncode { error, .. } => Some(&**error),
+            Self::Outdated(_) => None,
+            Self::RemoveFile { error, .. } => Some(error),
+        }
     }
 }
 

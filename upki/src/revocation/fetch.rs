@@ -26,15 +26,15 @@ use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
 use super::index::INDEX_BIN;
-use super::{Error, Index, Manifest, ManifestFile};
-use crate::{Config, sha256};
+use super::{Index, Manifest, ManifestFile};
+use crate::{Config, FetchError, sha256};
 
 /// Update the local revocation cache by fetching updates over the network.
 ///
 /// `dry_run` means this call fetches the new manifest, but does not fetch any
 /// required files; but the necessary files are printed to stdout.  Therefore
 /// such a call is not completely "dry" -- perhaps "moist".
-pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
+pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
     let cache_dir = config.revocation_cache_dir();
     info!(
         "fetching {} into {:?}...",
@@ -56,7 +56,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
             env!("CARGO_PKG_REPOSITORY")
         ))
         .build()
-        .map_err(|error| Error::HttpFetch {
+        .map_err(|error| FetchError::HttpFetch {
             error: Box::new(error),
             url: manifest_url.clone(),
         })?;
@@ -82,12 +82,12 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
     let response = request
         .send()
         .await
-        .map_err(|error| Error::HttpFetch {
+        .map_err(|error| FetchError::HttpFetch {
             error: Box::new(error),
             url: manifest_url.clone(),
         })?
         .error_for_status()
-        .map_err(|error| Error::HttpFetch {
+        .map_err(|error| FetchError::HttpFetch {
             error: Box::new(error),
             url: manifest_url.clone(),
         })?;
@@ -98,7 +98,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
             response
                 .json::<Manifest>()
                 .await
-                .map_err(|error| Error::FileDecode {
+                .map_err(|error| FetchError::FileDecode {
                     error: Box::new(error),
                     path: None,
                 })?,
@@ -171,14 +171,14 @@ impl Plan {
         old_files: Option<impl Iterator<Item = &'a str>>,
         remote_url: &str,
         local: &Path,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, FetchError> {
         let mut steps = Vec::new();
 
         // Collect unwanted files for deletion
         let mut unwanted_files = HashSet::new();
 
         if local.exists() {
-            let iter = fs::read_dir(local).map_err(|error| Error::CreateDirectory {
+            let iter = fs::read_dir(local).map_err(|error| FetchError::CreateDirectory {
                 error,
                 path: local.to_owned(),
             })?;
@@ -186,7 +186,7 @@ impl Plan {
             for entry in iter {
                 let entry = match entry {
                     Ok(e) => e,
-                    Err(error) => return Err(Error::FileRead { error, path: None }),
+                    Err(error) => return Err(FetchError::FileRead { error, path: None }),
                 };
 
                 let path = Path::new(&entry.file_name()).to_owned();
@@ -276,11 +276,10 @@ enum PlanStep {
 }
 
 impl PlanStep {
-    async fn execute(self, client: &reqwest::Client) -> Result<(), Error> {
+    async fn execute(self, client: &reqwest::Client) -> Result<(), FetchError> {
         match self {
-            Self::CreateDir(path) => {
-                fs::create_dir_all(&path).map_err(|error| Error::CreateDirectory { error, path })?
-            }
+            Self::CreateDir(path) => fs::create_dir_all(&path)
+                .map_err(|error| FetchError::CreateDirectory { error, path })?,
             Self::Download {
                 file,
                 remote_url,
@@ -292,12 +291,12 @@ impl PlanStep {
                     .get(&remote_url)
                     .send()
                     .await
-                    .map_err(|error| Error::HttpFetch {
+                    .map_err(|error| FetchError::HttpFetch {
                         error: Box::new(error),
                         url: remote_url.clone(),
                     })?
                     .error_for_status()
-                    .map_err(|error| Error::HttpFetch {
+                    .map_err(|error| FetchError::HttpFetch {
                         error: Box::new(error),
                         url: remote_url.clone(),
                     })?;
@@ -305,21 +304,21 @@ impl PlanStep {
                 let bytes = response
                     .bytes()
                     .await
-                    .map_err(|error| Error::HttpFetch {
+                    .map_err(|error| FetchError::HttpFetch {
                         error: Box::new(error),
                         url: remote_url.clone(),
                     })?;
 
-                atomic_write(&local, &bytes).map_err(|error| Error::FileWrite {
+                atomic_write(&local, &bytes).map_err(|error| FetchError::FileWrite {
                     error,
                     path: local.clone(),
                 })?;
 
                 match hash_file(&local) {
                     Ok(digest) if digest.as_ref() == file.hash => {}
-                    Ok(_) => return Err(Error::HashMismatch(local)),
+                    Ok(_) => return Err(FetchError::HashMismatch(local)),
                     Err(error) => {
-                        return Err(Error::FileRead {
+                        return Err(FetchError::FileRead {
                             error,
                             path: Some(local),
                         });
@@ -330,7 +329,7 @@ impl PlanStep {
             }
             Self::Delete(target) => {
                 debug!("deleting unreferenced file {target:?}");
-                fs::remove_file(&target).map_err(|error| Error::RemoveFile {
+                fs::remove_file(&target).map_err(|error| FetchError::RemoveFile {
                     error,
                     path: target,
                 })?;
@@ -354,7 +353,7 @@ impl PlanStep {
                     .suffix(".new")
                     .tempfile_in(&local_dir);
 
-                let mut local_temp = temp.map_err(|error| Error::FileWrite {
+                let mut local_temp = temp.map_err(|error| FetchError::FileWrite {
                     error,
                     path: local_dir.clone(),
                 })?;
@@ -362,7 +361,7 @@ impl PlanStep {
                 local_temp
                     .as_file_mut()
                     .write_all(&buf)
-                    .map_err(|error| Error::FileWrite {
+                    .map_err(|error| FetchError::FileWrite {
                         error,
                         path: local_temp.path().to_owned(),
                     })?;
@@ -370,7 +369,7 @@ impl PlanStep {
                 let path = local_dir.join(INDEX_BIN);
                 local_temp
                     .persist(&path)
-                    .map_err(|error| Error::FileWrite {
+                    .map_err(|error| FetchError::FileWrite {
                         error: error.error,
                         path,
                     })?;
@@ -382,11 +381,12 @@ impl PlanStep {
                 debug!("saving manifest");
                 let path = local_dir.join(MANIFEST_JSON);
                 let data =
-                    serde_json::to_vec(&manifest).map_err(|error| Error::ManifestEncode {
+                    serde_json::to_vec(&manifest).map_err(|error| FetchError::ManifestEncode {
                         error: Box::new(error),
                         path: path.clone(),
                     })?;
-                atomic_write(&path, &data).map_err(|error| Error::FileWrite { error, path })?;
+                atomic_write(&path, &data)
+                    .map_err(|error| FetchError::FileWrite { error, path })?;
             }
         }
 

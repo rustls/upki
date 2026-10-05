@@ -66,14 +66,6 @@ typedef enum upki_result {
    */
   UPKI_ERR_NO_HOME_DIR = 36,
   /**
-   * Failed to create a directory.
-   */
-  UPKI_ERR_REVOCATION_CREATE_DIR = 64,
-  /**
-   * Failed to write a file.
-   */
-  UPKI_ERR_REVOCATION_FILE_WRITE = 65,
-  /**
    * Failed to decode a file.
    */
   UPKI_ERR_REVOCATION_FILE_DECODE = 66,
@@ -81,14 +73,6 @@ typedef enum upki_result {
    * Failed to read a file.
    */
   UPKI_ERR_REVOCATION_FILE_READ = 67,
-  /**
-   * A downloaded file did not match the expected hash.
-   */
-  UPKI_ERR_REVOCATION_HASH_MISMATCH = 68,
-  /**
-   * Failed to fetch a file over HTTP.
-   */
-  UPKI_ERR_REVOCATION_HTTP_FETCH = 69,
   /**
    * Invalid base64 encoding.
    */
@@ -118,21 +102,9 @@ typedef enum upki_result {
    */
   UPKI_ERR_REVOCATION_INVALID_TIMESTAMP = 76,
   /**
-   * Failed to encode a manifest file.
-   */
-  UPKI_ERR_REVOCATION_MANIFEST_ENCODE = 77,
-  /**
    * No issuer found for the end-entity certificate.
    */
   UPKI_ERR_REVOCATION_NO_ISSUER = 78,
-  /**
-   * Cache is outdated.
-   */
-  UPKI_ERR_REVOCATION_OUTDATED = 79,
-  /**
-   * Failed to remove a file.
-   */
-  UPKI_ERR_REVOCATION_REMOVE_FILE = 80,
   /**
    * Certificate chain must contain at least 2 certificates.
    */

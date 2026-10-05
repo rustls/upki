@@ -24,6 +24,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
 use tracing::info;
 
+#[cfg(feature = "__fetch")]
+use crate::FetchError;
 use crate::{Config, sha256};
 
 #[cfg(feature = "__fetch")]
@@ -55,7 +57,7 @@ impl Store {
     ///
     /// This performs disk IO but does not perform network IO.
     #[cfg(feature = "__fetch")]
-    pub fn verify(&self) -> Result<(), Error> {
+    pub fn verify(&self) -> Result<(), FetchError> {
         let manifest = Manifest::from_cache(&self.cache_dir)?;
         manifest.introduce()?;
         let plan = Plan::construct(
@@ -66,7 +68,7 @@ impl Store {
         )?;
         match plan.download_bytes() {
             0 => Ok(()),
-            bytes => Err(Error::Outdated(bytes)),
+            bytes => Err(FetchError::Outdated(bytes)),
         }
     }
 
@@ -99,19 +101,19 @@ pub struct Manifest {
 
 impl Manifest {
     #[cfg(feature = "__fetch")]
-    fn from_cache(cache_dir: &Path) -> Result<Self, Error> {
+    fn from_cache(cache_dir: &Path) -> Result<Self, FetchError> {
         let file_name = cache_dir.join("manifest.json");
         let file = match File::open(&file_name) {
             Ok(f) => f,
             Err(error) => {
-                return Err(Error::FileRead {
+                return Err(FetchError::FileRead {
                     error,
                     path: Some(file_name),
                 });
             }
         };
 
-        serde_json::from_reader(BufReader::new(file)).map_err(|error| Error::FileDecode {
+        serde_json::from_reader(BufReader::new(file)).map_err(|error| FetchError::FileDecode {
             error: Box::new(error),
             path: Some(file_name),
         })
@@ -119,12 +121,12 @@ impl Manifest {
 
     /// Logs metadata fields in this manifest.
     #[cfg(feature = "__fetch")]
-    fn introduce(&self) -> Result<(), Error> {
+    fn introduce(&self) -> Result<(), FetchError> {
         let dt = i64::try_from(self.generated_at)
             .ok()
             .and_then(|secs| Timestamp::from_second(secs).ok());
         let Some(dt) = dt else {
-            return Err(Error::InvalidTimestamp {
+            return Err(FetchError::InvalidTimestamp {
                 input: self.generated_at.to_string(),
                 context: "manifest generated (in s)",
             });
@@ -369,20 +371,6 @@ fn find_issuer<'a>(
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum Error {
-    /// Failed to create a directory.
-    CreateDirectory {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the directory being created.
-        path: PathBuf,
-    },
-    /// Failed to write a file.
-    FileWrite {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file being written.
-        path: PathBuf,
-    },
     /// Failed to decode a file.
     FileDecode {
         /// Underlying error.
@@ -397,17 +385,8 @@ pub enum Error {
         /// Path to the file.
         path: Option<PathBuf>,
     },
-    /// A downloaded file did not match the expected hash.
-    HashMismatch(PathBuf),
     /// Failed to decode the index file.
     IndexDecode(Box<dyn StdError + Send + Sync>),
-    /// Failed to fetch a file over HTTP.
-    HttpFetch {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// URL being accessed.
-        url: String,
-    },
     /// Invalid base64 encoding.
     InvalidBase64 {
         /// Underlying error.
@@ -444,13 +423,6 @@ pub enum Error {
         /// Context in which the timestamp was being parsed.
         context: &'static str,
     },
-    /// Failed to encode a manifest file.
-    ManifestEncode {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// Path to the manifest file.
-        path: PathBuf,
-    },
     /// No revocation data is present in the cache.
     ///
     /// This happens before revocation data is fetched for the first time.
@@ -462,15 +434,6 @@ pub enum Error {
     },
     /// No issuer found for the end-entity certificate in the provided chain.
     NoIssuer,
-    /// Number of bytes that need to be downloaded to update the local cache.
-    Outdated(usize),
-    /// Failed to remove a file.
-    RemoveFile {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file being removed.
-        path: PathBuf,
-    },
     /// Certificate chains must contain at least 2 certificates.
     TooFewCertificates,
 }
@@ -478,10 +441,6 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::CreateDirectory { path, .. } => {
-                write!(f, "cannot create directory {path:?}")
-            }
-            Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
             Self::FileDecode { path, .. } => match path {
                 Some(path) => write!(f, "cannot decode file {path:?}"),
                 None => write!(f, "cannot decode file"),
@@ -490,9 +449,7 @@ impl fmt::Display for Error {
                 Some(path) => write!(f, "cannot read file {path:?}"),
                 None => write!(f, "cannot read file"),
             },
-            Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
             Self::IndexDecode(_) => write!(f, "cannot decode index file"),
-            Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
             Self::InvalidBase64 { context, .. } => {
                 write!(f, "invalid base64 for {context}")
             }
@@ -517,13 +474,8 @@ impl fmt::Display for Error {
             Self::InvalidTimestamp { input, context } => {
                 write!(f, "invalid timestamp for {context}: '{input}'")
             }
-            Self::ManifestEncode { path, .. } => {
-                write!(f, "cannot encode manifest file at {path:?}")
-            }
             Self::NoData { path } => write!(f, "no revocation data found at {path:?}"),
             Self::NoIssuer => write!(f, "no issuer found for end-entity certificate"),
-            Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
-            Self::RemoveFile { path, .. } => write!(f, "cannot remove file {path:?}"),
             Self::TooFewCertificates => {
                 write!(f, "certificate chain must contain at least 2 certificates")
             }
@@ -534,13 +486,9 @@ impl fmt::Display for Error {
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Self::CreateDirectory { error, .. } => Some(error),
-            Self::FileWrite { error, .. } => Some(error),
             Self::FileDecode { error, .. } => Some(&**error),
             Self::FileRead { error, .. } => Some(error),
-            Self::HashMismatch(_) => None,
             Self::IndexDecode(error) => Some(&**error),
-            Self::HttpFetch { error, .. } => Some(&**error),
             Self::InvalidBase64 { error, .. } => Some(&**error),
             Self::InvalidEndEntityCertificate(error) => Some(&**error),
             Self::InvalidIntermediateCertificate { error, .. } => Some(&**error),
@@ -548,11 +496,8 @@ impl StdError for Error {
             Self::InvalidSctEncoding => None,
             Self::InvalidSctInCertificate(error) => Some(&**error),
             Self::InvalidTimestamp { .. } => None,
-            Self::ManifestEncode { error, .. } => Some(&**error),
             Self::NoData { .. } => None,
             Self::NoIssuer => None,
-            Self::Outdated(_) => None,
-            Self::RemoveFile { error, .. } => Some(error),
             Self::TooFewCertificates => None,
         }
     }
