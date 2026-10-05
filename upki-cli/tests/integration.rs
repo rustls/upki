@@ -24,7 +24,7 @@ fn version() {
     success: true
     exit_code: 0
     ----- stdout -----
-    upki 1.0.0-beta.4
+    upki 1.0.0
 
     ----- stderr -----
     ");
