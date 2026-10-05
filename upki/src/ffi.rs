@@ -175,18 +175,10 @@ pub enum upki_result {
     UPKI_ERR_NO_HOME_DIR = 36,
 
     // Errors from upki::revocation::Error
-    /// Failed to create a directory.
-    UPKI_ERR_REVOCATION_CREATE_DIR = 64,
-    /// Failed to write a file.
-    UPKI_ERR_REVOCATION_FILE_WRITE = 65,
     /// Failed to decode a file.
     UPKI_ERR_REVOCATION_FILE_DECODE = 66,
     /// Failed to read a file.
     UPKI_ERR_REVOCATION_FILE_READ = 67,
-    /// A downloaded file did not match the expected hash.
-    UPKI_ERR_REVOCATION_HASH_MISMATCH = 68,
-    /// Failed to fetch a file over HTTP.
-    UPKI_ERR_REVOCATION_HTTP_FETCH = 69,
     /// Invalid base64 encoding.
     UPKI_ERR_REVOCATION_INVALID_BASE64 = 70,
     /// The end-entity certificate was invalid.
@@ -201,14 +193,8 @@ pub enum upki_result {
     UPKI_ERR_REVOCATION_INVALID_SCT_IN_CERT = 75,
     /// A timestamp could not be parsed.
     UPKI_ERR_REVOCATION_INVALID_TIMESTAMP = 76,
-    /// Failed to encode a manifest file.
-    UPKI_ERR_REVOCATION_MANIFEST_ENCODE = 77,
     /// No issuer found for the end-entity certificate.
     UPKI_ERR_REVOCATION_NO_ISSUER = 78,
-    /// Cache is outdated.
-    UPKI_ERR_REVOCATION_OUTDATED = 79,
-    /// Failed to remove a file.
-    UPKI_ERR_REVOCATION_REMOVE_FILE = 80,
     /// Certificate chain must contain at least 2 certificates.
     UPKI_ERR_REVOCATION_TOO_FEW_CERTS = 81,
     /// Failed to decode the index file.
@@ -238,14 +224,8 @@ impl upki_result {
             Self::UPKI_ERR_NO_CACHE_DIR => c"no cache directory could be found",
             Self::UPKI_ERR_NO_CONFIG_DIR => c"no configuration directory could be found",
             Self::UPKI_ERR_NO_HOME_DIR => c"the user's home directory could not be determined",
-            Self::UPKI_ERR_REVOCATION_CREATE_DIR => c"failed to create a directory",
-            Self::UPKI_ERR_REVOCATION_FILE_WRITE => c"failed to write a file",
             Self::UPKI_ERR_REVOCATION_FILE_DECODE => c"failed to decode a file",
             Self::UPKI_ERR_REVOCATION_FILE_READ => c"failed to read a file",
-            Self::UPKI_ERR_REVOCATION_HASH_MISMATCH => {
-                c"a downloaded file did not match the expected hash"
-            }
-            Self::UPKI_ERR_REVOCATION_HTTP_FETCH => c"failed to fetch a file over http",
             Self::UPKI_ERR_REVOCATION_INVALID_BASE64 => c"invalid base64 encoding",
             Self::UPKI_ERR_REVOCATION_INVALID_END_ENTITY_CERT => {
                 c"the end-entity certificate was invalid"
@@ -261,12 +241,9 @@ impl upki_result {
                 c"an sct in the end-entity certificate could not be parsed"
             }
             Self::UPKI_ERR_REVOCATION_INVALID_TIMESTAMP => c"a timestamp could not be parsed",
-            Self::UPKI_ERR_REVOCATION_MANIFEST_ENCODE => c"failed to encode a manifest file",
             Self::UPKI_ERR_REVOCATION_NO_ISSUER => {
                 c"no issuer found for the end-entity certificate"
             }
-            Self::UPKI_ERR_REVOCATION_OUTDATED => c"cache is outdated",
-            Self::UPKI_ERR_REVOCATION_REMOVE_FILE => c"failed to remove a file",
             Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS => {
                 c"certificate chain must contain at least 2 certificates"
             }
@@ -290,12 +267,8 @@ impl upki_result {
         Self::UPKI_ERR_NO_CACHE_DIR,
         Self::UPKI_ERR_NO_CONFIG_DIR,
         Self::UPKI_ERR_NO_HOME_DIR,
-        Self::UPKI_ERR_REVOCATION_CREATE_DIR,
-        Self::UPKI_ERR_REVOCATION_FILE_WRITE,
         Self::UPKI_ERR_REVOCATION_FILE_DECODE,
         Self::UPKI_ERR_REVOCATION_FILE_READ,
-        Self::UPKI_ERR_REVOCATION_HASH_MISMATCH,
-        Self::UPKI_ERR_REVOCATION_HTTP_FETCH,
         Self::UPKI_ERR_REVOCATION_INVALID_BASE64,
         Self::UPKI_ERR_REVOCATION_INVALID_END_ENTITY_CERT,
         Self::UPKI_ERR_REVOCATION_INVALID_INTERMEDIATE_CERT,
@@ -303,10 +276,7 @@ impl upki_result {
         Self::UPKI_ERR_REVOCATION_INVALID_SCT_ENCODING,
         Self::UPKI_ERR_REVOCATION_INVALID_SCT_IN_CERT,
         Self::UPKI_ERR_REVOCATION_INVALID_TIMESTAMP,
-        Self::UPKI_ERR_REVOCATION_MANIFEST_ENCODE,
         Self::UPKI_ERR_REVOCATION_NO_ISSUER,
-        Self::UPKI_ERR_REVOCATION_OUTDATED,
-        Self::UPKI_ERR_REVOCATION_REMOVE_FILE,
         Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS,
         Self::UPKI_ERR_REVOCATION_INDEX_DECODE,
         Self::UPKI_ERR_REVOCATION_NO_DATA,
@@ -321,23 +291,11 @@ impl From<Error> for upki_result {
             Error::NoCacheDirectoryFound => Self::UPKI_ERR_NO_CACHE_DIR,
             Error::NoConfigDirectoryFound => Self::UPKI_ERR_NO_CONFIG_DIR,
             Error::NoValidHomeDirectory => Self::UPKI_ERR_NO_HOME_DIR,
-            Error::Revocation(revocation::Error::CreateDirectory { .. }) => {
-                Self::UPKI_ERR_REVOCATION_CREATE_DIR
-            }
-            Error::Revocation(revocation::Error::FileWrite { .. }) => {
-                Self::UPKI_ERR_REVOCATION_FILE_WRITE
-            }
             Error::Revocation(revocation::Error::FileDecode { .. }) => {
                 Self::UPKI_ERR_REVOCATION_FILE_DECODE
             }
             Error::Revocation(revocation::Error::FileRead { .. }) => {
                 Self::UPKI_ERR_REVOCATION_FILE_READ
-            }
-            Error::Revocation(revocation::Error::HashMismatch(_)) => {
-                Self::UPKI_ERR_REVOCATION_HASH_MISMATCH
-            }
-            Error::Revocation(revocation::Error::HttpFetch { .. }) => {
-                Self::UPKI_ERR_REVOCATION_HTTP_FETCH
             }
             Error::Revocation(revocation::Error::InvalidBase64 { .. }) => {
                 Self::UPKI_ERR_REVOCATION_INVALID_BASE64
@@ -360,14 +318,7 @@ impl From<Error> for upki_result {
             Error::Revocation(revocation::Error::InvalidTimestamp { .. }) => {
                 Self::UPKI_ERR_REVOCATION_INVALID_TIMESTAMP
             }
-            Error::Revocation(revocation::Error::ManifestEncode { .. }) => {
-                Self::UPKI_ERR_REVOCATION_MANIFEST_ENCODE
-            }
             Error::Revocation(revocation::Error::NoIssuer) => Self::UPKI_ERR_REVOCATION_NO_ISSUER,
-            Error::Revocation(revocation::Error::Outdated(_)) => Self::UPKI_ERR_REVOCATION_OUTDATED,
-            Error::Revocation(revocation::Error::RemoveFile { .. }) => {
-                Self::UPKI_ERR_REVOCATION_REMOVE_FILE
-            }
             Error::Revocation(revocation::Error::TooFewCertificates) => {
                 Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS
             }
