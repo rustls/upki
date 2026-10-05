@@ -15,7 +15,6 @@ use insta::assert_snapshot;
 use insta::internals::SettingsBindDropGuard;
 use insta_cmd::assert_cmd_snapshot;
 use jiff::fmt::rfc2822::DateTimeParser;
-use rand::RngExt;
 use tempfile::TempDir;
 
 #[test]
@@ -548,16 +547,13 @@ fn upki() -> Command {
 }
 
 fn http_server(root: &str, conditional: bool) -> (TestHttpServer, SettingsBindDropGuard) {
-    let port = rand::rng().random_range(4000..12000);
+    let server = TestHttpServer::new(("127.0.0.1", 0), Path::new(root), conditional).unwrap();
 
-    // add a filter eliding the (random) port in logs
+    // add a filter eliding the (OS-assigned) port in logs
     let mut current_filters = insta::Settings::clone_current();
-    current_filters.add_filter(&format!(":{port}/"), ":[PORT]/");
+    current_filters.add_filter(&format!(":{}/", server.port), ":[PORT]/");
 
-    (
-        TestHttpServer::new(("127.0.0.1", port), Path::new(root), conditional).unwrap(),
-        current_filters.bind_to_scope(),
-    )
+    (server, current_filters.bind_to_scope())
 }
 
 fn list_dir(path: &Path) -> Vec<String> {
@@ -620,6 +616,7 @@ fn apply_common_filters() -> SettingsBindDropGuard {
 
 pub struct TestHttpServer {
     server: Arc<tiny_http::Server>,
+    port: u16,
     url: String,
     handle: Option<thread::JoinHandle<String>>,
 }
@@ -631,6 +628,10 @@ impl TestHttpServer {
         conditional: bool,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let server = Arc::new(tiny_http::Server::http(addr)?);
+        let addr = server
+            .server_addr()
+            .to_ip()
+            .ok_or("server is not listening on an IP address")?;
 
         let thread_server = server.clone();
         let server_root = server_root.to_owned();
@@ -669,7 +670,8 @@ impl TestHttpServer {
 
         Ok(Self {
             server,
-            url: format!("http://{}:{}/", addr.0, addr.1),
+            port: addr.port(),
+            url: format!("http://{addr}/"),
             handle: Some(joiner),
         })
     }
