@@ -13,7 +13,7 @@ use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 #[cfg(feature = "__fetch")]
-use upki::revocation::fetch;
+use upki::fetch;
 use upki::revocation::{RevocationCheckInput, Store};
 use upki::{Config, ConfigPath};
 

@@ -31,7 +31,7 @@ mod fetch;
 #[cfg(feature = "__fetch")]
 use fetch::Plan;
 #[cfg(feature = "__fetch")]
-pub use fetch::fetch;
+pub(crate) use fetch::fetch;
 
 mod index;
 use index::Index;
