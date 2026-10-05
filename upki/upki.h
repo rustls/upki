@@ -68,55 +68,55 @@ typedef enum upki_result {
   /**
    * Failed to decode a file.
    */
-  UPKI_ERR_REVOCATION_FILE_DECODE = 66,
+  UPKI_ERR_REVOCATION_FILE_DECODE = 64,
   /**
    * Failed to read a file.
    */
-  UPKI_ERR_REVOCATION_FILE_READ = 67,
+  UPKI_ERR_REVOCATION_FILE_READ = 65,
   /**
    * Invalid base64 encoding.
    */
-  UPKI_ERR_REVOCATION_INVALID_BASE64 = 70,
+  UPKI_ERR_REVOCATION_INVALID_BASE64 = 66,
   /**
    * The end-entity certificate was invalid.
    */
-  UPKI_ERR_REVOCATION_INVALID_END_ENTITY_CERT = 71,
+  UPKI_ERR_REVOCATION_INVALID_END_ENTITY_CERT = 67,
   /**
    * An intermediate certificate was invalid.
    */
-  UPKI_ERR_REVOCATION_INVALID_INTERMEDIATE_CERT = 72,
+  UPKI_ERR_REVOCATION_INVALID_INTERMEDIATE_CERT = 68,
   /**
    * A base64-decoded value did not have the expected length.
    */
-  UPKI_ERR_REVOCATION_INVALID_LENGTH = 73,
+  UPKI_ERR_REVOCATION_INVALID_LENGTH = 69,
   /**
    * Invalid SCT encoding.
    */
-  UPKI_ERR_REVOCATION_INVALID_SCT_ENCODING = 74,
+  UPKI_ERR_REVOCATION_INVALID_SCT_ENCODING = 70,
   /**
    * An SCT in the end-entity certificate could not be parsed.
    */
-  UPKI_ERR_REVOCATION_INVALID_SCT_IN_CERT = 75,
+  UPKI_ERR_REVOCATION_INVALID_SCT_IN_CERT = 71,
   /**
    * A timestamp could not be parsed.
    */
-  UPKI_ERR_REVOCATION_INVALID_TIMESTAMP = 76,
+  UPKI_ERR_REVOCATION_INVALID_TIMESTAMP = 72,
   /**
    * No issuer found for the end-entity certificate.
    */
-  UPKI_ERR_REVOCATION_NO_ISSUER = 78,
+  UPKI_ERR_REVOCATION_NO_ISSUER = 73,
   /**
    * Certificate chain must contain at least 2 certificates.
    */
-  UPKI_ERR_REVOCATION_TOO_FEW_CERTS = 81,
+  UPKI_ERR_REVOCATION_TOO_FEW_CERTS = 74,
   /**
    * Failed to decode the index file.
    */
-  UPKI_ERR_REVOCATION_INDEX_DECODE = 82,
+  UPKI_ERR_REVOCATION_INDEX_DECODE = 75,
   /**
    * No revocation data is present in the cache.
    */
-  UPKI_ERR_REVOCATION_NO_DATA = 83,
+  UPKI_ERR_REVOCATION_NO_DATA = 76,
 } upki_result;
 
 /**
