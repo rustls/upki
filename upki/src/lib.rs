@@ -283,6 +283,13 @@ pub enum FetchError {
         /// Path to the file.
         path: Option<PathBuf>,
     },
+    /// Failed to remove a file.
+    FileRemove {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being removed.
+        path: PathBuf,
+    },
     /// Failed to write a file.
     FileWrite {
         /// Underlying error.
@@ -315,13 +322,6 @@ pub enum FetchError {
     },
     /// Number of bytes that need to be downloaded to update the local cache.
     Outdated(usize),
-    /// Failed to remove a file.
-    RemoveFile {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file being removed.
-        path: PathBuf,
-    },
 }
 
 #[cfg(feature = "__fetch")]
@@ -349,7 +349,7 @@ impl fmt::Display for FetchError {
                 write!(f, "cannot encode manifest file at {path:?}")
             }
             Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
-            Self::RemoveFile { path, .. } => write!(f, "cannot remove file {path:?}"),
+            Self::FileRemove { path, .. } => write!(f, "cannot remove file {path:?}"),
         }
     }
 }
@@ -367,7 +367,7 @@ impl StdError for FetchError {
             Self::InvalidTimestamp { .. } => None,
             Self::ManifestEncode { error, .. } => Some(&**error),
             Self::Outdated(_) => None,
-            Self::RemoveFile { error, .. } => Some(error),
+            Self::FileRemove { error, .. } => Some(error),
         }
     }
 }
