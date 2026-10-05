@@ -178,7 +178,7 @@ impl Plan {
         let mut unwanted_files = HashSet::new();
 
         if local.exists() {
-            let iter = fs::read_dir(local).map_err(|error| FetchError::DirectoryCreate {
+            let iter = fs::read_dir(local).map_err(|error| FetchError::DirectoryRead {
                 error,
                 path: local.to_owned(),
             })?;

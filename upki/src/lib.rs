@@ -269,6 +269,13 @@ pub enum FetchError {
         /// Path to the directory being created.
         path: PathBuf,
     },
+    /// Failed to read a directory.
+    DirectoryRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the directory being read.
+        path: PathBuf,
+    },
     /// Failed to decode a file.
     FileDecode {
         /// Underlying error.
@@ -331,6 +338,9 @@ impl fmt::Display for FetchError {
             Self::DirectoryCreate { path, .. } => {
                 write!(f, "cannot create directory {path:?}")
             }
+            Self::DirectoryRead { path, .. } => {
+                write!(f, "cannot read directory {path:?}")
+            }
             Self::FileDecode { path, .. } => match path {
                 Some(path) => write!(f, "cannot decode file {path:?}"),
                 None => write!(f, "cannot decode file"),
@@ -359,6 +369,7 @@ impl StdError for FetchError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             Self::DirectoryCreate { error, .. } => Some(error),
+            Self::DirectoryRead { error, .. } => Some(error),
             Self::FileDecode { error, .. } => Some(&**error),
             Self::FileRead { error, .. } => Some(error),
             Self::FileWrite { error, .. } => Some(error),
