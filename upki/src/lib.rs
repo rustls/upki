@@ -263,7 +263,7 @@ impl From<revocation::Error> for Error {
 #[derive(Debug)]
 pub enum FetchError {
     /// Failed to create a directory.
-    CreateDirectory {
+    DirectoryCreate {
         /// Underlying error.
         error: io::Error,
         /// Path to the directory being created.
@@ -328,7 +328,7 @@ pub enum FetchError {
 impl fmt::Display for FetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::CreateDirectory { path, .. } => {
+            Self::DirectoryCreate { path, .. } => {
                 write!(f, "cannot create directory {path:?}")
             }
             Self::FileDecode { path, .. } => match path {
@@ -358,7 +358,7 @@ impl fmt::Display for FetchError {
 impl StdError for FetchError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            Self::CreateDirectory { error, .. } => Some(error),
+            Self::DirectoryCreate { error, .. } => Some(error),
             Self::FileDecode { error, .. } => Some(&**error),
             Self::FileRead { error, .. } => Some(error),
             Self::FileWrite { error, .. } => Some(error),
