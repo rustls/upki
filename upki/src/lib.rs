@@ -20,6 +20,11 @@ use crate::revocation::RevocationConfig;
 #[cfg(feature = "capi")]
 pub mod ffi;
 
+/// Update the local caches by fetching new data from the network.
+pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
+    Ok(revocation::fetch(dry_run, config).await?)
+}
+
 /// `upki` configuration.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]

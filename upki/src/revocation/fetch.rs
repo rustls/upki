@@ -34,7 +34,7 @@ use crate::{Config, sha256};
 /// `dry_run` means this call fetches the new manifest, but does not fetch any
 /// required files; but the necessary files are printed to stdout.  Therefore
 /// such a call is not completely "dry" -- perhaps "moist".
-pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
+pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), Error> {
     let cache_dir = config.revocation_cache_dir();
     info!(
         "fetching {} into {:?}...",
