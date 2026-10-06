@@ -14,6 +14,14 @@ pub(crate) mod sha256;
 
 /// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
+
+/// Fetching intermediate certificates to assist chain building.
+pub mod intermediates;
+
+/// Common data storage formats.
+pub mod data;
+
+use crate::intermediates::IntermediatesConfig;
 use crate::revocation::RevocationConfig;
 
 /// Foreign function interface.
@@ -23,7 +31,8 @@ pub mod ffi;
 /// Update the local caches by fetching new data from the network.
 #[cfg(feature = "__fetch")]
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
-    revocation::fetch(dry_run, config).await
+    revocation::fetch(dry_run, config).await?;
+    intermediates::fetch(dry_run, config).await
 }
 
 /// `upki` configuration.
@@ -35,6 +44,10 @@ pub struct Config {
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
+
+    /// Configuration for intermediate preloading.
+    #[serde(default)]
+    pub intermediates: IntermediatesConfig,
 }
 
 impl Config {
@@ -77,11 +90,17 @@ impl Config {
                 }
             },
             revocation: RevocationConfig::default(),
+            intermediates: IntermediatesConfig::default(),
         })
     }
 
     pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("revocation")
+    }
+
+    #[cfg(feature = "__fetch")]
+    pub(crate) fn intermediates_cache_dir(&self) -> PathBuf {
+        self.cache_dir.join("intermediates")
     }
 }
 

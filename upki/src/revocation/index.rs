@@ -10,9 +10,9 @@ use std::path::Path;
 use clubcard_crlite::TimestampInterval;
 use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 
-#[cfg(feature = "__fetch")]
-use super::Manifest;
 use super::{Error, RevocationCheckInput, RevocationStatus};
+#[cfg(feature = "__fetch")]
+use crate::data::Manifest;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
 ///
