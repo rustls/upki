@@ -81,8 +81,12 @@ jobs:
         if: runner.os != 'Windows'
         run: cargo cbuild --locked -p upki-openssl
 
-      - name: Run system tests (release)
-        run: cargo test --locked --release --test system_tests -- --ignored --nocapture
+      - name: Run system tests # Select the same packages as the debug tests, so their build is reused
+        if: matrix.os != 'windows-latest'
+        run: cargo test --locked -p upki -p rustls-upki -p upki-cli -p upki-mirror -p revoke-test --test system_tests -- --ignored --nocapture
+      - name: Run system tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cargo test --locked -p revoke-test -p rustls-upki -p upki --test system_tests -- --ignored --nocapture
 
   ffi-example:
     runs-on: ubuntu-latest
