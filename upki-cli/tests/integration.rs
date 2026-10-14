@@ -20,14 +20,14 @@ use tempfile::TempDir;
 #[test]
 fn version() {
     let _filters = apply_common_filters();
-    assert_cmd_snapshot!(upki().arg("--version"), @"
+    assert_cmd_snapshot!(upki().arg("--version"), @r###"
     success: true
     exit_code: 0
     ----- stdout -----
-    upki 1.0.0
+    upki 1.0.1
 
     ----- stderr -----
-    ");
+    "###);
 }
 
 #[test]
