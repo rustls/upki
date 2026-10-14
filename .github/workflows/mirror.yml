@@ -24,6 +24,8 @@ jobs:
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Generate backend files
         run: |
           mkdir -p tmp/revocation/ tmp/intermediates
