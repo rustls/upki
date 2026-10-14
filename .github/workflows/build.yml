@@ -67,7 +67,7 @@ jobs:
         run: cargo test --locked -p upki -p rustls-upki -p upki-cli -p upki-mirror -p revoke-test
       - name: Run tests (debug, Windows) # Skip upki-openssl on Windows because it requires OpenSSL to be installed
         if: matrix.os == 'windows-latest'
-        run: cargo test -p revoke-test -p rustls-upki -p upki
+        run: cargo test --locked -p revoke-test -p rustls-upki -p upki
       - name: Without features
         run: cargo check --locked -p upki --no-default-features
       - name: CLI without features

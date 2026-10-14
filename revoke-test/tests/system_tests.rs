@@ -323,6 +323,7 @@ fn test_each_site<'a>(
 fn upki() -> Command {
     let mut cmd = Command::new("cargo");
     cmd.arg("run")
+        .arg("--locked")
         .arg("--quiet")
         .arg("--package")
         .arg("upki-cli")
