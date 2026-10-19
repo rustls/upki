@@ -9,6 +9,7 @@ repository.workspace = true
 [dependencies]
 aws-lc-rs.workspace = true
 clap.workspace = true
+clubcard-crlite.workspace = true
 csv.workspace = true
 eyre.workspace = true
 hex.workspace = true
@@ -18,6 +19,12 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 upki = { path = "../upki" }
+
+[dev-dependencies]
+base64.workspace = true
+clubcard.workspace = true
+clubcard-crlite = { workspace = true, features = ["builder"] }
+tempfile.workspace = true
 
 [lints]
 workspace = true

@@ -2845,7 +2845,10 @@ name = "upki-mirror"
 version = "0.1.0"
 dependencies = [
  "aws-lc-rs",
+ "base64 0.23.1",
  "clap",
+ "clubcard",
+ "clubcard-crlite",
  "csv",
  "eyre",
  "hex",
@@ -2853,6 +2856,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "upki",
 ]
