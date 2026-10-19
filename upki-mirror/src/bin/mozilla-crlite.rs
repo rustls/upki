@@ -190,6 +190,8 @@ mod mozilla {
     pub(crate) enum Channel {
         Default,
         Compat,
+        #[serde(untagged)]
+        Other(String),
     }
 
     #[derive(Clone, Debug, Deserialize)]
@@ -199,5 +201,105 @@ mod mozilla {
         pub size: usize,
         pub filename: String,
         pub location: String,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::mozilla::{Channel, Item, Manifest};
+
+    #[test]
+    fn known_channels() {
+        let manifest = serde_json::from_value::<Manifest>(json!({
+            "data": [record("default", "full", None), record("compat", "compat-full", None)],
+        }))
+        .unwrap();
+
+        assert_eq!(manifest.data[0].channel, Channel::Default);
+        assert_eq!(manifest.data[1].channel, Channel::Compat);
+    }
+
+    #[test]
+    fn unknown_channels_do_not_reject_manifest() {
+        let manifest = serde_json::from_value::<Manifest>(json!({
+            "data": [
+                record("future-v4", "future-full", None),
+                record("default", "full", None),
+                record("another-channel", "another-full", None),
+            ],
+        }))
+        .unwrap();
+
+        assert_eq!(manifest.data.len(), 3);
+        assert_eq!(manifest.data[0].id, "future-full");
+        assert_eq!(manifest.data[0].channel, Channel::Other("future-v4".into()));
+        assert_eq!(manifest.data[1].channel, Channel::Default);
+        assert_eq!(manifest.data[2].id, "another-full");
+        assert_eq!(
+            manifest.data[2].channel,
+            Channel::Other("another-channel".into()),
+        );
+    }
+
+    #[test]
+    fn unknown_fields_are_ignored() {
+        let mut item = record("default", "full", None);
+        item["new_record_field"] = json!({"nested": [1, "new value"]});
+        item["attachment"]["new_attachment_field"] = json!([false, null]);
+        let manifest = serde_json::from_value::<Manifest>(json!({
+            "data": [item],
+            "new_manifest_field": {"version": 42},
+        }))
+        .unwrap();
+
+        assert_eq!(manifest.data.len(), 1);
+        assert_eq!(manifest.data[0].id, "full");
+        assert_eq!(manifest.data[0].attachment.filename, "full.filter");
+    }
+
+    #[test]
+    fn parent_can_be_absent() {
+        let mut item = record("default", "full", None);
+        item.as_object_mut()
+            .unwrap()
+            .remove("parent");
+        let item = serde_json::from_value::<Item>(item).unwrap();
+        assert!(item.parent.is_none());
+    }
+
+    #[test]
+    fn invalid_required_fields_are_rejected() {
+        for channel in [json!(null), json!(42), json!({"name": "default"})] {
+            let mut item = record("default", "full", None);
+            item["channel"] = channel;
+            assert!(serde_json::from_value::<Item>(item).is_err());
+        }
+
+        let mut item = record("default", "full", None);
+        item["attachment"]["hash"] = json!("not hex");
+        assert!(serde_json::from_value::<Item>(item).is_err());
+
+        let mut item = record("default", "full", None);
+        item.as_object_mut()
+            .unwrap()
+            .remove("attachment");
+        assert!(serde_json::from_value::<Item>(item).is_err());
+    }
+
+    fn record(channel: &str, id: &str, parent: Option<&str>) -> Value {
+        json!({
+            "attachment": {
+                "hash": "00".repeat(32),
+                "size": 123,
+                "filename": format!("{id}.filter"),
+                "location": format!("security-state/{id}"),
+            },
+            "channel": channel,
+            "id": id,
+            "incremental": parent.is_some(),
+            "parent": parent,
+        })
     }
 }
