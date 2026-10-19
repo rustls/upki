@@ -48,17 +48,21 @@ async fn main() -> Result<(), Report> {
         incoming_manifest
             .data
             .iter()
-            .filter_map(|it| Some((it.parent.as_ref()?.clone(), it))),
+            .filter_map(|it| {
+                if it.channel != opts.channel {
+                    return None;
+                }
+                Some((it.parent.as_ref()?.clone(), it))
+            }),
     );
 
     // Walk the DAG of filters, starting from the root full filter.
-    let mut next = incoming_manifest
+    let root = incoming_manifest
         .data
         .iter()
-        .find(|it| {
-            !it.incremental && it.parent.is_none() && it.channel == mozilla::Channel::Default
-        });
-
+        .find(|it| !it.incremental && it.parent.is_none() && it.channel == opts.channel)
+        .ok_or_else(|| anyhow!("no full filter found for channel {:?}", opts.channel))?;
+    let mut next = Some(root);
     let mut download_plan = Vec::new();
 
     while let Some(item) = next {
@@ -135,6 +139,10 @@ struct Opts {
     #[arg(value_enum)]
     mozilla_backend: MozillaBackend,
 
+    /// CRLite channel to mirror (default, compat, other).
+    #[clap(long, default_value = "default")]
+    channel: mozilla::Channel,
+
     /// Timeout in seconds for all HTTP requests.
     #[clap(long, default_value_t = 10)]
     http_timeout_secs: u64,
@@ -169,7 +177,10 @@ const MOZILLA_PROD: Source = Source {
 
 /// JSON structures used in the Mozilla preferences service.
 mod mozilla {
+    use core::str::FromStr;
+
     use serde::Deserialize;
+    use serde::de::value::{Error, StrDeserializer};
 
     #[derive(Debug, Deserialize)]
     pub(crate) struct Manifest {
@@ -192,6 +203,14 @@ mod mozilla {
         Compat,
         #[serde(untagged)]
         Other(String),
+    }
+
+    impl FromStr for Channel {
+        type Err = Error;
+
+        fn from_str(value: &str) -> Result<Self, Self::Err> {
+            Self::deserialize(StrDeserializer::new(value))
+        }
     }
 
     #[derive(Clone, Debug, Deserialize)]
