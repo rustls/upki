@@ -81,32 +81,7 @@ async fn main() -> Result<(), Report> {
             .wrap_err_with(|| format!("download request failed for {attachment_url}"))?;
         let bytes = response.bytes().await?;
 
-        // check hash matches
-        let actual_hash = digest(&SHA256, &bytes);
-        if p.attachment.hash != actual_hash.as_ref() {
-            return Err(anyhow!(
-                "item {p:?} downloaded from {attachment_url:?} does not have correct hash"
-            ));
-        }
-
-        // and size (impossible if hash is correct, but should make us distrust the data)
-        if p.attachment.size != bytes.len() {
-            return Err(anyhow!(
-                "item {p:?} downloaded from {attachment_url:?} does not have correct size"
-            ));
-        }
-
-        let output_filename = opts
-            .output_dir
-            .join(&p.attachment.filename);
-        fs::write(&output_filename, bytes)
-            .wrap_err_with(|| format!("cannot write filter data to {output_filename:?}",))?;
-
-        files.push(ManifestFile {
-            filename: p.attachment.filename.clone(),
-            size: p.attachment.size,
-            hash: p.attachment.hash.clone(),
-        });
+        files.push(write_filter(&opts, p, &bytes, &attachment_url)?);
     }
 
     let manifest = Manifest {
@@ -127,6 +102,40 @@ async fn main() -> Result<(), Report> {
     .wrap_err_with(|| "cannot write manifest to {output_filename:?}")?;
 
     Ok(())
+}
+
+fn write_filter(
+    opts: &Opts,
+    p: &mozilla::Item,
+    bytes: &[u8],
+    attachment_url: &str,
+) -> Result<ManifestFile, Report> {
+    // check hash matches
+    let actual_hash = digest(&SHA256, bytes);
+    if p.attachment.hash != actual_hash.as_ref() {
+        return Err(anyhow!(
+            "item {p:?} downloaded from {attachment_url:?} does not have correct hash"
+        ));
+    }
+
+    // and size (impossible if hash is correct, but should make us distrust the data)
+    if p.attachment.size != bytes.len() {
+        return Err(anyhow!(
+            "item {p:?} downloaded from {attachment_url:?} does not have correct size"
+        ));
+    }
+
+    let output_filename = opts
+        .output_dir
+        .join(&p.attachment.filename);
+    fs::write(&output_filename, bytes)
+        .wrap_err_with(|| format!("cannot write filter data to {output_filename:?}",))?;
+
+    Ok(ManifestFile {
+        filename: p.attachment.filename.clone(),
+        size: p.attachment.size,
+        hash: p.attachment.hash.clone(),
+    })
 }
 
 #[derive(Debug, Parser)]
