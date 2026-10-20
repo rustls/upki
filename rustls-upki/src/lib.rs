@@ -17,7 +17,7 @@ use upki::revocation::{
     self, CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus, Store,
 };
 use upki::{self, Config, ConfigPath};
-use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, VerifiedPath};
+use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, PathBuilder, VerifiedPath};
 
 /// A [`ServerCertVerifier`] that uses upki to check revocation status of server certificates.
 pub struct ServerVerifier {
@@ -148,19 +148,17 @@ impl ServerCertVerifier for ServerVerifier {
     ) -> Result<ServerCertVerified, rustls::Error> {
         let ee = EndEntityCert::try_from(end_entity).map_err(webpki_error)?;
 
-        let verified_path = ee
-            .verify_for_usage(
-                self.provider
-                    .signature_verification_algorithms
-                    .all,
-                &self.roots.roots,
-                intermediates,
-                now,
-                &ExtendedKeyUsage::server_auth(),
-                None,
-                None,
-            )
-            .map_err(webpki_error)?;
+        let verified_path = PathBuilder::new(
+            intermediates,
+            None,
+            &ExtendedKeyUsage::SERVER_AUTH,
+            self.provider
+                .signature_verification_algorithms
+                .all,
+            &self.roots.roots,
+        )
+        .build(&ee, now)
+        .map_err(webpki_error)?;
 
         ee.verify_is_valid_for_subject_name(server_name)
             .map_err(webpki_error)?;

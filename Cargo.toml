@@ -29,7 +29,7 @@ regex = "1.12"
 rustls = { version = "0.23", default-features = false }
 rustls-pki-types = "1.13"
 rustls-upki = { path = "rustls-upki" }
-rustls-webpki = "0.104.0-alpha.7"
+rustls-webpki = "0.104.0-alpha.8"
 serde = "1"
 serde_json = "1"
 similar-asserts = "2"
