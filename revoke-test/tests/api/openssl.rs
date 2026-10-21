@@ -1,30 +1,40 @@
 use core::ffi::{c_int, c_long, c_void};
 use core::{mem, ptr};
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 
 use openssl_sys::{
-    OPENSSL_STACK, OPENSSL_sk_free, OPENSSL_sk_new_null, OPENSSL_sk_push, SSL, SSL_CTX,
-    SSL_CTX_free, SSL_CTX_new, SSL_free, SSL_get_ex_data_X509_STORE_CTX_idx, SSL_new,
-    TLS_client_method, X509_STORE_CTX, X509_STORE_CTX_free, X509_STORE_CTX_get_error,
-    X509_STORE_CTX_new, X509_STORE_CTX_set_error, X509_V_ERR_CERT_REVOKED, d2i_X509, stack_st_X509,
+    ERR_GET_REASON, ERR_clear_error, ERR_get_error, ERR_lib_error_string, OPENSSL_STACK,
+    OPENSSL_sk_free, OPENSSL_sk_new_null, OPENSSL_sk_push, SSL, SSL_CTX, SSL_CTX_free, SSL_CTX_new,
+    SSL_free, SSL_get_ex_data_X509_STORE_CTX_idx, SSL_new, TLS_client_method, X509_STORE_CTX,
+    X509_STORE_CTX_free, X509_STORE_CTX_get_error, X509_STORE_CTX_new, X509_STORE_CTX_set_error,
+    X509_V_ERR_CERT_REVOKED, d2i_X509, stack_st_X509,
 };
 use revoke_test::CertificateDetail;
 use upki::ffi::{upki_config_new, upki_result};
 use upki_openssl::{upki_openssl_set_config, upki_openssl_verify_callback};
 
-use super::{TEST_CONFIG_PATH, TestResult};
+use super::TestResult;
 
-pub(super) fn openssl(detail: &CertificateDetail) -> TestResult {
-    let (rc, error) = verify(detail, TEST_CONFIG_PATH);
+pub(super) fn openssl(detail: &CertificateDetail, config_path: &str) -> TestResult {
+    let (rc, error) = verify(detail, config_path);
 
-    match rc {
-        1 => TestResult::IncorrectlyNotRevoked,
-        0 if error == X509_V_ERR_CERT_REVOKED => TestResult::CorrectlyRevoked,
+    match (rc, upki_error_reason()) {
+        (1, _) => TestResult::IncorrectlyNotRevoked,
+        (0, Some(reason))
+            if error == X509_V_ERR_CERT_REVOKED
+                && reason == upki_result::UPKI_ERR_REVOCATION_COMPROMISED_KEY as c_int =>
+        {
+            TestResult::CompromisedKey
+        }
+        (0, None) if error == X509_V_ERR_CERT_REVOKED => TestResult::CorrectlyRevoked,
         _ => panic!("upki_openssl_verify_callback failed with rc={rc:?} store_ctx.error={error:?}"),
     }
 }
 
 pub(super) fn verify(detail: &CertificateDetail, config_path: &str) -> (c_int, c_int) {
+    // Ensure any errors found by `upki_error_reason` came from this call.
+    unsafe { ERR_clear_error() };
+
     let mut chain = Chain::new();
 
     for cert in [detail.end_entity_cert_der().unwrap()]
@@ -68,6 +78,23 @@ pub(super) fn verify(detail: &CertificateDetail, config_path: &str) -> (c_int, c
 }
 
 pub(super) const UNTOUCHED_ERROR: c_int = 12345678;
+
+/// Drain this thread's OpenSSL error stack, returning the reason code of the last
+/// error reported by upki (which is a `upki_result` value).
+fn upki_error_reason() -> Option<c_int> {
+    let mut reason = None;
+    loop {
+        let err = unsafe { ERR_get_error() };
+        if err == 0 {
+            return reason;
+        }
+
+        let lib = unsafe { ERR_lib_error_string(err) };
+        if !lib.is_null() && unsafe { CStr::from_ptr(lib) } == c"upki" {
+            reason = Some(ERR_GET_REASON(err));
+        }
+    }
+}
 
 struct SslCtx(*mut SSL_CTX);
 

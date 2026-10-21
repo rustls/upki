@@ -84,6 +84,10 @@ pub unsafe extern "C" fn upki_openssl_set_config(ctx: *mut SSL_CTX, config: *con
 /// and sets the `X509_V_ERR_CERT_REVOKED` error on `x509_ctx` (using
 /// `X509_STORE_CTX_set_error(3SSL)`).
 ///
+/// If any certificate in the chain has a public key known to be compromised, this function
+/// returns 0, sets the `X509_V_ERR_CERT_REVOKED` error on `x509_ctx`, and adds a report
+/// to the OpenSSL error stack with reason `UPKI_ERR_REVOCATION_COMPROMISED_KEY`.
+///
 /// If the revocation status cannot be determined, this function returns 0 and sets
 /// the `X509_V_ERR_APPLICATION_VERIFICATION` error on `x509_ctx` (using
 /// `X509_STORE_CTX_set_error(3SSL)`).
@@ -138,7 +142,12 @@ pub unsafe extern "C" fn upki_openssl_verify_callback(
     let config = match UpkiConfig::new(&x509_ctx) {
         Ok(config) => config,
         Err(e) => {
-            x509_ctx.set_detailed_error(X509_V_ERR_APPLICATION_VERIFICATION, e, line!());
+            x509_ctx.set_detailed_error(
+                X509_V_ERR_APPLICATION_VERIFICATION,
+                e,
+                UNEXPECTED_UPKI_ERROR,
+                line!(),
+            );
             return 0;
         }
     };
@@ -161,8 +170,17 @@ pub unsafe extern "C" fn upki_openssl_verify_callback(
         upki_result::UPKI_REVOCATION_NOT_COVERED | upki_result::UPKI_REVOCATION_NOT_REVOKED => {}
         // soft-fail on the case where no revocation data exists
         upki_result::UPKI_ERR_REVOCATION_NO_DATA => {}
+        e @ upki_result::UPKI_ERR_REVOCATION_COMPROMISED_KEY => {
+            x509_ctx.set_detailed_error(X509_V_ERR_CERT_REVOKED, e, COMPROMISED_KEY, line!());
+            preverify_ok = 0;
+        }
         e => {
-            x509_ctx.set_detailed_error(X509_V_ERR_APPLICATION_VERIFICATION, e, line!());
+            x509_ctx.set_detailed_error(
+                X509_V_ERR_APPLICATION_VERIFICATION,
+                e,
+                UNEXPECTED_UPKI_ERROR,
+                line!(),
+            );
             preverify_ok = 0;
         }
     }
@@ -198,7 +216,13 @@ impl<'a> BorrowedX509StoreCtx<'a> {
         unsafe { X509_STORE_CTX_set_error(ptr::from_mut(self.0), err) };
     }
 
-    fn set_detailed_error(&mut self, verify_err: i32, upki_error: upki_result, calling_line: u32) {
+    fn set_detailed_error(
+        &mut self,
+        verify_err: i32,
+        upki_error: upki_result,
+        detail: &'static CStr,
+        calling_line: u32,
+    ) {
         self.set_error(verify_err);
 
         // Lazy init library code, well outside any manipulation of the openssl error stack.
@@ -212,14 +236,7 @@ impl<'a> BorrowedX509StoreCtx<'a> {
 
         // SAFETY: format C-string is static, so cannot contain inappropriate specifiers.
         // single parameter is a further static C-string, as expected by %s.
-        unsafe {
-            ERR_set_error(
-                lib,
-                upki_error as c_int,
-                c"%s".as_ptr(),
-                UNEXPECTED_UPKI_ERROR.as_ptr(),
-            )
-        };
+        unsafe { ERR_set_error(lib, upki_error as c_int, c"%s".as_ptr(), detail.as_ptr()) };
     }
 
     fn upki_config_from_ssl_ctx(&self) -> *const upki_config {
@@ -427,6 +444,8 @@ static THIS_FILE_CSTR: &CStr =
     unsafe { CStr::from_bytes_with_nul_unchecked(concat!(file!(), "\0").as_bytes()) };
 
 static UNEXPECTED_UPKI_ERROR: &CStr = c"unexpected upki error";
+
+static COMPROMISED_KEY: &CStr = c"a certificate in the chain has a known-compromised key";
 
 #[cfg(test)]
 mod test;

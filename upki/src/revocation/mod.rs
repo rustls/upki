@@ -19,7 +19,7 @@ use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
 #[cfg(feature = "__fetch")]
 use jiff::Timestamp;
-use rustls_pki_types::{CertificateDer, TrustAnchor};
+use rustls_pki_types::{CertificateDer, SubjectPublicKeyInfoDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
 use tracing::info;
@@ -181,6 +181,10 @@ impl RevocationCheckInput {
     /// required checks before calling this interface (path building, naming validation,
     /// expiry checking, etc.).
     pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Error> {
+        for c in certificates {
+            check_cert_denylist(c)?;
+        }
+
         let (end_entity, rest) = certificates
             .split_first()
             .ok_or(Error::TooFewCertificates)?;
@@ -345,6 +349,66 @@ impl Default for RevocationConfig {
     }
 }
 
+/// Checks an internal denylist for a certificate's public key.
+///
+/// Returns [`Error::CompromisedKey`] if the presented key is in the denylist.
+fn check_cert_denylist(cert: &CertificateDer<'_>) -> Result<(), Error> {
+    // nb. do not copy this code. it is not correct to treat intermediate certificates
+    // as trust anchors.
+    if let Ok(anchor) = webpki::anchor_from_trusted_cert(cert) {
+        check_spki_denylist(&webpki::spki_for_anchor(&anchor))?;
+    }
+    Ok(())
+}
+
+/// Checks an internal denylist for public keys in SubjectPublicKeyInfo (SPKI) format.
+///
+/// Returns [`Error::CompromisedKey`] if the presented key is in the denylist.
+fn check_spki_denylist(spki: &SubjectPublicKeyInfoDer<'_>) -> Result<(), Error> {
+    for (blocked, why) in SPKI_DENYLIST {
+        if spki.as_ref() == *blocked {
+            return Err(Error::CompromisedKey(why));
+        }
+    }
+
+    Ok(())
+}
+
+const SPKI_DENYLIST: &[(&[u8], &str)] = &[
+    (
+        include_bytes!("data/EMDVTLSCAG3B.spki.der"),
+        "the private key is 156",
+    ),
+    (
+        include_bytes!("data/EMDVTLSCAG3C.spki.der"),
+        "the private key is 230",
+    ),
+    (
+        include_bytes!("data/EMEVTLSCAG3B.spki.der"),
+        "the private key is 115",
+    ),
+    (
+        include_bytes!("data/EMEVTLSCAG3C.spki.der"),
+        "the private key is 56",
+    ),
+    (
+        include_bytes!("data/EMOVTLSCAG3B.spki.der"),
+        "the private key is 155",
+    ),
+    (
+        include_bytes!("data/EMOVTLSCAG3C.spki.der"),
+        "the private key is 4",
+    ),
+    (
+        include_bytes!("data/EMOVCSCAG3B.spki.der"),
+        "the private key is 66",
+    ),
+    (
+        include_bytes!("data/EMOVCSCAG3C.spki.der"),
+        "the private key is 237",
+    ),
+];
+
 fn find_issuer<'a>(
     name: &[u8],
     candidates: impl Iterator<Item = &'a CertificateDer<'a>>,
@@ -436,6 +500,8 @@ pub enum Error {
     NoIssuer,
     /// Certificate chains must contain at least 2 certificates.
     TooFewCertificates,
+    /// A public key presented to [`check_spki_denylist()`] is compromised.
+    CompromisedKey(&'static str),
 }
 
 impl fmt::Display for Error {
@@ -479,6 +545,9 @@ impl fmt::Display for Error {
             Self::TooFewCertificates => {
                 write!(f, "certificate chain must contain at least 2 certificates")
             }
+            Self::CompromisedKey(why) => {
+                write!(f, "certificate has a compromised key ({why})")
+            }
         }
     }
 }
@@ -499,6 +568,23 @@ impl StdError for Error {
             Self::NoData { .. } => None,
             Self::NoIssuer => None,
             Self::TooFewCertificates => None,
+            Self::CompromisedKey(_) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spki_denylist() {
+        assert!(matches!(
+            check_spki_denylist(&SubjectPublicKeyInfoDer::from(
+                &include_bytes!("data/EMDVTLSCAG3B.spki.der")[..],
+            )),
+            Err(Error::CompromisedKey(_))
+        ));
+        assert!(check_spki_denylist(&SubjectPublicKeyInfoDer::from(&[0, 1, 2][..])).is_ok());
     }
 }
