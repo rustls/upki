@@ -13,7 +13,7 @@ __bench_codspeed = ["dep:codspeed-criterion-compat"]
 aws-lc-rs.workspace = true
 base64.workspace = true
 eyre.workspace = true
-codspeed-criterion-compat = { version = "5", optional = true }
+codspeed-criterion-compat = { version = "6", optional = true }
 http.workspace = true
 rustls.workspace = true
 serde.workspace = true
