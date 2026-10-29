@@ -201,6 +201,8 @@ pub enum upki_result {
     UPKI_ERR_REVOCATION_INDEX_DECODE = 75,
     /// No revocation data is present in the cache.
     UPKI_ERR_REVOCATION_NO_DATA = 76,
+    /// Certificate's key is compromised.
+    UPKI_ERR_REVOCATION_COMPROMISED_KEY = 77,
 }
 
 impl upki_result {
@@ -249,6 +251,7 @@ impl upki_result {
             }
             Self::UPKI_ERR_REVOCATION_INDEX_DECODE => c"failed to decode the index file",
             Self::UPKI_ERR_REVOCATION_NO_DATA => c"no revocation data is present in the cache",
+            Self::UPKI_ERR_REVOCATION_COMPROMISED_KEY => c"certificate's key is compromised",
         }
     }
 
@@ -280,6 +283,7 @@ impl upki_result {
         Self::UPKI_ERR_REVOCATION_TOO_FEW_CERTS,
         Self::UPKI_ERR_REVOCATION_INDEX_DECODE,
         Self::UPKI_ERR_REVOCATION_NO_DATA,
+        Self::UPKI_ERR_REVOCATION_COMPROMISED_KEY,
     ];
 }
 
@@ -327,6 +331,9 @@ impl From<Error> for upki_result {
             }
             Error::Revocation(revocation::Error::NoData { .. }) => {
                 Self::UPKI_ERR_REVOCATION_NO_DATA
+            }
+            Error::Revocation(revocation::Error::CompromisedKey(..)) => {
+                Self::UPKI_ERR_REVOCATION_COMPROMISED_KEY
             }
         }
     }

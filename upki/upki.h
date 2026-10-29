@@ -117,6 +117,10 @@ typedef enum upki_result {
    * No revocation data is present in the cache.
    */
   UPKI_ERR_REVOCATION_NO_DATA = 76,
+  /**
+   * Certificate's key is compromised.
+   */
+  UPKI_ERR_REVOCATION_COMPROMISED_KEY = 77,
 } upki_result;
 
 /**

@@ -9,11 +9,14 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use revoke_test::{CertificateDetail, RevocationTestSite, RevocationTestSites};
 use rustls::client::danger::ServerCertVerifier;
 use rustls::pki_types::{ServerName, UnixTime};
 use rustls::{CertificateError, Error, RootCertStore};
 use rustls_pki_types::CertificateDer;
+use rustls_pki_types::pem::PemObject;
 use rustls_upki::{Policy, ServerVerifier};
 
 #[path = "api/ffi.rs"]
@@ -53,10 +56,22 @@ fn real_world_system_tests() {
         "test-sites.json is expired, please regenerate"
     );
 
-    let high_level_cli = test_each_site(tests.sites.iter(), high_level_cli, "cli");
-    let ffi = test_each_site(tests.sites.iter(), ffi::ffi, "ffi");
+    let high_level_cli = test_each_site(
+        tests.sites.iter(),
+        |detail: &CertificateDetail| high_level_cli(detail, TEST_CONFIG_PATH),
+        "cli",
+    );
+    let ffi = test_each_site(
+        tests.sites.iter(),
+        |detail: &CertificateDetail| ffi::ffi(detail, TEST_CONFIG_PATH),
+        "ffi",
+    );
     #[cfg(not(windows))]
-    let openssl = test_each_site(tests.sites.iter(), openssl::openssl, "openssl");
+    let openssl = test_each_site(
+        tests.sites.iter(),
+        |detail: &CertificateDetail| openssl::openssl(detail, TEST_CONFIG_PATH),
+        "openssl",
+    );
 
     let verifier = ServerVerifier::new(
         Policy::default(),
@@ -104,6 +119,41 @@ fn real_world_system_tests() {
     }
 }
 
+/// A chain containing an intermediate whose key is in the SPKI denylist must be rejected
+/// by every API, without needing any revocation data.
+#[test]
+fn denylist_test() {
+    let certs = CertificateDer::pem_file_iter("tests/data/emudhra-denylisted-chain.pem")
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let (end_entity, intermediates) = certs.split_first().unwrap();
+    let detail = CertificateDetail {
+        end_entity_cert: BASE64_STANDARD.encode(end_entity),
+        intermediates: intermediates
+            .iter()
+            .map(|c| BASE64_STANDARD.encode(c))
+            .collect(),
+        serial: String::new(),
+        issuer_spki_sha256: String::new(),
+        scts: Vec::new(),
+    };
+
+    // An empty cache means any rejection must come from the denylist, and not revocation data.
+    let config_path = empty_cache_config("tmp/denylist");
+
+    assert_eq!(
+        high_level_cli(&detail, &config_path),
+        TestResult::CompromisedKey
+    );
+    assert_eq!(ffi::ffi(&detail, &config_path), TestResult::CompromisedKey);
+    #[cfg(not(windows))]
+    assert_eq!(
+        openssl::openssl(&detail, &config_path),
+        TestResult::CompromisedKey
+    );
+}
+
 /// Without any revocation data, `upki_openssl_verify_callback` should allow verification
 /// to proceed.
 #[cfg(not(windows))]
@@ -140,7 +190,6 @@ fn openssl_rejects_corrupt_revocation_data() {
 /// Write a configuration file that uses a new, empty, cache directory at `cache_dir`.
 ///
 /// Returns the path to the configuration file.
-#[cfg(not(windows))]
 fn empty_cache_config(cache_dir: &str) -> String {
     let _ = fs::remove_dir_all(cache_dir);
     fs::create_dir_all(cache_dir).unwrap();
@@ -223,14 +272,15 @@ impl TestCase for ServerVerifier {
     }
 }
 
-fn high_level_cli(detail: &CertificateDetail) -> TestResult {
+fn high_level_cli(detail: &CertificateDetail, config_path: &str) -> TestResult {
     let mut c = upki()
         .arg("--config-file")
-        .arg(TEST_CONFIG_PATH)
+        .arg(config_path)
         .arg("revocation")
         .arg("check")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("cannot run upki");
 
@@ -265,8 +315,14 @@ fn high_level_cli(detail: &CertificateDetail) -> TestResult {
             ));
             TestResult::IncorrectlyNotRevoked
         }
+        Some(1)
+            if String::from_utf8_lossy(&e.stderr).contains("certificate has a compromised key") =>
+        {
+            TestResult::CompromisedKey
+        }
         _ => {
             println!("unexpected stdout {}", String::from_utf8_lossy(&e.stdout));
+            println!("unexpected stderr {}", String::from_utf8_lossy(&e.stderr));
             panic!("unexpected error");
         }
     }
@@ -350,6 +406,7 @@ enum TestResult {
     IncorrectlyNotRevoked,
     DecorationFailed,
     Expired,
+    CompromisedKey,
 }
 
 const TEST_CONFIG_PATH: &str = "tmp/system-test/config.toml";

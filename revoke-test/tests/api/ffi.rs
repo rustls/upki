@@ -8,9 +8,9 @@ use upki::ffi::{
     upki_result,
 };
 
-use super::{TEST_CONFIG_PATH, TestResult};
+use super::TestResult;
 
-pub(super) fn ffi(detail: &CertificateDetail) -> TestResult {
+pub(super) fn ffi(detail: &CertificateDetail, config_path: &str) -> TestResult {
     let certs = [detail.end_entity_cert_der().unwrap()]
         .into_iter()
         .chain(
@@ -33,7 +33,7 @@ pub(super) fn ffi(detail: &CertificateDetail) -> TestResult {
     assert!(matches!(
         unsafe {
             upki_config_new(
-                CString::new(TEST_CONFIG_PATH)
+                CString::new(config_path)
                     .unwrap()
                     .as_ptr(),
                 &mut config.0,
@@ -51,6 +51,7 @@ pub(super) fn ffi(detail: &CertificateDetail) -> TestResult {
         upki_result::UPKI_REVOCATION_NOT_COVERED | upki_result::UPKI_REVOCATION_NOT_REVOKED => {
             TestResult::IncorrectlyNotRevoked
         }
+        upki_result::UPKI_ERR_REVOCATION_COMPROMISED_KEY => TestResult::CompromisedKey,
         e => panic!("upki_check_revocation() failed with {:?}", e as usize),
     }
 }

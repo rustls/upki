@@ -50,6 +50,10 @@ void upki_openssl_set_config(SSL_CTX *ctx, const upki_config *config);
  * and sets the `X509_V_ERR_CERT_REVOKED` error on `x509_ctx` (using
  * `X509_STORE_CTX_set_error(3SSL)`).
  *
+ * If any certificate in the chain has a public key known to be compromised, this function
+ * returns 0, sets the `X509_V_ERR_CERT_REVOKED` error on `x509_ctx`, and adds a report
+ * to the OpenSSL error stack with reason `UPKI_ERR_REVOCATION_COMPROMISED_KEY`.
+ *
  * If the revocation status cannot be determined, this function returns 0 and sets
  * the `X509_V_ERR_APPLICATION_VERIFICATION` error on `x509_ctx` (using
  * `X509_STORE_CTX_set_error(3SSL)`).
