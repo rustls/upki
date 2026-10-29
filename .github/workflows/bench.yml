@@ -55,7 +55,7 @@ jobs:
         run: cargo codspeed build -p revoke-test --features __bench_codspeed
 
       - name: Run benchmarks
-        uses: CodSpeedHQ/action@v5.5.0
+        uses: CodSpeedHQ/action@v5.6.0
         with:
           run: cargo codspeed run
           mode: simulation
