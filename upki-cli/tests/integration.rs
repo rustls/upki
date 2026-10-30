@@ -521,7 +521,7 @@ fn typical_incremental_fetch_dry_run() {
     ----- stdout -----
     3 steps required (14 bytes to download)
     - download 14 bytes from http://127.0.0.1:[PORT]/revocation/filter2.delta to "[TEMPDIR]/revocation/filter2.delta"
-    - build index from filters into "[TEMPDIR]/revocation"
+    - build index.bin into "[TEMPDIR]/revocation"
     - save new manifest into "[TEMPDIR]/revocation"
 
     ----- stderr -----
