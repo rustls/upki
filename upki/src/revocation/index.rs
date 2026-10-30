@@ -13,6 +13,8 @@ use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 use super::{Error, RevocationCheckInput, RevocationStatus};
 #[cfg(feature = "__fetch")]
 use crate::data::Manifest;
+#[cfg(feature = "__fetch")]
+use crate::fetch::PostProcess;
 
 /// Binary-encoded index of universe metadata for all filters in a manifest.
 ///
@@ -360,6 +362,21 @@ impl Index {
             .position(|&b| b == 0)
             .unwrap_or(FILENAME_SIZE);
         str::from_utf8(&slot[..end]).map_err(|e| Error::IndexDecode(Box::new(e)))
+    }
+}
+
+/// Builds an [`Index`] of the filters in a revocation cache directory.
+#[cfg(feature = "__fetch")]
+pub(crate) struct RevocationIndexer;
+
+#[cfg(feature = "__fetch")]
+impl PostProcess for RevocationIndexer {
+    fn build(&self, manifest: &Manifest, local_dir: &Path) -> Option<Vec<u8>> {
+        Index::write(manifest, local_dir)
+    }
+
+    fn file_name(&self) -> &'static str {
+        INDEX_BIN
     }
 }
 

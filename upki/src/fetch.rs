@@ -26,7 +26,6 @@ use reqwest::header::IF_MODIFIED_SINCE;
 use tracing::{debug, info};
 
 use crate::data::{Manifest, ManifestFile};
-use crate::revocation::index::{INDEX_BIN, Index};
 use crate::{FetchError, sha256};
 
 /// Everything `fetch()` needs to know about one cache directory.
@@ -42,6 +41,9 @@ pub(crate) struct FetchContext<'a> {
     /// Files with these extensions are deleted once no manifest mentions them.
     /// Anything else in `cache_dir` is left alone.
     pub(crate) managed_extensions: &'static [&'static str],
+
+    /// What to run over the downloaded files once they are all present, if anything.
+    pub(crate) post_process: Option<&'static dyn PostProcess>,
 }
 
 impl FetchContext<'_> {
@@ -171,6 +173,17 @@ impl FetchContext<'_> {
     }
 }
 
+/// Produces a file derived from a cache directory once it is synchronized.
+pub(crate) trait PostProcess: Sync {
+    /// Build the derived file's contents from `manifest`'s files in `local_dir`.
+    ///
+    /// Returns `None` if it cannot be built, in which case nothing is written.
+    fn build(&self, manifest: &Manifest, local_dir: &Path) -> Option<Vec<u8>>;
+
+    /// The derived file's name within the cache directory.
+    fn file_name(&self) -> &'static str;
+}
+
 pub(crate) struct Plan {
     steps: Vec<PlanStep>,
 }
@@ -232,10 +245,13 @@ impl Plan {
             }
         }
 
-        steps.push(PlanStep::SaveIndex {
-            manifest: manifest.clone(),
-            local_dir: local.to_owned(),
-        });
+        if let Some(post_process) = cx.post_process {
+            steps.push(PlanStep::PostProcess {
+                post_process,
+                manifest: manifest.clone(),
+                local_dir: local.to_owned(),
+            });
+        }
 
         steps.push(PlanStep::SaveManifest {
             manifest: manifest.clone(),
@@ -277,8 +293,9 @@ enum PlanStep {
     /// Delete the given single local file.
     Delete(PathBuf),
 
-    /// Build and save the index from filter universe metadata.
-    SaveIndex {
+    /// Build and save a file derived from the downloaded files.
+    PostProcess {
+        post_process: &'static dyn PostProcess,
         manifest: Manifest,
         local_dir: PathBuf,
     },
@@ -349,12 +366,13 @@ impl PlanStep {
                     path: target,
                 })?;
             }
-            Self::SaveIndex {
+            Self::PostProcess {
+                post_process,
                 manifest,
                 local_dir,
             } => {
                 debug!("building index");
-                let Some(buf) = Index::write(&manifest, &local_dir) else {
+                let Some(buf) = post_process.build(&manifest, &local_dir) else {
                     return Ok(());
                 };
 
@@ -381,7 +399,7 @@ impl PlanStep {
                         path: local_temp.path().to_owned(),
                     })?;
 
-                let path = local_dir.join(INDEX_BIN);
+                let path = local_dir.join(post_process.file_name());
                 local_temp
                     .persist(&path)
                     .map_err(|error| FetchError::FileWrite {
@@ -431,8 +449,12 @@ impl fmt::Display for PlanStep {
                 file.size
             ),
             Self::Delete(path) => write!(f, "delete stale file {path:?}"),
-            Self::SaveIndex { local_dir, .. } => {
-                write!(f, "build index from filters into {local_dir:?}")
+            Self::PostProcess {
+                post_process,
+                local_dir,
+                ..
+            } => {
+                write!(f, "build {} into {local_dir:?}", post_process.file_name())
             }
             Self::SaveManifest { local_dir, .. } => {
                 write!(f, "save new manifest into {local_dir:?}")

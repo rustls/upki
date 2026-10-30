@@ -11,6 +11,8 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
+#[cfg(feature = "__fetch")]
+use index::RevocationIndexer;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
@@ -44,6 +46,7 @@ pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchErr
         cache_dir,
         fetch_url: &config.revocation.fetch_url,
         managed_extensions: MANAGED_EXTENSIONS,
+        post_process: Some(&RevocationIndexer),
     }
     .fetch(dry_run)
     .await
@@ -78,6 +81,7 @@ impl Store {
                 cache_dir: self.cache_dir.clone(),
                 fetch_url: "https://.../",
                 managed_extensions: MANAGED_EXTENSIONS,
+                post_process: Some(&RevocationIndexer),
             },
         )?;
         match plan.download_bytes() {
