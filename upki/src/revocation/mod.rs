@@ -3,14 +3,14 @@ use core::error::Error as StdError;
 use core::iter;
 use core::str::FromStr;
 use core::{fmt, str};
-use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::{fs, io};
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use clubcard_crlite::CRLiteKey;
 pub use clubcard_crlite::IssuerSpkiHash;
+use clubcard_crlite::{CRLiteClubcard, CRLiteKey};
 #[cfg(feature = "__fetch")]
 use index::RevocationIndexer;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
@@ -25,7 +25,7 @@ use crate::fetch::{FetchContext, Plan};
 use crate::{Config, sha256};
 
 pub(crate) mod index;
-use index::Index;
+use index::{INDEX_BIN, Index};
 
 pub use crate::data::{Manifest, ManifestFile};
 
@@ -91,13 +91,124 @@ impl Store {
     }
 
     /// Perform a revocation check.
+    ///
+    /// This reads the index and the relevant filter files from disk on every call.
+    /// For repeated checks, [`load()`](Self::load) the store into memory instead.
     pub fn check(&self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
         Index::from_path(&self.cache_dir)?.check(input, &self.cache_dir)
+    }
+
+    /// Load the revocation data into memory.
+    ///
+    /// This reads the index and every filter it names, and keeps the decoded filters
+    /// (somewhat larger than the files) for the life of the [`LoadedStore`]. In
+    /// exchange, [`LoadedStore::check()`] does no I/O.
+    ///
+    /// A fetch that replaces the index during a load is detected, and the load starts
+    /// over with the new index, a bounded number of times. If loading fails anyway,
+    /// the caller can keep using a previously loaded store.
+    pub fn load(&self) -> Result<LoadedStore, Error> {
+        LoadedStore::load_with(&self.cache_dir, index::read_filter)
     }
 
     /// Validate the revocation data store.
     pub fn validate(&self) -> Result<(), Error> {
         Index::from_path(&self.cache_dir).map(|_| ())
+    }
+}
+
+/// Revocation data held in memory, for checks without disk I/O.
+///
+/// A `LoadedStore` is a snapshot of the cache directory at the time of
+/// [`Store::load()`]: later fetches are not observed. A long-running process
+/// should poll [`is_stale()`](Self::is_stale) and load a replacement when it
+/// returns `true`.
+pub struct LoadedStore {
+    index: Index,
+    /// One decoded filter per entry of the index's filename table, in the same order.
+    filters: Vec<CRLiteClubcard>,
+    index_path: PathBuf,
+}
+
+impl LoadedStore {
+    /// How many attempts a load makes before giving up on an index that keeps
+    /// being replaced under it. Fetches are minutes apart, so two is plenty;
+    /// three leaves a margin.
+    const MAX_LOAD_ATTEMPTS: usize = 3;
+
+    /// Load from `cache_dir`, reading each filter the index names with `read_filter`.
+    fn load_with(
+        cache_dir: &Path,
+        mut read_filter: impl FnMut(PathBuf) -> Result<CRLiteClubcard, Error>,
+    ) -> Result<Self, Error> {
+        for _ in 1..Self::MAX_LOAD_ATTEMPTS {
+            match Self::load_once(cache_dir, &mut read_filter) {
+                // A filter the index names but the disk lacks means a fetch replaced
+                // the index after it was read: a fetch deletes files only after the
+                // new index is written. Start over with that one.
+                Err(Error::FileRead { error, .. }) if error.kind() == io::ErrorKind::NotFound => {}
+                result => return result,
+            }
+        }
+        Self::load_once(cache_dir, &mut read_filter)
+    }
+
+    fn load_once(
+        cache_dir: &Path,
+        read_filter: &mut impl FnMut(PathBuf) -> Result<CRLiteClubcard, Error>,
+    ) -> Result<Self, Error> {
+        let index = Index::load(cache_dir)?;
+        let filters = index
+            .filenames()
+            .map(|filename| read_filter(cache_dir.join(filename?)))
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            index,
+            filters,
+            index_path: cache_dir.join(INDEX_BIN),
+        })
+    }
+
+    /// Perform a revocation check against the data held in memory.
+    pub fn check(&self, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
+        self.index
+            .check_with(input, |filter_index, _| Ok(&self.filters[filter_index]))
+    }
+
+    /// Whether the index file on disk differs from the one this store was loaded from.
+    ///
+    /// This compares the index file byte for byte, so a fetch that rewrote it
+    /// unchanged does not count. Index files are small, so polling this is cheap.
+    /// It fails with [`Error::NoData`] if the index file has since been removed.
+    pub fn is_stale(&self) -> Result<bool, Error> {
+        let on_disk = fs::read(&self.index_path).map_err(|error| match error.kind() {
+            io::ErrorKind::NotFound => Error::NoData {
+                path: self.index_path.clone(),
+            },
+            _ => Error::FileRead {
+                error,
+                path: Some(self.index_path.clone()),
+            },
+        })?;
+
+        Ok(self.index.resident_bytes() != Some(on_disk.as_slice()))
+    }
+}
+
+impl fmt::Debug for LoadedStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            index,
+            filters,
+            index_path,
+        } = self;
+
+        f.debug_struct("LoadedStore")
+            .field("index", index)
+            .field("filters", &filters.len())
+            .field("index_path", index_path)
+            .finish()
     }
 }
 
@@ -448,5 +559,250 @@ impl StdError for Error {
             Self::NoIssuer => None,
             Self::TooFewCertificates => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::cell::Cell;
+    use core::error::Error as StdError;
+
+    use tempfile::TempDir;
+
+    use super::index::tests::{
+        SERIAL, build_filter, build_index, multi_sct_input, test_input, write_file,
+    };
+    use super::*;
+
+    #[test]
+    fn load_without_index_is_no_data() {
+        let (store, _dir) = store_in_tempdir();
+        assert!(matches!(store.load().unwrap_err(), Error::NoData { .. }));
+    }
+
+    #[test]
+    fn load_with_missing_filter_fails() {
+        let (store, dir) = store_in_tempdir();
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        let err = store.load().unwrap_err();
+        assert!(
+            matches!(&err, Error::FileRead { error, path: Some(path) }
+                if error.kind() == io::ErrorKind::NotFound && path.ends_with("f0.filter")),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn load_with_undecodable_filter_fails() {
+        let (store, dir) = store_in_tempdir();
+        write_file(dir.path(), "f0.filter", b"not a clubcard");
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        let err = store.load().unwrap_err();
+        assert!(matches!(&err, Error::FileDecode { .. }), "{err}");
+    }
+
+    // The filter read stands in for a fetch that completes between reading the index
+    // and reading its filters: it installs a new index and filter, deletes the old
+    // filter, and then fails to read it. The load must start over and succeed with
+    // the new index.
+    #[test]
+    fn load_starts_over_with_replaced_index() -> Result<(), Box<dyn StdError>> {
+        let dir = tempfile::tempdir()?;
+        let old = build_filter(
+            [0xaa; 32],
+            &[&[9, 9, 9]],
+            &[SERIAL],
+            &[([0xbb; 32], 0, 2000)],
+        );
+        write_file(dir.path(), "old.filter", &old);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("old.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        let reads = Cell::new(0);
+        let loaded = LoadedStore::load_with(dir.path(), |path| {
+            if reads.replace(reads.get() + 1) == 0 {
+                write_revoking_cache(dir.path(), "new.filter");
+                fs::remove_file(dir.path().join("old.filter")).unwrap();
+            }
+            index::read_filter(path)
+        })?;
+
+        assert_eq!(reads.get(), 2);
+        assert_eq!(
+            loaded.check(&test_input())?,
+            RevocationStatus::CertainlyRevoked
+        );
+        assert!(!loaded.is_stale()?);
+
+        Ok(())
+    }
+
+    // An index that keeps naming a filter the disk lacks is given up on after a
+    // bounded number of attempts rather than retried forever.
+    #[test]
+    fn load_gives_up_after_bounded_attempts() {
+        let dir = tempfile::tempdir().unwrap();
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        let reads = Cell::new(0);
+        let err = LoadedStore::load_with(dir.path(), |path| {
+            reads.set(reads.get() + 1);
+            index::read_filter(path)
+        })
+        .unwrap_err();
+
+        assert_eq!(reads.get(), LoadedStore::MAX_LOAD_ATTEMPTS);
+        assert!(
+            matches!(&err, Error::FileRead { error, .. } if error.kind() == io::ErrorKind::NotFound),
+            "{err}"
+        );
+    }
+
+    // Verdicts from memory agree with verdicts from disk for every outcome.
+    #[test]
+    fn loaded_verdicts_match_on_disk() -> Result<(), Box<dyn StdError>> {
+        let (store, dir) = store_in_tempdir();
+        let dir = dir.path();
+
+        let (log_a, log_b, log_c) = ([0xb1; 32], [0xb2; 32], [0xb3; 32]);
+        // f0 covers log_a but enrolls a different issuer -> inconclusive for us.
+        let f0 = build_filter([0xcc; 32], &[&[7, 7]], &[], &[(log_a, 0, 2000)]);
+        // f1 covers log_b and revokes our serial.
+        let f1 = build_filter([0xaa; 32], &[SERIAL], &[], &[(log_b, 0, 2000)]);
+        // f2 covers log_c, enrolls our issuer, and revokes a different serial.
+        let f2 = build_filter([0xaa; 32], &[&[9, 9, 9]], &[SERIAL], &[(log_c, 0, 2000)]);
+        write_file(dir, "f0.filter", &f0);
+        write_file(dir, "f1.filter.delta", &f1);
+        write_file(dir, "f2.filter.delta", &f2);
+        write_file(
+            dir,
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[(log_a, 0, 2000)]),
+                ("f1.filter.delta", &[(log_b, 0, 2000)]),
+                ("f2.filter.delta", &[(log_c, 0, 2000)]),
+            ]),
+        );
+
+        let loaded = store.load()?;
+
+        for (input, expected) in [
+            (
+                multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
+                RevocationStatus::CertainlyRevoked,
+            ),
+            (
+                multi_sct_input(&[(log_a, 1000), (log_c, 1000)]),
+                RevocationStatus::NotRevoked,
+            ),
+            (
+                multi_sct_input(&[(log_a, 1000)]),
+                RevocationStatus::NotCoveredByRevocationData,
+            ),
+            (
+                multi_sct_input(&[(log_b, 5000)]),
+                RevocationStatus::NotCoveredByRevocationData,
+            ),
+            (test_input(), RevocationStatus::NotCoveredByRevocationData),
+        ] {
+            assert_eq!(loaded.check(&input)?, expected, "{input:?}");
+            assert_eq!(store.check(&input)?, expected, "{input:?}");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn loaded_checks_survive_cache_removal() -> Result<(), Box<dyn StdError>> {
+        let (store, dir) = store_in_tempdir();
+        write_revoking_cache(dir.path(), "f0.filter");
+
+        let loaded = store.load()?;
+        fs::remove_dir_all(dir.path())?;
+
+        assert!(matches!(
+            store.check(&test_input()),
+            Err(Error::NoData { .. })
+        ));
+        assert_eq!(
+            loaded.check(&test_input())?,
+            RevocationStatus::CertainlyRevoked
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn is_stale_compares_index_bytes() -> Result<(), Box<dyn StdError>> {
+        let (store, dir) = store_in_tempdir();
+        let dir = dir.path();
+        write_revoking_cache(dir, "f0.filter");
+
+        let loaded = store.load()?;
+        assert!(!loaded.is_stale()?);
+
+        // A fetch that found nothing new still rewrites the index with the same bytes.
+        let same = fs::read(dir.join(INDEX_BIN))?;
+        write_file(dir, INDEX_BIN, &same);
+        assert!(!loaded.is_stale()?);
+
+        write_file(
+            dir,
+            INDEX_BIN,
+            &build_index(&[
+                ("f0.filter", &[([0xbb; 32], 0, 2000)]),
+                ("f1.filter", &[([0xbb; 32], 2000, 3000)]),
+            ]),
+        );
+        assert!(loaded.is_stale()?);
+
+        fs::remove_file(dir.join(INDEX_BIN))?;
+        assert!(matches!(loaded.is_stale(), Err(Error::NoData { .. })));
+
+        Ok(())
+    }
+
+    #[test]
+    fn loaded_store_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<LoadedStore>();
+    }
+
+    /// A store whose cache directory is a fresh temporary directory.
+    fn store_in_tempdir() -> (Store, TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store {
+            cache_dir: dir.path().to_owned(),
+        };
+        (store, dir)
+    }
+
+    /// Write an index naming one filter, `filename`, that revokes the certificate of
+    /// [`test_input`].
+    fn write_revoking_cache(dir: &Path, filename: &str) {
+        let filter = build_filter([0xaa; 32], &[SERIAL], &[], &[([0xbb; 32], 0, 2000)]);
+        write_file(dir, filename, &filter);
+        write_file(
+            dir,
+            INDEX_BIN,
+            &build_index(&[(filename, &[([0xbb; 32], 0, 2000)])]),
+        );
     }
 }
