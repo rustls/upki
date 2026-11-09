@@ -9,7 +9,7 @@ use aws_lc_rs::digest::{SHA256, digest};
 use clap::{Parser, ValueEnum};
 use clubcard_crlite::{CRLiteClubcard, Encoding};
 use eyre::{Context, Report, anyhow};
-use upki::data::{Manifest, ManifestFile};
+use upki::revocation::{Manifest, ManifestFile};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {

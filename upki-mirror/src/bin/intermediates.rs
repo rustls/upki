@@ -10,7 +10,7 @@ use eyre::{Context, Report, anyhow};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
 use serde::Deserialize;
-use upki::data::{Manifest, ManifestFile};
+use upki::revocation::{Manifest, ManifestFile};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Report> {
