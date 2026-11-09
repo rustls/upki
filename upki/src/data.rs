@@ -98,13 +98,37 @@ where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    if s.chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
-    {
-        return Ok(s);
+    let mut chars = s.chars();
+    let Some(first) = chars.next() else {
+        return Err(serde::de::Error::custom("filename cannot be empty"));
+    };
+
+    if !first.is_alphanumeric() {
+        return Err(serde::de::Error::custom(
+            "filename must start with an alphanumeric character",
+        ));
     }
 
-    Err(serde::de::Error::custom("invalid filename"))
+    let mut dot = false;
+    for c in chars {
+        if c.is_alphanumeric() || c == '_' || c == '-' {
+            dot = false;
+            continue;
+        } else if c == '.' {
+            if dot {
+                return Err(serde::de::Error::custom(
+                    "filename cannot contain consecutive dots",
+                ));
+            }
+            dot = true;
+        } else {
+            return Err(serde::de::Error::custom(
+                "filename contains invalid character",
+            ));
+        }
+    }
+
+    Ok(s)
 }
 
 #[cfg(test)]
@@ -114,8 +138,16 @@ mod tests {
     #[cfg(feature = "__fetch")]
     #[test]
     fn invalid_manifest_filename() {
-        const INVALID_FILENAME: &str =
-            r#"{"filename": "invalid/filename.txt", "size": 123, "hash": "abcd"}"#;
-        assert!(serde_json::from_str::<ManifestFile>(INVALID_FILENAME).is_err());
+        const INVALID: &[&str] = &[
+            r#"{"filename": "invalid/filename.txt", "size": 123, "hash": "abcd"}"#,
+            r#"{"filename": "", "size": 123, "hash": "abcd"}"#,
+            r#"{"filename": "foo..bar", "size": 123, "hash": "abcd"}"#,
+            r#"{"filename": "?!#", "size": 123, "hash": "abcd"}"#,
+        ];
+
+        for &json in INVALID {
+            println!("Testing invalid JSON: {json}");
+            assert!(serde_json::from_str::<ManifestFile>(json).is_err());
+        }
     }
 }
