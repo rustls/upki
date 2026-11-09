@@ -1,6 +1,6 @@
 [package]
 name = "upki-mirror"
-version = "0.1.0"
+version = "0.2.0"
 license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,7 +19,7 @@ rustls-pki-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
-upki = { path = "../upki" }
+upki = { version = "1.0.0", path = "../upki" }
 
 [dev-dependencies]
 base64.workspace = true
