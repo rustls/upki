@@ -82,6 +82,7 @@ pub struct ManifestFile {
     /// Relative filename.
     ///
     /// This is also the suggested local filename.
+    #[serde(deserialize_with = "deserialize_filename")]
     pub filename: String,
 
     /// File size, indicative.  Allows a fetcher to predict data usage.
@@ -90,4 +91,31 @@ pub struct ManifestFile {
     /// SHA256 hash of file contents.
     #[serde(with = "hex::serde")]
     pub hash: Vec<u8>,
+}
+
+fn deserialize_filename<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
+        return Ok(s);
+    }
+
+    Err(serde::de::Error::custom("invalid filename"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn invalid_manifest_filename() {
+        const INVALID_FILENAME: &str =
+            r#"{"filename": "invalid/filename.txt", "size": 123, "hash": "abcd"}"#;
+        assert!(serde_json::from_str::<ManifestFile>(INVALID_FILENAME).is_err());
+    }
 }
