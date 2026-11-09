@@ -5,6 +5,7 @@ license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
+description = "Tools for mirroring upki certificate and revocation data"
 
 [dependencies]
 aws-lc-rs.workspace = true
