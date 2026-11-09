@@ -68,7 +68,14 @@ impl FetchContext<'_> {
                 url: manifest_url.clone(),
             })?;
 
-        let old_manifest = Manifest::from_cache(&self.cache_dir).ok();
+        let old_manifest = match Manifest::from_cache(&self.cache_dir) {
+            Ok(manifest) => Some(manifest),
+            Err(error) => {
+                debug!(%error, "cannot read existing manifest");
+                None
+            }
+        };
+
         let local_modified = old_manifest.as_ref().and_then(|_| {
             let path = self.cache_dir.join(MANIFEST_JSON);
             match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
