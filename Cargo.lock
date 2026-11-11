@@ -2988,9 +2988,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-ccadb"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b22a93e00e215769c99c46f74e90a20153f97a21c0f9881530d27ae2738c9010"
+checksum = "0487d44d49aa025636545f546fb9ed2a312b4bbfd9e4335dd3dcb8a4894b06f1"
 dependencies = [
  "csv",
  "hex",
