@@ -6,7 +6,7 @@ members = [
 ]
 
 [dist]
-cargo-dist-version = "0.32.0"
+cargo-dist-version = "0.34.0"
 ci = "github"
 installers = []
 github-build-setup = "../cargo-c-setup.yml"
