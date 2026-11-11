@@ -31,5 +31,10 @@ regex.workspace = true
 tempfile.workspace = true
 tiny_http.workspace = true
 
+[[bin]]
+name = "upki"
+path = "src/bin/upki.rs"
+doc = false
+
 [lints]
 workspace = true
