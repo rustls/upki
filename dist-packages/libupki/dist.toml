@@ -1,6 +1,6 @@
 [package]
 name = "libupki"
-version = "1.0.1"
+version = "1.0.2"
 repository = "https://github.com/rustls/upki"
 build-command = ["sh", "build-ffi.sh"]
 cdylibs = ["upki"]
