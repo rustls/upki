@@ -2022,7 +2022,7 @@ dependencies = [
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.16",
+ "rustls-webpki",
  "subtle",
  "zeroize",
 ]
@@ -2063,7 +2063,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.16",
+ "rustls-webpki",
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
@@ -2082,28 +2082,18 @@ version = "1.0.0"
 dependencies = [
  "rustls",
  "rustls-native-certs",
- "rustls-webpki 0.104.0-alpha.8",
+ "rustls-webpki",
  "upki",
 ]
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.16"
+version = "0.103.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
+checksum = "e3a0760a887c14823fca5a1c970b01d47c328c696c0c64829d1df50e8f853fd5"
 dependencies = [
  "aws-lc-rs",
  "ring",
- "rustls-pki-types",
- "untrusted 0.9.0",
-]
-
-[[package]]
-name = "rustls-webpki"
-version = "0.104.0-alpha.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4f05eb03bb89c8b88908947d1add6fbe564e58db7b686dbda59691aaec0e450"
-dependencies = [
  "rustls-pki-types",
  "untrusted 0.9.0",
 ]
@@ -2771,7 +2761,7 @@ dependencies = [
  "jiff",
  "reqwest",
  "rustls-pki-types",
- "rustls-webpki 0.104.0-alpha.8",
+ "rustls-webpki",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -2998,7 +2988,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "reqwest",
  "rustls-pki-types",
- "rustls-webpki 0.103.16",
+ "rustls-webpki",
  "serde",
  "serde_json",
  "url",
