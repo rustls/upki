@@ -17,7 +17,7 @@ use upki::revocation::{
     self, CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus, Store,
 };
 use upki::{self, Config, ConfigPath};
-use webpki::{EndEntityCert, ExtendedKeyUsage, InvalidNameContext, PathBuilder, VerifiedPath};
+use webpki::{EndEntityCert, InvalidNameContext, KeyUsage, VerifiedPath};
 
 /// A [`ServerCertVerifier`] that uses upki to check revocation status of server certificates.
 pub struct ServerVerifier {
@@ -148,17 +148,19 @@ impl ServerCertVerifier for ServerVerifier {
     ) -> Result<ServerCertVerified, rustls::Error> {
         let ee = EndEntityCert::try_from(end_entity).map_err(webpki_error)?;
 
-        let verified_path = PathBuilder::new(
-            intermediates,
-            None,
-            &ExtendedKeyUsage::SERVER_AUTH,
-            self.provider
-                .signature_verification_algorithms
-                .all,
-            &self.roots.roots,
-        )
-        .build(&ee, now)
-        .map_err(webpki_error)?;
+        let verified_path = ee
+            .verify_for_usage(
+                self.provider
+                    .signature_verification_algorithms
+                    .all,
+                &self.roots.roots,
+                intermediates,
+                now,
+                KeyUsage::server_auth(),
+                None,
+                None,
+            )
+            .map_err(webpki_error)?;
 
         ee.verify_is_valid_for_subject_name(server_name)
             .map_err(webpki_error)?;
@@ -326,14 +328,14 @@ fn webpki_error(error: webpki::Error) -> rustls::Error {
         IssuerNotCrlSigner => CertRevocationListError::IssuerInvalidForCrl.into(),
 
         InvalidSignatureForPublicKey => CertificateError::BadSignature.into(),
-        UnsupportedSignatureAlgorithm(cx) => {
+        UnsupportedSignatureAlgorithmContext(cx) => {
             CertificateError::UnsupportedSignatureAlgorithmContext {
                 signature_algorithm_id: cx.signature_algorithm_id,
                 supported_algorithms: cx.supported_algorithms,
             }
             .into()
         }
-        UnsupportedSignatureAlgorithmForPublicKey(cx) => {
+        UnsupportedSignatureAlgorithmForPublicKeyContext(cx) => {
             CertificateError::UnsupportedSignatureAlgorithmForPublicKeyContext {
                 signature_algorithm_id: cx.signature_algorithm_id,
                 public_key_algorithm_id: cx.public_key_algorithm_id,
@@ -342,14 +344,14 @@ fn webpki_error(error: webpki::Error) -> rustls::Error {
         }
 
         InvalidCrlSignatureForPublicKey => CertRevocationListError::BadSignature.into(),
-        UnsupportedCrlSignatureAlgorithm(cx) => {
+        UnsupportedCrlSignatureAlgorithmContext(cx) => {
             CertRevocationListError::UnsupportedSignatureAlgorithmContext {
                 signature_algorithm_id: cx.signature_algorithm_id,
                 supported_algorithms: cx.supported_algorithms,
             }
             .into()
         }
-        UnsupportedCrlSignatureAlgorithmForPublicKey(cx) => {
+        UnsupportedCrlSignatureAlgorithmForPublicKeyContext(cx) => {
             CertRevocationListError::UnsupportedSignatureAlgorithmForPublicKeyContext {
                 signature_algorithm_id: cx.signature_algorithm_id,
                 public_key_algorithm_id: cx.public_key_algorithm_id,
@@ -357,7 +359,7 @@ fn webpki_error(error: webpki::Error) -> rustls::Error {
             .into()
         }
 
-        RequiredEkuNotFound(webpki::RequiredEkuNotFoundContext { required, present }) => {
+        RequiredEkuNotFoundContext(webpki::RequiredEkuNotFoundContext { required, present }) => {
             rustls::Error::from(CertificateError::InvalidPurposeContext {
                 required: ekp_for_values(required.oid_values()),
                 presented: present
@@ -374,8 +376,8 @@ fn webpki_error(error: webpki::Error) -> rustls::Error {
 pub(crate) fn ekp_for_values(values: impl Iterator<Item = usize>) -> ExtendedKeyPurpose {
     let values = values.collect::<Vec<_>>();
     match &*values {
-        ExtendedKeyUsage::CLIENT_AUTH_REPR => ExtendedKeyPurpose::ClientAuth,
-        ExtendedKeyUsage::SERVER_AUTH_REPR => ExtendedKeyPurpose::ServerAuth,
+        KeyUsage::CLIENT_AUTH_REPR => ExtendedKeyPurpose::ClientAuth,
+        KeyUsage::SERVER_AUTH_REPR => ExtendedKeyPurpose::ServerAuth,
         _ => ExtendedKeyPurpose::Other(values),
     }
 }
