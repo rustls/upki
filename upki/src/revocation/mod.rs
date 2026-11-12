@@ -17,6 +17,7 @@ use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
 use tracing::info;
+use webpki::sct::Error::UnsupportedSctVersion;
 
 #[cfg(feature = "__fetch")]
 use crate::FetchError;
@@ -142,7 +143,11 @@ impl RevocationCheckInput {
             .map_err(|e| Error::InvalidEndEntityCertificate(Box::new(e)))?;
 
         for ts in iter {
-            let ts = ts.map_err(|e| Error::InvalidSctInCertificate(Box::new(e)))?;
+            let ts = match ts {
+                Ok(ts) => ts,
+                Err(UnsupportedSctVersion) => continue,
+                Err(error) => return Err(Error::InvalidSctInCertificate(Box::new(error))),
+            };
             sct_timestamps.push(CtTimestamp {
                 log_id: ts.log_id,
                 timestamp: ts.timestamp_ms,

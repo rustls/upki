@@ -17,6 +17,7 @@ use upki::revocation::{
     self, CertSerial, CtTimestamp, IssuerSpkiHash, RevocationCheckInput, RevocationStatus, Store,
 };
 use upki::{self, Config, ConfigPath};
+use webpki::sct::Error::UnsupportedSctVersion;
 use webpki::{EndEntityCert, InvalidNameContext, KeyUsage, VerifiedPath};
 
 /// A [`ServerCertVerifier`] that uses upki to check revocation status of server certificates.
@@ -105,7 +106,11 @@ impl ServerVerifier {
             .end_entity()
             .sct_log_timestamps();
         for ts in sct_iter.map_err(sct_error)? {
-            let ts = ts.map_err(sct_error)?;
+            let ts = match ts {
+                Ok(ts) => ts,
+                Err(UnsupportedSctVersion) => continue,
+                Err(error) => return Err(sct_error(error)),
+            };
             sct_timestamps.push(CtTimestamp {
                 log_id: ts.log_id,
                 timestamp: ts.timestamp_ms,
@@ -293,7 +298,7 @@ impl Outcome {
 fn sct_error(error: webpki::sct::Error) -> rustls::Error {
     let message = match error {
         webpki::sct::Error::MalformedSct => "malformed sct",
-        webpki::sct::Error::UnsupportedSctVersion => "unsupported sct version",
+        UnsupportedSctVersion => "unsupported sct version",
         _ => "unknown sct error",
     };
 
