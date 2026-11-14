@@ -79,7 +79,10 @@ specification](https://c2sp.org/upki-revocation@v1.0.0).
 
 # Packaging
 
-See [PACKAGING.md](PACKAGING.md).
+[![Packaging status](https://repology.org/badge/vertical-allrepos/upki.svg)](https://repology.org/project/upki/versions)
+
+See [PACKAGING.md](PACKAGING.md) for advice on packaging upki for new
+distribution channels.
 
 # License
 
