@@ -11,6 +11,7 @@ use clubcard_crlite::TimestampInterval;
 use clubcard_crlite::{CRLiteClubcard, CRLiteStatus, LogId, Timestamp};
 
 use super::{Error, RevocationCheckInput, RevocationStatus};
+use crate::data::MAX_FILENAME_LEN;
 #[cfg(feature = "__fetch")]
 use crate::data::Manifest;
 #[cfg(feature = "__fetch")]
@@ -109,7 +110,7 @@ impl Index {
 
         // Read 3: filename table + log table
         // `num_filenames` is at most `u16::MAX`, so this cannot overflow even on 32-bit targets.
-        let logs_offset = num_filenames * FILENAME_SIZE;
+        let logs_offset = num_filenames * MAX_FILENAME_LEN;
 
         let Some(logs_size) = num_logs.checked_mul(LOG_DIR_ENTRY_SIZE) else {
             return Err(Error::IndexDecode("log table size overflow".into()));
@@ -159,9 +160,9 @@ impl Index {
         let mut by_log_id: BTreeMap<LogId, Vec<(u16, TimestampInterval)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
-            if filter.filename.len() > FILENAME_SIZE {
+            if filter.filename.len() > MAX_FILENAME_LEN {
                 tracing::warn!(
-                    "skipping index: filename {:?} exceeds {FILENAME_SIZE} bytes",
+                    "skipping index: filename {:?} exceeds {MAX_FILENAME_LEN} bytes",
                     filter.filename
                 );
                 return None;
@@ -194,7 +195,7 @@ impl Index {
 
         // Compute header size to determine entry section offsets
         let header_size = HEADER_SIZE_V1
-            + manifest.files.len() * FILENAME_SIZE
+            + manifest.files.len() * MAX_FILENAME_LEN
             + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
 
         // Write header
@@ -206,7 +207,7 @@ impl Index {
         // Write filename table (fixed 32-byte slots, NULL-padded)
         for filter in &manifest.files {
             let filename = filter.filename.as_bytes();
-            let mut slot = [0u8; FILENAME_SIZE];
+            let mut slot = [0u8; MAX_FILENAME_LEN];
             slot[..filename.len()].copy_from_slice(filename);
             buf.extend_from_slice(&slot);
         }
@@ -355,12 +356,12 @@ impl Index {
             return Err(Error::IndexDecode("filter index out of bounds".into()));
         }
 
-        let start = index * FILENAME_SIZE;
-        let slot = &self.tables[start..start + FILENAME_SIZE];
+        let start = index * MAX_FILENAME_LEN;
+        let slot = &self.tables[start..start + MAX_FILENAME_LEN];
         let end = slot
             .iter()
             .position(|&b| b == 0)
-            .unwrap_or(FILENAME_SIZE);
+            .unwrap_or(MAX_FILENAME_LEN);
         str::from_utf8(&slot[..end]).map_err(|e| Error::IndexDecode(Box::new(e)))
     }
 }
@@ -439,7 +440,6 @@ trait FromBeBytes<const N: usize>: Sized {
 
 const HEADER_SIZE_V1: usize = 8 + 2 + 4;
 const HEADER_SIZE_V0: usize = 8 + 1 + 4;
-const FILENAME_SIZE: usize = 32;
 const LOG_DIR_ENTRY_SIZE: usize = 32 + 8 + 2;
 const ENTRY_SIZE_V1: usize = 2 + 8 + 8;
 const ENTRY_SIZE_V0: usize = 1 + 8 + 8;
@@ -1157,7 +1157,7 @@ mod tests {
 
         // Compute header size
         let header_size =
-            base_size + filters.len() * FILENAME_SIZE + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
+            base_size + filters.len() * MAX_FILENAME_LEN + by_log_id.len() * LOG_DIR_ENTRY_SIZE;
 
         // Write header
         let mut buf = Vec::new();
@@ -1171,7 +1171,7 @@ mod tests {
         // Write filename table (fixed 32-byte slots, NULL-padded)
         for (filename, _) in filters {
             let bytes = filename.as_bytes();
-            let mut slot = [0u8; FILENAME_SIZE];
+            let mut slot = [0u8; MAX_FILENAME_LEN];
             slot[..bytes.len()].copy_from_slice(bytes);
             buf.extend_from_slice(&slot);
         }
