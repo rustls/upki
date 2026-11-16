@@ -2774,13 +2774,17 @@ dependencies = [
 name = "upki-cli"
 version = "1.0.3"
 dependencies = [
+ "aws-lc-rs",
  "clap",
+ "clubcard",
+ "clubcard-crlite",
  "eyre",
  "insta",
  "insta-cmd",
  "jiff",
  "regex",
  "rustls-pki-types",
+ "serde_json",
  "tempfile",
  "tiny_http",
  "tokio",

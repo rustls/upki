@@ -24,10 +24,14 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+aws-lc-rs.workspace = true
+clubcard.workspace = true
+clubcard-crlite = { workspace = true, features = ["builder"] }
 jiff.workspace = true
 insta.workspace = true
 insta-cmd.workspace = true
 regex.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
 tiny_http.workspace = true
 
