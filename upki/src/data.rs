@@ -98,6 +98,12 @@ where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
+    if s.len() > MAX_FILENAME_LEN {
+        return Err(serde::de::Error::custom(format_args!(
+            "filename cannot exceed {MAX_FILENAME_LEN} bytes"
+        )));
+    }
+
     let mut chars = s.chars();
     let Some(first) = chars.next() else {
         return Err(serde::de::Error::custom("filename cannot be empty"));
@@ -131,6 +137,11 @@ where
     Ok(s)
 }
 
+/// Maximum filter filename length from the UPKI revocation cache layout.
+///
+/// See <https://c2sp.org/upki-revocation#revocation-cache-directory-layout>.
+pub(crate) const MAX_FILENAME_LEN: usize = 32;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,11 +154,21 @@ mod tests {
             r#"{"filename": "", "size": 123, "hash": "abcd"}"#,
             r#"{"filename": "foo..bar", "size": 123, "hash": "abcd"}"#,
             r#"{"filename": "?!#", "size": 123, "hash": "abcd"}"#,
+            r#"{"filename": "123456789012345678901234567890123.filter", "size": 123, "hash": "abcd"}"#,
         ];
 
         for &json in INVALID {
             println!("Testing invalid JSON: {json}");
             assert!(serde_json::from_str::<ManifestFile>(json).is_err());
         }
+    }
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn manifest_filename_maximum_length() {
+        let json =
+            r#"{"filename": "1234567890123456789012345.filter", "size": 123, "hash": "abcd"}"#;
+        let file = serde_json::from_str::<ManifestFile>(json).unwrap();
+        assert_eq!(file.filename.len(), MAX_FILENAME_LEN);
     }
 }
