@@ -321,8 +321,20 @@ enum PlanStep {
 impl PlanStep {
     async fn execute(self, client: &reqwest::Client) -> Result<(), FetchError> {
         match self {
-            Self::CreateDir(path) => fs::create_dir_all(&path)
-                .map_err(|error| FetchError::DirectoryCreate { error, path })?,
+            Self::CreateDir(path) => {
+                fs::create_dir_all(&path).map_err(|error| FetchError::DirectoryCreate {
+                    error,
+                    path: path.clone(),
+                })?;
+
+                #[cfg(target_family = "unix")]
+                fs::set_permissions(&path, Permissions::from_mode(0o755)).map_err(|error| {
+                    FetchError::DirectoryCreate {
+                        error,
+                        path: path.clone(),
+                    }
+                })?;
+            }
             Self::Download {
                 file,
                 remote_url,
@@ -476,6 +488,8 @@ fn stage_file(path: &Path, data: &[u8]) -> Result<NamedTempFile, io::Error> {
 fn persist_file(temp: NamedTempFile, path: &Path) -> Result<(), io::Error> {
     temp.persist(path)
         .map_err(|error| error.error)?;
+    #[cfg(target_family = "unix")]
+    fs::set_permissions(path, Permissions::from_mode(0o644))?;
     Ok(())
 }
 

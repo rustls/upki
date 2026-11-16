@@ -7,6 +7,8 @@ mod data;
 use core::error::Error;
 use core::time::Duration;
 use std::fs::{OpenOptions, create_dir};
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -170,6 +172,75 @@ fn fetch_of_empty_manifest() {
         list_dir(&temp.path().join("revocation")),
         vec!["index.bin", "manifest.json"],
     );
+}
+
+#[cfg(target_family = "unix")]
+#[test]
+fn fetched_cache_paths_are_world_readable() {
+    let (server, _filters) =
+        http_server(PathBuf::from("tests/data/verify_of_empty_manifest/"), false);
+    let temp = TempDir::new().unwrap();
+    let cache_root = temp.path().join("cache");
+    create_dir(&cache_root).unwrap();
+    fs::set_permissions(&cache_root, fs::Permissions::from_mode(0o700)).unwrap();
+    let config_file = temp.path().join("config.toml");
+    fs::write(
+        &config_file,
+        format!(
+            "cache-dir=\"{}\"\n\
+             [revocation]\n\
+             fetch-url=\"{}revocation/\"\n",
+            cache_root.display(),
+            server.url(),
+        ),
+    )
+    .unwrap();
+
+    let output = upki()
+        .arg("--config-file")
+        .arg(config_file)
+        .arg("fetch")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "fetch failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let revocation = cache_root.join("revocation");
+    assert_eq!(
+        fs::metadata(&cache_root)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o700,
+        "fetch changed the configured cache root's mode"
+    );
+    assert_eq!(
+        fs::metadata(&revocation)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "unexpected mode for {revocation:?}"
+    );
+    for path in [
+        revocation.join("index.bin"),
+        revocation.join("manifest.json"),
+    ] {
+        assert_eq!(
+            fs::metadata(&path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644,
+            "unexpected mode for {path:?}"
+        );
+    }
 }
 
 #[test]
