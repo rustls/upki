@@ -1,0 +1,11 @@
+{
+  "generated_at": 1765445031,
+  "comment": "hash mismatch test manifest",
+  "files": [
+    {
+      "filename": "replace.filter",
+      "size": 16,
+      "hash": "117e8a3c82f137a45efb00ddfabf6762959bcb0dbba4a6938fcd433684b7a1d5"
+    }
+  ]
+}
