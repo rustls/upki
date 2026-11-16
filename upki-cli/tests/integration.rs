@@ -213,6 +213,35 @@ fn fetch_fails_when_index_cannot_be_built() {
 }
 
 #[test]
+fn hash_mismatch_does_not_replace_existing_filter() {
+    let _filters = apply_common_filters();
+    let (server, _filters) = http_server(PathBuf::from("tests/data/hash_mismatch/"), false);
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+    let filter = temp
+        .path()
+        .join("revocation/replace.filter");
+    fs::write(&filter, b"existing contents").unwrap();
+
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--config-file")
+            .arg(config_file)
+            .arg("fetch"),
+        @r#"
+    success: false
+    exit_code: 1
+    ----- stdout -----
+
+    ----- stderr -----
+    Error: hash mismatch for file "[TEMPDIR]/revocation/replace.filter"
+
+    Location:
+        upki-cli/src/bin/upki.rs:[LINE]:[COLUMN]
+    "#);
+    assert_eq!(fs::read(filter).unwrap(), b"existing contents");
+}
+
+#[test]
 fn full_fetch() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);

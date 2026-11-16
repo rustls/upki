@@ -24,6 +24,7 @@ use jiff::Timestamp;
 use jiff::fmt::rfc2822::DateTimePrinter;
 use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
+use tempfile::NamedTempFile;
 use tracing::{debug, info};
 
 use crate::data::{Manifest, ManifestFile};
@@ -241,8 +242,8 @@ impl Plan {
             unwanted_files.remove(Path::new(&file.filename));
 
             let path = local.join(&file.filename);
-            match hash_file(&path) {
-                Ok(digest) if digest.as_ref() == file.hash => continue,
+            match File::open(&path).and_then(hash_file) {
+                Ok((_, digest)) if digest.as_ref() == file.hash => continue,
                 _ => {}
             }
 
@@ -351,21 +352,23 @@ impl PlanStep {
                         url: remote_url.clone(),
                     })?;
 
-                atomic_write(&local, &bytes).map_err(|error| FetchError::FileWrite {
+                let temp = stage_file(&local, &bytes).map_err(|error| FetchError::FileWrite {
                     error,
                     path: local.clone(),
                 })?;
-
-                match hash_file(&local) {
-                    Ok(digest) if digest.as_ref() == file.hash => {}
-                    Ok(_) => return Err(FetchError::HashMismatch(local)),
-                    Err(error) => {
-                        return Err(FetchError::FileRead {
-                            error,
-                            path: Some(local),
-                        });
-                    }
+                let (size, digest) = temp
+                    .reopen()
+                    .and_then(hash_file)
+                    .map_err(|error| FetchError::FileRead {
+                        error,
+                        path: Some(temp.path().to_owned()),
+                    })?;
+                if size != file.size as u64 || digest.as_ref() != file.hash {
+                    return Err(FetchError::HashMismatch(local));
                 }
+
+                persist_file(temp, &local)
+                    .map_err(|error| FetchError::FileWrite { error, path: local })?;
 
                 debug!("download successful");
             }
@@ -478,6 +481,10 @@ impl fmt::Display for PlanStep {
 
 /// Atomically write `data` to `path` via a temporary file and rename.
 fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
+    persist_file(stage_file(path, data)?, path)
+}
+
+fn stage_file(path: &Path, data: &[u8]) -> Result<NamedTempFile, io::Error> {
     let dir = path
         .parent()
         .expect("path must have parent");
@@ -491,6 +498,10 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
 
     let mut temp = temp?;
     temp.write_all(data)?;
+    Ok(temp)
+}
+
+fn persist_file(temp: NamedTempFile, path: &Path) -> Result<(), io::Error> {
     temp.persist(path)
         .map_err(|error| error.error)?;
     Ok(())
@@ -508,9 +519,9 @@ fn http_date(time: SystemTime) -> Option<String> {
         .ok()
 }
 
-fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
-    let mut file = File::open(path)?;
+fn hash_file(mut file: File) -> Result<(u64, sha256::Digest), io::Error> {
     let mut hasher = sha256::Context::new();
+    let mut size = 0;
     let mut buffer = [0; 4096];
     loop {
         let n = file.read(&mut buffer)?;
@@ -519,9 +530,10 @@ fn hash_file(path: &Path) -> Result<sha256::Digest, io::Error> {
         }
 
         hasher.update(&buffer[..n]);
+        size += n as u64;
     }
 
-    Ok(hasher.finish())
+    Ok((size, hasher.finish()))
 }
 
 const HTTP_DATE: DateTimePrinter = DateTimePrinter::new();
