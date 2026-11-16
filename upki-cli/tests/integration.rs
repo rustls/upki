@@ -2,6 +2,8 @@
 // but should work ok on macOS and WSL
 #![cfg(not(target_os = "windows"))]
 
+mod data;
+
 use core::error::Error;
 use core::time::Duration;
 use std::fs::{OpenOptions, create_dir};
@@ -16,6 +18,8 @@ use insta::internals::SettingsBindDropGuard;
 use insta_cmd::assert_cmd_snapshot;
 use jiff::fmt::rfc2822::DateTimeParser;
 use tempfile::TempDir;
+
+use crate::data::{EVOLUTION, HttpRoot, TYPICAL};
 
 #[test]
 fn version() {
@@ -142,7 +146,8 @@ fn verify_of_empty_manifest() {
 #[test]
 fn fetch_of_empty_manifest() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/verify_of_empty_manifest/", false);
+    let (server, _filters) =
+        http_server(PathBuf::from("tests/data/verify_of_empty_manifest/"), false);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
@@ -170,7 +175,7 @@ fn fetch_of_empty_manifest() {
 #[test]
 fn full_fetch() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", false);
+    let (server, _filters) = http_server(&*TYPICAL, false);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
@@ -188,10 +193,10 @@ fn full_fetch() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (530 bytes)
-    GET /revocation/filter1.filter  ->  200 OK (11 bytes)
-    GET /revocation/filter2.delta  ->  200 OK (14 bytes)
-    GET /revocation/filter3.delta  ->  200 OK (10 bytes)
+    GET /revocation/manifest.json  ->  200 OK (532 bytes)
+    GET /revocation/filter1.filter  ->  200 OK (113 bytes)
+    GET /revocation/filter2.delta  ->  200 OK (113 bytes)
+    GET /revocation/filter3.delta  ->  200 OK (113 bytes)
     ");
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
@@ -199,6 +204,7 @@ fn full_fetch() {
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
@@ -207,7 +213,7 @@ fn full_fetch() {
 #[test]
 fn full_fetch_and_incremental_update() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", false);
+    let (server, _filters) = http_server(&*TYPICAL, false);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
@@ -225,10 +231,10 @@ fn full_fetch_and_incremental_update() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (530 bytes)
-    GET /revocation/filter1.filter  ->  200 OK (11 bytes)
-    GET /revocation/filter2.delta  ->  200 OK (14 bytes)
-    GET /revocation/filter3.delta  ->  200 OK (10 bytes)
+    GET /revocation/manifest.json  ->  200 OK (532 bytes)
+    GET /revocation/filter1.filter  ->  200 OK (113 bytes)
+    GET /revocation/filter2.delta  ->  200 OK (113 bytes)
+    GET /revocation/filter3.delta  ->  200 OK (113 bytes)
     ");
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
@@ -236,13 +242,14 @@ fn full_fetch_and_incremental_update() {
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
+            "index.bin",
             "manifest.json"
         ],
     );
 
     // now server is updated to "evolution" which requires a partial update
     // compared to "typical"
-    let (server, _filters) = http_server("tests/data/evolution/", false);
+    let (server, _filters) = http_server(&*EVOLUTION, false);
     write_config(&temp, server.url());
     assert_cmd_snapshot!(
         upki()
@@ -259,8 +266,8 @@ fn full_fetch_and_incremental_update() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (545 bytes)
-    GET /revocation/filter4.delta  ->  200 OK (3 bytes)
+    GET /revocation/manifest.json  ->  200 OK (547 bytes)
+    GET /revocation/filter4.delta  ->  200 OK (113 bytes)
     ");
     // filter2 could be deleted, filter4 is new
     assert_eq!(
@@ -270,12 +277,13 @@ fn full_fetch_and_incremental_update() {
             "filter2.delta",
             "filter3.delta",
             "filter4.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
 
     // a fetch of the same manifest clears away "filter2.delta" as it is now unused
-    let (server, _filters) = http_server("tests/data/evolution/", false);
+    let (server, _filters) = http_server(&*EVOLUTION, false);
     write_config(&temp, server.url());
     assert_cmd_snapshot!(
         upki()
@@ -291,7 +299,7 @@ fn full_fetch_and_incremental_update() {
     ");
     assert_snapshot!(
         server.into_log(),
-        @"GET /revocation/manifest.json  ->  200 OK (545 bytes)");
+        @"GET /revocation/manifest.json  ->  200 OK (547 bytes)");
 
     // filter2 is now deleted
     assert_eq!(
@@ -300,6 +308,7 @@ fn full_fetch_and_incremental_update() {
             "filter1.filter",
             "filter3.delta",
             "filter4.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
@@ -308,27 +317,10 @@ fn full_fetch_and_incremental_update() {
 #[test]
 fn typical_incremental_fetch() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", false);
+    let (server, _filters) = http_server(&*TYPICAL, false);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
-    fs::copy(
-        "tests/data/typical/revocation/manifest.json",
-        temp.path()
-            .join("revocation/manifest.json"),
-    )
-    .unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter1.filter",
-        temp.path()
-            .join("revocation/filter1.filter"),
-    )
-    .unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter3.delta",
-        temp.path()
-            .join("revocation/filter3.delta"),
-    )
-    .unwrap();
+    TYPICAL.seed_partial_cache(temp.path());
 
     assert_cmd_snapshot!(
         upki()
@@ -347,8 +339,8 @@ fn typical_incremental_fetch() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (530 bytes)
-    GET /revocation/filter2.delta  ->  200 OK (14 bytes)
+    GET /revocation/manifest.json  ->  200 OK (532 bytes)
+    GET /revocation/filter2.delta  ->  200 OK (113 bytes)
     ");
 
     assert_eq!(list_dir(temp.path()), vec!["config.toml", "revocation",],);
@@ -359,6 +351,7 @@ fn typical_incremental_fetch() {
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
@@ -367,7 +360,7 @@ fn typical_incremental_fetch() {
 #[test]
 fn fetch_not_modified() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", true);
+    let (server, _filters) = http_server(&*TYPICAL, true);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     assert_cmd_snapshot!(
@@ -385,15 +378,15 @@ fn fetch_not_modified() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (530 bytes)
-    GET /revocation/filter1.filter  ->  200 OK (11 bytes)
-    GET /revocation/filter2.delta  ->  200 OK (14 bytes)
-    GET /revocation/filter3.delta  ->  200 OK (10 bytes)
+    GET /revocation/manifest.json  ->  200 OK (532 bytes)
+    GET /revocation/filter1.filter  ->  200 OK (113 bytes)
+    GET /revocation/filter2.delta  ->  200 OK (113 bytes)
+    GET /revocation/filter3.delta  ->  200 OK (113 bytes)
     ");
 
     // the local manifest was just written, so it is newer than the one on the server:
     // the second fetch is answered with 304 and stops there
-    let (server, _filters) = http_server("tests/data/typical/", true);
+    let (server, _filters) = http_server(&*TYPICAL, true);
     write_config(&temp, server.url());
     assert_cmd_snapshot!(
         upki()
@@ -418,6 +411,7 @@ fn fetch_not_modified() {
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
@@ -426,25 +420,13 @@ fn fetch_not_modified() {
 #[test]
 fn fetch_with_stale_local_manifest() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", true);
+    let (server, _filters) = http_server(&*TYPICAL, true);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
 
     let manifest = temp
         .path()
         .join("revocation/manifest.json");
-    fs::copy("tests/data/typical/revocation/manifest.json", &manifest).unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter1.filter",
-        temp.path()
-            .join("revocation/filter1.filter"),
-    )
-    .unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter3.delta",
-        temp.path()
-            .join("revocation/filter3.delta"),
-    )
-    .unwrap();
+    TYPICAL.seed_partial_cache(temp.path());
 
     // pretend the local manifest is ancient, so the server's copy is newer
     OpenOptions::new()
@@ -471,8 +453,8 @@ fn fetch_with_stale_local_manifest() {
     assert_snapshot!(
         server.into_log(),
         @r"
-    GET /revocation/manifest.json  ->  200 OK (530 bytes)
-    GET /revocation/filter2.delta  ->  200 OK (14 bytes)
+    GET /revocation/manifest.json  ->  200 OK (532 bytes)
+    GET /revocation/filter2.delta  ->  200 OK (113 bytes)
     ");
     assert_eq!(
         list_dir(&temp.path().join("revocation")),
@@ -480,6 +462,7 @@ fn fetch_with_stale_local_manifest() {
             "filter1.filter",
             "filter2.delta",
             "filter3.delta",
+            "index.bin",
             "manifest.json"
         ]
     );
@@ -488,26 +471,9 @@ fn fetch_with_stale_local_manifest() {
 #[test]
 fn typical_incremental_fetch_dry_run() {
     let _filters = apply_common_filters();
-    let (server, _filters) = http_server("tests/data/typical/", false);
+    let (server, _filters) = http_server(&*TYPICAL, false);
     let (temp, config_file, _filters) = temp_dir_and_config(server.url());
-    fs::copy(
-        "tests/data/typical/revocation/manifest.json",
-        temp.path()
-            .join("revocation/manifest.json"),
-    )
-    .unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter1.filter",
-        temp.path()
-            .join("revocation/filter1.filter"),
-    )
-    .unwrap();
-    fs::copy(
-        "tests/data/typical/revocation/filter3.delta",
-        temp.path()
-            .join("revocation/filter3.delta"),
-    )
-    .unwrap();
+    TYPICAL.seed_partial_cache(temp.path());
 
     assert_cmd_snapshot!(
         upki()
@@ -519,8 +485,8 @@ fn typical_incremental_fetch_dry_run() {
     success: true
     exit_code: 0
     ----- stdout -----
-    3 steps required (14 bytes to download)
-    - download 14 bytes from http://127.0.0.1:[PORT]/revocation/filter2.delta to "[TEMPDIR]/revocation/filter2.delta"
+    3 steps required (113 bytes to download)
+    - download 113 bytes from http://127.0.0.1:[PORT]/revocation/filter2.delta to "[TEMPDIR]/revocation/filter2.delta"
     - build index.bin into "[TEMPDIR]/revocation"
     - save new manifest into "[TEMPDIR]/revocation"
 
@@ -546,8 +512,8 @@ fn upki() -> Command {
     cmd
 }
 
-fn http_server(root: &str, conditional: bool) -> (TestHttpServer, SettingsBindDropGuard) {
-    let server = TestHttpServer::new(("127.0.0.1", 0), Path::new(root), conditional).unwrap();
+fn http_server(root: impl HttpRoot, conditional: bool) -> (TestHttpServer, SettingsBindDropGuard) {
+    let server = TestHttpServer::new(("127.0.0.1", 0), root, conditional).unwrap();
 
     // add a filter eliding the (OS-assigned) port in logs
     let mut current_filters = insta::Settings::clone_current();
@@ -622,9 +588,9 @@ pub struct TestHttpServer {
 }
 
 impl TestHttpServer {
-    pub fn new(
+    fn new(
         addr: (&str, u16),
-        server_root: &Path,
+        server_root: impl HttpRoot,
         conditional: bool,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let server = Arc::new(tiny_http::Server::http(addr)?);
@@ -634,19 +600,18 @@ impl TestHttpServer {
             .ok_or("server is not listening on an IP address")?;
 
         let thread_server = server.clone();
-        let server_root = server_root.to_owned();
 
         let joiner = thread::spawn(move || {
             let mut log = String::new();
 
             for request in thread_server.incoming_requests() {
-                let target = server_root.join(request.url().strip_prefix("/").unwrap());
+                let target = request.url().strip_prefix("/").unwrap();
 
-                let response = match fs::read(&target) {
-                    Ok(_) if conditional && not_modified(&request, &target) => {
+                let response = match server_root.read(target) {
+                    Ok((_, modified)) if conditional && not_modified(&request, modified) => {
                         tiny_http::Response::from_data(Vec::new()).with_status_code(304)
                     }
-                    Ok(data) => tiny_http::Response::from_data(data),
+                    Ok((data, _)) => tiny_http::Response::from_data(data),
                     Err(e) => tiny_http::Response::from_string(e.to_string()).with_status_code(404),
                 };
                 log.push_str(&format!(
@@ -696,10 +661,10 @@ impl Drop for TestHttpServer {
     }
 }
 
-/// Is `target` unmodified according to the request's `If-Modified-Since` header?
+/// Is the resource unmodified according to the request's `If-Modified-Since` header?
 ///
 /// A missing or unparseable header means the file is served as usual.
-fn not_modified(request: &tiny_http::Request, target: &Path) -> bool {
+fn not_modified(request: &tiny_http::Request, modified: SystemTime) -> bool {
     let mut since = None;
     for header in request.headers() {
         if header.field.equiv("If-Modified-Since") {
@@ -716,9 +681,7 @@ fn not_modified(request: &tiny_http::Request, target: &Path) -> bool {
         return false;
     };
 
-    let modified = fs::metadata(target)
-        .and_then(|metadata| metadata.modified())
-        .unwrap()
+    let modified = modified
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
 
