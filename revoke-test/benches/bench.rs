@@ -44,6 +44,29 @@ fn revocation(c: &mut Criterion) {
             );
         })
     });
+
+    c.bench_function("revocation-load", |b| {
+        let config = Config::from_file_or_user_default(&ConfigPath::new(None).unwrap()).unwrap();
+        let store = Store::from_config(&config);
+
+        b.iter(|| black_box(store.load().unwrap()))
+    });
+
+    c.bench_function("revocation-check-loaded", |b| {
+        let config = Config::from_file_or_user_default(&ConfigPath::new(None).unwrap()).unwrap();
+        let loaded = Store::from_config(&config)
+            .load()
+            .unwrap();
+        let revoked_certs = certificates_for_test_site(BENCHMARK_CASE);
+
+        b.iter(|| {
+            let input = RevocationCheckInput::from_certificates(&revoked_certs).unwrap();
+            assert_eq!(
+                loaded.check(&input).unwrap(),
+                RevocationStatus::CertainlyRevoked
+            );
+        })
+    });
 }
 
 fn certificates_for_test_site(ca_label: &str) -> Vec<CertificateDer<'static>> {

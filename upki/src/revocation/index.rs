@@ -1,10 +1,12 @@
+use core::borrow::Borrow;
 use core::cmp::Ordering;
 use core::{fmt, str};
+use std::borrow::Cow;
 #[cfg(feature = "__fetch")]
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[cfg(feature = "__fetch")]
 use clubcard_crlite::TimestampInterval;
@@ -51,7 +53,8 @@ use crate::fetch::PostProcess;
 /// `filter_index` as `u8`. Both versions are read, but writing always produces
 /// "upkiidx1".
 ///
-/// This type stores a [`File`] for on-demand reading of entry sections.
+/// This type stores a [`File`] for on-demand reading of entry sections, or the whole
+/// index file in memory; see [`Entries`].
 pub(crate) struct Index {
     num_filenames: usize,
     num_logs: usize,
@@ -60,7 +63,18 @@ pub(crate) struct Index {
     entry_size: usize,
     /// Contains the filename table followed by the log table.
     tables: Vec<u8>,
-    file: File,
+    entries: Entries,
+}
+
+/// Where an [`Index`] reads its entry sections from.
+enum Entries {
+    /// Seek into the index file for each lookup, reading only the entries needed.
+    ///
+    /// Each lookup moves the file's shared position, so an index backed this way
+    /// serves one check at a time; [`Index::check`] enforces that with `&mut self`.
+    OnDemand(File),
+    /// The whole index file.
+    Resident(Vec<u8>),
 }
 
 impl Index {
@@ -147,8 +161,26 @@ impl Index {
             logs_offset,
             entry_size,
             tables,
-            file,
+            entries: Entries::OnDemand(file),
         })
+    }
+
+    /// Read the whole index from the cache directory into memory.
+    ///
+    /// Checks against the result never touch the index file again.
+    pub(super) fn load(cache_dir: &Path) -> Result<Self, Error> {
+        let mut index = Self::from_path(cache_dir)?;
+        if let Entries::OnDemand(file) = &mut index.entries {
+            // Re-read the already open file rather than reopening by path, which
+            // could pick up an index that no longer matches the tables parsed above.
+            file.rewind()
+                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+            let mut data = Vec::new();
+            file.read_to_end(&mut data)
+                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+            index.entries = Entries::Resident(data);
+        }
+        Ok(index)
     }
 
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
@@ -238,16 +270,33 @@ impl Index {
         Some(buf)
     }
 
-    /// Perform a revocation check using the index.
+    /// Perform a revocation check using the index, reading filters from `cache_dir`.
     ///
-    /// Uses binary search over the log-ID directory to find relevant entries, then seeks into
-    /// the index file to read only those entries. Loads matching filter files and queries
-    /// them for the certificate's revocation status. Each distinct filter file is read and
-    /// parsed at most once per check.
+    /// Uses binary search over the log-ID directory to find relevant entries, reading
+    /// only those entries from the index file unless it was [`load`](Self::load)ed.
+    /// Loads matching filter files and queries them for the certificate's revocation
+    /// status. Each distinct filter file is read and parsed at most once per check.
     pub(super) fn check(
         &mut self,
         input: &RevocationCheckInput,
         cache_dir: &Path,
+    ) -> Result<RevocationStatus, Error> {
+        self.check_with(input, |_, filename| read_filter(cache_dir.join(filename)))
+    }
+
+    /// Perform a revocation check using the index, obtaining filters from `load_filter`.
+    ///
+    /// `load_filter` is called at most once per filter that may cover `input`, with
+    /// that filter's position in the filename table (always below the table's length)
+    /// and its filename. It is not called again once a filter reports the certificate
+    /// revoked.
+    ///
+    /// Only call this on an index that was [`load`](Self::load)ed or is otherwise not
+    /// shared; see [`Entries::OnDemand`].
+    pub(super) fn check_with<F: Borrow<CRLiteClubcard>>(
+        &self,
+        input: &RevocationCheckInput,
+        mut load_filter: impl FnMut(usize, &str) -> Result<F, Error>,
     ) -> Result<RevocationStatus, Error> {
         let key = input.key();
         let dir_data = &self.tables[self.logs_offset..];
@@ -277,15 +326,7 @@ impl Index {
             let offset = u64::read_be(&mut entry_data)?;
             let count = u16::read_be(&mut entry_data)?;
 
-            self.file
-                .seek(SeekFrom::Start(offset))
-                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
-
-            let mut buf = vec![0u8; count as usize * self.entry_size];
-            self.file
-                .read_exact(&mut buf)
-                .map_err(|e| Error::IndexDecode(Box::new(e)))?;
-
+            let buf = self.entry_section(offset, count as usize)?;
             let mut data = &buf[..];
             for _ in 0..count {
                 let filter_index = match self.entry_size {
@@ -309,24 +350,8 @@ impl Index {
                 }
                 seen[filter_index] = true;
 
-                let path = cache_dir.join(filename);
-                let bytes = match fs::read(&path) {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return Err(Error::FileRead {
-                            error,
-                            path: Some(path),
-                        });
-                    }
-                };
-
-                let filter =
-                    CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
-                        error: format!("cannot decode crlite filter: {error:?}").into(),
-                        path: Some(path),
-                    })?;
-
-                match filter.contains(
+                let filter = load_filter(filter_index, filename)?;
+                match filter.borrow().contains(
                     &key,
                     input
                         .sct_timestamps
@@ -349,6 +374,42 @@ impl Index {
         })
     }
 
+    /// Every filename in the filename table, in filter index order.
+    pub(super) fn filenames(&self) -> impl Iterator<Item = Result<&str, Error>> {
+        (0..self.num_filenames).map(|index| self.filename(index))
+    }
+
+    /// The whole index file, if it was [`load`](Self::load)ed.
+    pub(super) fn resident_bytes(&self) -> Option<&[u8]> {
+        match &self.entries {
+            Entries::OnDemand(_) => None,
+            Entries::Resident(data) => Some(data),
+        }
+    }
+
+    /// The `count` entries of the entry section at file offset `offset`.
+    fn entry_section(&self, offset: u64, count: usize) -> Result<Cow<'_, [u8]>, Error> {
+        let len = count * self.entry_size;
+        match &self.entries {
+            Entries::OnDemand(file) => {
+                // `Read` and `Seek` are implemented for `&File`, with a position shared
+                // by every reference to the file.
+                let mut file = file;
+                file.seek(SeekFrom::Start(offset))
+                    .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+                let mut buf = vec![0u8; len];
+                file.read_exact(&mut buf)
+                    .map_err(|e| Error::IndexDecode(Box::new(e)))?;
+                Ok(Cow::Owned(buf))
+            }
+            Entries::Resident(data) => usize::try_from(offset)
+                .ok()
+                .and_then(|start| data.get(start..start.checked_add(len)?))
+                .map(Cow::Borrowed)
+                .ok_or_else(|| Error::IndexDecode("entry section out of bounds".into())),
+        }
+    }
+
     /// Look up the `i`-th filename in the fixed-size filename table.
     fn filename(&self, index: usize) -> Result<&str, Error> {
         if index >= self.num_filenames {
@@ -363,6 +424,24 @@ impl Index {
             .unwrap_or(FILENAME_SIZE);
         str::from_utf8(&slot[..end]).map_err(|e| Error::IndexDecode(Box::new(e)))
     }
+}
+
+/// Read and decode the filter file at `path`.
+pub(super) fn read_filter(path: PathBuf) -> Result<CRLiteClubcard, Error> {
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return Err(Error::FileRead {
+                error,
+                path: Some(path),
+            });
+        }
+    };
+
+    CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
+        error: format!("cannot decode crlite filter: {error:?}").into(),
+        path: Some(path),
+    })
 }
 
 /// Builds an [`Index`] of the filters in a revocation cache directory.
@@ -388,7 +467,7 @@ impl fmt::Debug for Index {
             logs_offset,
             entry_size: _,
             tables: _,
-            file: _,
+            entries: _,
         } = self;
 
         f.debug_struct("Index")
@@ -449,7 +528,7 @@ const INDEX_MAGIC_V1: &[u8; 8] = b"upkiidx1";
 const INDEX_MAGIC_V0: &[u8; 8] = b"upkiidx0";
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use core::error::Error as StdError;
     use std::collections::BTreeMap;
     use std::path::Path;
@@ -467,12 +546,35 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, &build_index(&[]));
         assert_eq!(
-            Index::from_path(dir.path())
-                .unwrap()
-                .check(&test_input(), dir.path())
-                .unwrap(),
+            check_both(dir.path(), &test_input()).unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
+    }
+
+    // A directory entry whose offset falls outside the entry sections behaves the same
+    // on both backends: past the end of the file it is an error, while inside the
+    // header it decodes to an entry whose timestamp range cannot contain the SCT.
+    #[test]
+    fn entry_section_outside_entry_sections() {
+        let past_end = u64::MAX / 2;
+        for (offset, expected) in [
+            (past_end, None),
+            (0, Some(RevocationStatus::NotCoveredByRevocationData)),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut data = build_index(&[("f0.filter", &[([0xbb; 32], 0, 2000)])]);
+            // The sole log directory entry's offset sits just after its 32-byte log_id,
+            // which follows the header and the one filename slot.
+            let offset_at = HEADER_SIZE_V1 + FILENAME_SIZE + 32;
+            data[offset_at..offset_at + 8].copy_from_slice(&offset.to_be_bytes());
+            write_file(dir.path(), INDEX_BIN, &data);
+
+            match (check_both(dir.path(), &test_input()), expected) {
+                (Err(err), None) => assert!(matches!(err, Error::IndexDecode(_)), "{err}"),
+                (Ok(status), Some(expected)) => assert_eq!(status, expected),
+                (result, expected) => panic!("offset {offset}: {result:?}, expected {expected:?}"),
+            }
+        }
     }
 
     #[test]
@@ -482,10 +584,7 @@ mod tests {
         let data = build_index(&[("test.filter", &[([0xcc; 32], 500, 1500)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_path(dir.path())
-                .unwrap()
-                .check(&test_input(), dir.path())
-                .unwrap(),
+            check_both(dir.path(), &test_input()).unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
     }
@@ -497,10 +596,7 @@ mod tests {
         let data = build_index(&[("test.filter", &[([0xbb; 32], 2000, 3000)])]);
         write_file(dir.path(), INDEX_BIN, &data);
         assert_eq!(
-            Index::from_path(dir.path())
-                .unwrap()
-                .check(&test_input(), dir.path())
-                .unwrap(),
+            check_both(dir.path(), &test_input()).unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
     }
@@ -604,7 +700,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
+            check_both(dir.path(), &test_input())?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -631,7 +727,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
+            check_both(dir.path(), &test_input())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -662,9 +758,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::CertainlyRevoked,
         );
@@ -694,9 +790,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::NotRevoked,
         );
@@ -725,9 +821,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::NotCoveredByRevocationData,
         );
@@ -756,9 +852,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::CertainlyRevoked,
         );
@@ -790,9 +886,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::CertainlyRevoked,
         );
@@ -825,7 +921,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
+            check_both(dir.path(), &multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -855,7 +951,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
+            check_both(dir.path(), &multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -887,7 +983,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
+            check_both(dir.path(), &multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -917,7 +1013,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
+            check_both(dir.path(), &multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::NotRevoked,
         );
 
@@ -946,7 +1042,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&multi_sct_input(&[(log_a, 1000)]), dir.path())?,
+            check_both(dir.path(), &multi_sct_input(&[(log_a, 1000)]))?,
             RevocationStatus::CertainlyRevoked,
         );
 
@@ -983,9 +1079,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::CertainlyRevoked,
         );
@@ -1016,9 +1112,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::NotRevoked,
         );
@@ -1048,9 +1144,9 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(
-                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)]),
-                dir.path()
+            check_both(
+                dir.path(),
+                &multi_sct_input(&[(log_a, 1000), (log_b, 1000)])
             )?,
             RevocationStatus::CertainlyRevoked,
         );
@@ -1077,7 +1173,7 @@ mod tests {
         );
 
         assert_eq!(
-            Index::from_path(dir.path())?.check(&test_input(), dir.path())?,
+            check_both(dir.path(), &test_input())?,
             RevocationStatus::NotRevoked,
         );
 
@@ -1090,10 +1186,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_file(dir.path(), INDEX_BIN, &build_index_v0(&[]));
         assert_eq!(
-            Index::from_path(dir.path())
-                .unwrap()
-                .check(&test_input(), dir.path())
-                .unwrap(),
+            check_both(dir.path(), &test_input()).unwrap(),
             RevocationStatus::NotCoveredByRevocationData,
         );
     }
@@ -1110,16 +1203,13 @@ mod tests {
         data[entry_offset..entry_offset + 2].copy_from_slice(&500u16.to_be_bytes());
         write_file(dir.path(), INDEX_BIN, &data);
 
-        let err = Index::from_path(dir.path())
-            .unwrap()
-            .check(&test_input(), dir.path())
-            .unwrap_err();
+        let err = check_both(dir.path(), &test_input()).unwrap_err();
         assert!(matches!(err, Error::IndexDecode(_)));
     }
 
     /// Build a test index with INDEX_MAGIC_V1 with u16 filter indexes.
     #[expect(clippy::type_complexity)]
-    fn build_index(filters: &[(&str, &[([u8; 32], u64, u64)])]) -> Vec<u8> {
+    pub(crate) fn build_index(filters: &[(&str, &[([u8; 32], u64, u64)])]) -> Vec<u8> {
         build_index_with_magic(INDEX_MAGIC_V1, filters)
     }
 
@@ -1210,7 +1300,7 @@ mod tests {
     /// verdict a test relies on must be listed in `revoked` or `not_revoked`, or
     /// that verdict is probabilistic (a ~1/256 chance of a false "revoked",
     /// varying per run since clubcard randomizes ribbon solutions).
-    fn build_filter(
+    pub(crate) fn build_filter(
         issuer: [u8; 32],
         revoked: &[&[u8]],
         unrevoked: &[&[u8]],
@@ -1264,7 +1354,22 @@ mod tests {
             .unwrap()
     }
 
-    fn multi_sct_input(scts: &[([u8; 32], u64)]) -> RevocationCheckInput {
+    /// Check `input` against the index in `dir`, read on demand and loaded into
+    /// memory, asserting that both give the same answer.
+    fn check_both(dir: &Path, input: &RevocationCheckInput) -> Result<RevocationStatus, Error> {
+        let on_demand = Index::from_path(dir)?.check(input, dir);
+        let resident = Index::load(dir)?.check(input, dir);
+        match (&on_demand, &resident) {
+            (Ok(on_demand), Ok(resident)) => assert_eq!(on_demand, resident),
+            (Err(on_demand), Err(resident)) => {
+                assert_eq!(on_demand.to_string(), resident.to_string())
+            }
+            _ => panic!("backends disagree: {on_demand:?} vs {resident:?}"),
+        }
+        on_demand
+    }
+
+    pub(crate) fn multi_sct_input(scts: &[([u8; 32], u64)]) -> RevocationCheckInput {
         RevocationCheckInput::new(
             CertSerial(SERIAL.to_vec()),
             IssuerSpkiHash([0xaa; 32]),
@@ -1277,7 +1382,7 @@ mod tests {
         )
     }
 
-    fn test_input() -> RevocationCheckInput {
+    pub(crate) fn test_input() -> RevocationCheckInput {
         RevocationCheckInput::new(
             CertSerial(SERIAL.to_vec()),
             IssuerSpkiHash([0xaa; 32]),
@@ -1288,10 +1393,10 @@ mod tests {
         )
     }
 
-    fn write_file(dir: &Path, name: &str, data: &[u8]) {
+    pub(crate) fn write_file(dir: &Path, name: &str, data: &[u8]) {
         fs::write(dir.join(name), data).unwrap();
     }
 
     /// The serial number of the certificate checked by [`test_input`] and [`multi_sct_input`].
-    const SERIAL: &[u8] = &[1, 2, 3];
+    pub(crate) const SERIAL: &[u8] = &[1, 2, 3];
 }
