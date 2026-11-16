@@ -486,6 +486,7 @@ fn stage_file(path: &Path, data: &[u8]) -> Result<NamedTempFile, io::Error> {
 }
 
 fn persist_file(temp: NamedTempFile, path: &Path) -> Result<(), io::Error> {
+    temp.as_file().sync_all()?;
     temp.persist(path)
         .map_err(|error| error.error)?;
     #[cfg(target_family = "unix")]
