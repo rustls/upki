@@ -1,0 +1,41 @@
+[Unit]
+Description=Update the UPKI cache
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=upki
+Group=upki
+StateDirectory=upki
+StateDirectoryMode=0755
+CacheDirectory=upki/revocation
+CacheDirectoryMode=0755
+# The cache is read by TLS clients running as other users.
+UMask=0022
+ExecStart=/usr/bin/upki fetch
+
+AmbientCapabilities=
+CapabilityBoundingSet=
+DevicePolicy=closed
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectProc=invisible
+ProtectSystem=strict
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources

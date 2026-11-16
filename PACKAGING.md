@@ -38,6 +38,12 @@ This is usually very fast.
 
 Running `upki fetch` when the cache is empty downloads up to ~10MB of data.
 
+Reference systemd units are provided in [`admin/systemd`](admin/systemd). They
+run the fetcher as an unprivileged `upki` user, create the cache with mode
+`0755`, and explicitly use `UMask=0022`. Install the service and timer in the
+distribution's system unit directory, install `upki.sysusers` through
+systemd-sysusers, and enable `upki-fetch.timer`.
+
 # Packaging checklist
 
 - The executable `upki`, built in release mode.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Update the UPKI cache regularly
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=2h
+RandomizedDelaySec=15min
+Persistent=true
+Unit=upki-fetch.service
+
+[Install]
+WantedBy=timers.target
