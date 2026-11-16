@@ -154,6 +154,39 @@ impl Index {
         })
     }
 
+    /// Verify that the index and its filters match `manifest`.
+    #[cfg(feature = "__fetch")]
+    pub(super) fn verify(manifest: &Manifest, cache_dir: &Path) -> Result<(), Error> {
+        let index = Self::from_path(cache_dir)?;
+        let filenames = (0..index.num_filenames)
+            .map(|index_number| index.filename(index_number))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if !filenames.iter().copied().eq(manifest
+            .files
+            .iter()
+            .map(|file| file.filename.as_str()))
+        {
+            return Err(Error::IndexDecode(
+                "index filenames do not match manifest".into(),
+            ));
+        }
+
+        for filename in filenames {
+            let path = cache_dir.join(filename);
+            let bytes = fs::read(&path).map_err(|error| Error::FileRead {
+                error,
+                path: Some(path.clone()),
+            })?;
+            CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
+                error: format!("cannot decode CRLite filter: {error:?}").into(),
+                path: Some(path),
+            })?;
+        }
+
+        Ok(())
+    }
+
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
     #[cfg(feature = "__fetch")]
     pub(crate) fn write(manifest: &Manifest, dir: &Path) -> Result<Vec<u8>, Error> {
@@ -316,7 +349,7 @@ impl Index {
 
                 let filter =
                     CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
-                        error: format!("cannot decode crlite filter: {error:?}").into(),
+                        error: format!("cannot decode CRLite filter: {error:?}").into(),
                         path: Some(path),
                     })?;
 
@@ -610,6 +643,43 @@ mod tests {
                 maximum
             } if actual == MAX_FILENAME_LEN + 1 && maximum == MAX_FILENAME_LEN
         ));
+    }
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn verify_rejects_index_from_another_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        write_file(dir.path(), INDEX_BIN, &build_index(&[("old.filter", &[])]));
+        let manifest = manifest(&["new.filter"]);
+
+        let err = Index::verify(&manifest, dir.path()).unwrap_err();
+        assert!(matches!(err, Error::IndexDecode(_)));
+    }
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn verify_decodes_every_indexed_filter() {
+        let dir = tempfile::tempdir().unwrap();
+        write_file(dir.path(), INDEX_BIN, &build_index(&[("bad.filter", &[])]));
+        write_file(dir.path(), "bad.filter", b"not a filter");
+
+        let err = Index::verify(&manifest(&["bad.filter"]), dir.path()).unwrap_err();
+        assert!(matches!(err, Error::FileDecode { .. }));
+    }
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn verify_accepts_matching_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let filter = build_filter([0xaa; 32], &[], &[], &[([0xbb; 32], 0, 2000)]);
+        write_file(dir.path(), "good.filter", &filter);
+        write_file(
+            dir.path(),
+            INDEX_BIN,
+            &build_index(&[("good.filter", &[([0xbb; 32], 0, 2000)])]),
+        );
+
+        Index::verify(&manifest(&["good.filter"]), dir.path()).unwrap();
     }
 
     #[test]
@@ -1308,6 +1378,22 @@ mod tests {
                 timestamp: 1000,
             }],
         )
+    }
+
+    #[cfg(feature = "__fetch")]
+    fn manifest(filenames: &[&str]) -> Manifest {
+        Manifest {
+            generated_at: 0,
+            comment: String::new(),
+            files: filenames
+                .iter()
+                .map(|filename| crate::data::ManifestFile {
+                    filename: (*filename).into(),
+                    size: 0,
+                    hash: Vec::new(),
+                })
+                .collect(),
+        }
     }
 
     fn write_file(dir: &Path, name: &str, data: &[u8]) {

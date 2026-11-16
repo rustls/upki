@@ -343,6 +343,8 @@ pub enum FetchError {
         /// Path to the index that could not be built.
         path: PathBuf,
     },
+    /// The on-disk cache failed validation.
+    Verification(Box<dyn StdError + Send + Sync>),
 }
 
 #[cfg(feature = "__fetch")]
@@ -376,6 +378,7 @@ impl fmt::Display for FetchError {
             Self::IndexBuild { path, .. } => {
                 write!(f, "cannot build index at {path:?}")
             }
+            Self::Verification(_) => write!(f, "cache verification failed"),
             Self::FileRemove { path, .. } => write!(f, "cannot remove file {path:?}"),
         }
     }
@@ -396,6 +399,7 @@ impl StdError for FetchError {
             Self::ManifestEncode { error, .. } => Some(&**error),
             Self::Outdated(_) => None,
             Self::IndexBuild { error, .. } => Some(&**error),
+            Self::Verification(error) => Some(&**error),
             Self::FileRemove { error, .. } => Some(error),
         }
     }

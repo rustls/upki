@@ -86,7 +86,8 @@ impl Store {
             },
         )?;
         match plan.download_bytes() {
-            0 => Ok(()),
+            0 => Index::verify(&manifest, &self.cache_dir)
+                .map_err(|error| FetchError::Verification(Box::new(error))),
             bytes => Err(FetchError::Outdated(bytes)),
         }
     }
