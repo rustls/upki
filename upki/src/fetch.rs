@@ -6,6 +6,7 @@
 //! the local filesystem contents. Finally, the plan is executed. If that succeeds
 //! the remote server contents matches the local filesystem.
 
+use core::error::Error;
 use core::fmt;
 use core::time::Duration;
 use std::collections::HashSet;
@@ -183,9 +184,11 @@ impl FetchContext<'_> {
 /// Produces a file derived from a cache directory once it is synchronized.
 pub(crate) trait PostProcess: Sync {
     /// Build the derived file's contents from `manifest`'s files in `local_dir`.
-    ///
-    /// Returns `None` if it cannot be built, in which case nothing is written.
-    fn build(&self, manifest: &Manifest, local_dir: &Path) -> Option<Vec<u8>>;
+    fn build(
+        &self,
+        manifest: &Manifest,
+        local_dir: &Path,
+    ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>;
 
     /// The derived file's name within the cache directory.
     fn file_name(&self) -> &'static str;
@@ -379,9 +382,12 @@ impl PlanStep {
                 local_dir,
             } => {
                 debug!("building index");
-                let Some(buf) = post_process.build(&manifest, &local_dir) else {
-                    return Ok(());
-                };
+                let buf = post_process
+                    .build(&manifest, &local_dir)
+                    .map_err(|error| FetchError::IndexBuild {
+                        error,
+                        path: local_dir.join(post_process.file_name()),
+                    })?;
 
                 #[cfg(target_family = "unix")]
                 let temp = tempfile::Builder::new()

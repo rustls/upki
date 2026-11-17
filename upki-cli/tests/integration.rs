@@ -173,6 +173,46 @@ fn fetch_of_empty_manifest() {
 }
 
 #[test]
+fn fetch_fails_when_index_cannot_be_built() {
+    let _filters = apply_common_filters();
+    let (server, _filters) = http_server(PathBuf::from("tests/data/invalid_filter/"), false);
+    let (temp, config_file, _filters) = temp_dir_and_config(server.url());
+
+    assert_cmd_snapshot!(
+        upki()
+            .arg("--config-file")
+            .arg(config_file)
+            .arg("fetch"),
+        @r#"
+    success: false
+    exit_code: 1
+    ----- stdout -----
+
+    ----- stderr -----
+    Error: cannot build index at "[TEMPDIR]/revocation/index.bin"
+
+    Caused by:
+       0: cannot decode file "[TEMPDIR]/revocation/bad.filter"
+       1: failed to deserialize clubcard
+       2: non-zero reserved0 byte after version
+
+    Location:
+        upki-cli/src/bin/upki.rs:[LINE]:[COLUMN]
+    "#);
+    assert_snapshot!(
+        server.into_log(),
+        @r"
+    GET /revocation/manifest.json  ->  200 OK (239 bytes)
+    GET /revocation/bad.filter  ->  200 OK (13 bytes)
+    "
+    );
+    assert_eq!(
+        list_dir(&temp.path().join("revocation")),
+        vec!["bad.filter"]
+    );
+}
+
+#[test]
 fn full_fetch() {
     let _filters = apply_common_filters();
     let (server, _filters) = http_server(&*TYPICAL, false);

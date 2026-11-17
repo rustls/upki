@@ -338,6 +338,13 @@ pub enum Error {
         /// Path to the file.
         path: Option<PathBuf>,
     },
+    /// A filter filename is too long for the revocation index.
+    FilenameTooLong {
+        /// Actual filename length in bytes.
+        actual: usize,
+        /// Maximum filename length in bytes.
+        maximum: usize,
+    },
     /// Failed to decode the index file.
     IndexDecode(Box<dyn StdError + Send + Sync>),
     /// Invalid base64 encoding.
@@ -402,6 +409,9 @@ impl fmt::Display for Error {
                 Some(path) => write!(f, "cannot read file {path:?}"),
                 None => write!(f, "cannot read file"),
             },
+            Self::FilenameTooLong { actual, maximum } => {
+                write!(f, "filter filename exceeds {maximum} bytes (got {actual})")
+            }
             Self::IndexDecode(_) => write!(f, "cannot decode index file"),
             Self::InvalidBase64 { context, .. } => {
                 write!(f, "invalid base64 for {context}")
@@ -441,6 +451,7 @@ impl StdError for Error {
         match self {
             Self::FileDecode { error, .. } => Some(&**error),
             Self::FileRead { error, .. } => Some(error),
+            Self::FilenameTooLong { .. } => None,
             Self::IndexDecode(error) => Some(&**error),
             Self::InvalidBase64 { error, .. } => Some(&**error),
             Self::InvalidEndEntityCertificate(error) => Some(&**error),

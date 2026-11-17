@@ -1,0 +1,11 @@
+{
+  "generated_at": 1765445031,
+  "comment": "invalid filter test manifest",
+  "files": [
+    {
+      "filename": "bad.filter",
+      "size": 13,
+      "hash": "6e284dc55b93459b7d913bf7105df2a6fea14f690279c6bfd70bd2fe680f99ec"
+    }
+  ]
+}

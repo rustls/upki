@@ -336,6 +336,13 @@ pub enum FetchError {
     },
     /// Number of bytes that need to be downloaded to update the local cache.
     Outdated(usize),
+    /// Failed to build an index from the downloaded cache contents.
+    IndexBuild {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the index that could not be built.
+        path: PathBuf,
+    },
 }
 
 #[cfg(feature = "__fetch")]
@@ -366,6 +373,9 @@ impl fmt::Display for FetchError {
                 write!(f, "cannot encode manifest file at {path:?}")
             }
             Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
+            Self::IndexBuild { path, .. } => {
+                write!(f, "cannot build index at {path:?}")
+            }
             Self::FileRemove { path, .. } => write!(f, "cannot remove file {path:?}"),
         }
     }
@@ -385,6 +395,7 @@ impl StdError for FetchError {
             Self::InvalidTimestamp { .. } => None,
             Self::ManifestEncode { error, .. } => Some(&**error),
             Self::Outdated(_) => None,
+            Self::IndexBuild { error, .. } => Some(&**error),
             Self::FileRemove { error, .. } => Some(error),
         }
     }

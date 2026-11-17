@@ -1,4 +1,6 @@
 use core::cmp::Ordering;
+#[cfg(feature = "__fetch")]
+use core::error::Error as StdError;
 use core::{fmt, str};
 #[cfg(feature = "__fetch")]
 use std::collections::BTreeMap;
@@ -153,37 +155,28 @@ impl Index {
     }
 
     /// Build index bytes by reading filter files from `dir` and extracting universe metadata.
-    ///
-    /// Returns `None` if any filter file cannot be read or decoded.
     #[cfg(feature = "__fetch")]
-    pub(crate) fn write(manifest: &Manifest, dir: &Path) -> Option<Vec<u8>> {
+    pub(crate) fn write(manifest: &Manifest, dir: &Path) -> Result<Vec<u8>, Error> {
         let mut by_log_id: BTreeMap<LogId, Vec<(u16, TimestampInterval)>> = BTreeMap::new();
 
         for (filter_idx, filter) in manifest.files.iter().enumerate() {
             if filter.filename.len() > MAX_FILENAME_LEN {
-                tracing::warn!(
-                    "skipping index: filename {:?} exceeds {MAX_FILENAME_LEN} bytes",
-                    filter.filename
-                );
-                return None;
+                return Err(Error::FilenameTooLong {
+                    actual: filter.filename.len(),
+                    maximum: MAX_FILENAME_LEN,
+                });
             }
 
             let path = dir.join(&filter.filename);
-            let bytes = match fs::read(&path) {
-                Ok(bytes) => bytes,
-                Err(error) => {
-                    tracing::warn!("skipping index: cannot read {path:?}: {error}");
-                    return None;
-                }
-            };
-
-            let clubcard = match CRLiteClubcard::from_bytes(&bytes) {
-                Ok(c) => c,
-                Err(error) => {
-                    tracing::warn!("skipping index: cannot decode {path:?}: {error:?}");
-                    return None;
-                }
-            };
+            let bytes = fs::read(&path).map_err(|error| Error::FileRead {
+                error,
+                path: Some(path.clone()),
+            })?;
+            let clubcard =
+                CRLiteClubcard::from_bytes(&bytes).map_err(|error| Error::FileDecode {
+                    error: Box::new(error),
+                    path: Some(path),
+                })?;
 
             for (log_id, interval) in clubcard.universe().iter() {
                 by_log_id
@@ -236,7 +229,7 @@ impl Index {
             }
         }
 
-        Some(buf)
+        Ok(buf)
     }
 
     /// Perform a revocation check using the index.
@@ -372,8 +365,12 @@ pub(crate) struct RevocationIndexer;
 
 #[cfg(feature = "__fetch")]
 impl PostProcess for RevocationIndexer {
-    fn build(&self, manifest: &Manifest, local_dir: &Path) -> Option<Vec<u8>> {
-        Index::write(manifest, local_dir)
+    fn build(
+        &self,
+        manifest: &Manifest,
+        local_dir: &Path,
+    ) -> Result<Vec<u8>, Box<dyn StdError + Send + Sync>> {
+        Index::write(manifest, local_dir).map_err(Into::into)
     }
 
     fn file_name(&self) -> &'static str {
@@ -588,6 +585,31 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let err = Index::from_path(dir.path()).unwrap_err();
         assert!(matches!(err, Error::NoData { .. }));
+    }
+
+    #[cfg(feature = "__fetch")]
+    #[test]
+    fn write_rejects_filename_too_long() {
+        let dir = tempfile::tempdir().unwrap();
+        let filename = "a".repeat(MAX_FILENAME_LEN + 1);
+        let manifest = Manifest {
+            generated_at: 0,
+            comment: String::new(),
+            files: vec![crate::data::ManifestFile {
+                filename,
+                size: 0,
+                hash: Vec::new(),
+            }],
+        };
+
+        let err = Index::write(&manifest, dir.path()).unwrap_err();
+        assert!(matches!(
+            err,
+            Error::FilenameTooLong {
+                actual,
+                maximum
+            } if actual == MAX_FILENAME_LEN + 1 && maximum == MAX_FILENAME_LEN
+        ));
     }
 
     #[test]

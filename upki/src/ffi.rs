@@ -297,6 +297,7 @@ impl From<Error> for upki_result {
             Error::Revocation(revocation::Error::FileRead { .. }) => {
                 Self::UPKI_ERR_REVOCATION_FILE_READ
             }
+            Error::Revocation(revocation::Error::FilenameTooLong { .. }) => Self::UPKI_ERR_UNKNOWN,
             Error::Revocation(revocation::Error::InvalidBase64 { .. }) => {
                 Self::UPKI_ERR_REVOCATION_INVALID_BASE64
             }
