@@ -392,36 +392,8 @@ impl PlanStep {
                         path: local_dir.join(post_process.file_name()),
                     })?;
 
-                #[cfg(target_family = "unix")]
-                let temp = tempfile::Builder::new()
-                    .permissions(Permissions::from_mode(0o644))
-                    .suffix(".new")
-                    .tempfile_in(&local_dir);
-                #[cfg(not(target_family = "unix"))]
-                let temp = tempfile::Builder::new()
-                    .suffix(".new")
-                    .tempfile_in(&local_dir);
-
-                let mut local_temp = temp.map_err(|error| FetchError::FileWrite {
-                    error,
-                    path: local_dir.clone(),
-                })?;
-
-                local_temp
-                    .as_file_mut()
-                    .write_all(&buf)
-                    .map_err(|error| FetchError::FileWrite {
-                        error,
-                        path: local_temp.path().to_owned(),
-                    })?;
-
                 let path = local_dir.join(post_process.file_name());
-                local_temp
-                    .persist(&path)
-                    .map_err(|error| FetchError::FileWrite {
-                        error: error.error,
-                        path,
-                    })?;
+                atomic_write(&path, &buf).map_err(|error| FetchError::FileWrite { error, path })?;
             }
             Self::SaveManifest {
                 manifest,
