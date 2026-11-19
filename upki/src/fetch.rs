@@ -25,7 +25,8 @@ use jiff::fmt::rfc2822::DateTimePrinter;
 use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
 use tempfile::NamedTempFile;
-use tracing::{debug, info};
+use tokio::time::sleep;
+use tracing::{debug, info, warn};
 
 use crate::data::{Manifest, ManifestFile};
 use crate::{FetchError, sha256};
@@ -444,7 +445,6 @@ async fn download(
     local: Option<&Path>,
     client: &reqwest::Client,
 ) -> Result<DownloadResponse, FetchError> {
-    debug!(local = ?local, "downloading");
     let modified =
         local.and_then(
             |path| match fs::metadata(path).and_then(|metadata| metadata.modified()) {
@@ -461,19 +461,39 @@ async fn download(
         debug!(date = %date, "requesting manifest modified");
         request = request.header(IF_MODIFIED_SINCE, date);
     }
-
-    let response = request
-        .send()
-        .await
-        .map_err(|error| FetchError::HttpFetch {
-            error: Box::new(error),
-            url: url.to_owned(),
-        })?
-        .error_for_status()
+    let request = request
+        .build()
         .map_err(|error| FetchError::HttpFetch {
             error: Box::new(error),
             url: url.to_owned(),
         })?;
+
+    let execute = async || {
+        debug!(local = ?local, "downloading");
+        client
+            .execute(request.try_clone().unwrap()) // There is no body
+            .await?
+            .error_for_status()
+    };
+
+    let result = match execute().await {
+        Ok(response) => Ok(response),
+        Err(error) => {
+            warn!(%error, delay = ?RETRY_DELAY, "download failed, retrying");
+            sleep(RETRY_DELAY).await;
+            execute().await
+        }
+    };
+
+    let response = match result {
+        Ok(response) => response,
+        Err(error) => {
+            return Err(FetchError::HttpFetch {
+                error: Box::new(error),
+                url: url.to_owned(),
+            });
+        }
+    };
 
     match (response.status(), local) {
         (StatusCode::NOT_MODIFIED, Some(_)) => Ok(DownloadResponse::NotModified),
@@ -549,6 +569,7 @@ fn hash_file(mut file: File) -> Result<(u64, sha256::Digest), io::Error> {
 const HTTP_DATE: DateTimePrinter = DateTimePrinter::new();
 const MANIFEST_JSON: &str = "manifest.json";
 const REQUEST_TIMEOUT: u64 = 30;
+const RETRY_DELAY: Duration = Duration::from_millis(300);
 
 #[cfg(test)]
 mod tests {
