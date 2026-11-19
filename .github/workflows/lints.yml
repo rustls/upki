@@ -73,3 +73,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2.1.1
+
+  semver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          # Not published to crates.io, so there is no baseline to compare against
+          exclude: upki-openssl
