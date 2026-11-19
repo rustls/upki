@@ -11,7 +11,8 @@ on:
   pull_request:
   merge_group:
   schedule:
-    - cron: "0 18 * * *"
+    # Offset from mirror.yml's deploys, which make upki.rustls.dev return 503s
+    - cron: "0 21 * * *"
   workflow_dispatch:
 
 concurrency:
