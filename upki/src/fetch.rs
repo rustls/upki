@@ -309,47 +309,54 @@ impl PlanStep {
                 remote_url,
                 local,
             } => {
-                debug!("downloading {:?}", file);
+                match download(&remote_url, Some(&local), client).await? {
+                    DownloadResponse::Body(response) => {
+                        let bytes = response
+                            .bytes()
+                            .await
+                            .map_err(|error| FetchError::HttpFetch {
+                                error: Box::new(error),
+                                url: remote_url.clone(),
+                            })?;
 
-                let response = client
-                    .get(&remote_url)
-                    .send()
-                    .await
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?
-                    .error_for_status()
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?;
+                        let temp =
+                            stage_file(&local, &bytes).map_err(|error| FetchError::FileWrite {
+                                error,
+                                path: local.clone(),
+                            })?;
 
-                let bytes = response
-                    .bytes()
-                    .await
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?;
+                        let (size, digest) = temp
+                            .reopen()
+                            .and_then(hash_file)
+                            .map_err(|error| FetchError::FileRead {
+                                error,
+                                path: Some(temp.path().to_owned()),
+                            })?;
 
-                let temp = stage_file(&local, &bytes).map_err(|error| FetchError::FileWrite {
-                    error,
-                    path: local.clone(),
-                })?;
-                let (size, digest) = temp
-                    .reopen()
-                    .and_then(hash_file)
-                    .map_err(|error| FetchError::FileRead {
-                        error,
-                        path: Some(temp.path().to_owned()),
-                    })?;
-                if size != file.size as u64 || digest.as_ref() != file.hash {
-                    return Err(FetchError::HashMismatch(local));
+                        if size != file.size as u64 || digest.as_ref() != file.hash {
+                            return Err(FetchError::HashMismatch(local));
+                        }
+
+                        persist_file(temp, &local)
+                            .map_err(|error| FetchError::FileWrite { error, path: local })?;
+                    }
+                    DownloadResponse::NotModified => {
+                        let handle = File::open(&local).map_err(|error| FetchError::FileRead {
+                            error,
+                            path: Some(local.clone()),
+                        })?;
+
+                        let (size, digest) =
+                            hash_file(handle).map_err(|error| FetchError::FileRead {
+                                error,
+                                path: Some(local.clone()),
+                            })?;
+
+                        if size != file.size as u64 || digest.as_ref() != file.hash {
+                            return Err(FetchError::HashMismatch(local));
+                        }
+                    }
                 }
-
-                persist_file(temp, &local)
-                    .map_err(|error| FetchError::FileWrite { error, path: local })?;
 
                 debug!("download successful");
             }
@@ -437,6 +444,7 @@ async fn download(
     local: Option<&Path>,
     client: &reqwest::Client,
 ) -> Result<DownloadResponse, FetchError> {
+    debug!(local = ?local, "downloading");
     let modified =
         local.and_then(
             |path| match fs::metadata(path).and_then(|metadata| metadata.modified()) {
