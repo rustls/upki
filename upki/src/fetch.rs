@@ -78,59 +78,28 @@ impl FetchContext<'_> {
             }
         };
 
-        let local_modified = old_manifest.as_ref().and_then(|_| {
-            let path = self.cache_dir.join(MANIFEST_JSON);
-            match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
-                Ok(modified) => Some(modified),
-                Err(error) => {
-                    debug!("cannot read modification time of {path:?}: {error}");
-                    None
+        let path = old_manifest
+            .as_ref()
+            .map(|_| self.cache_dir.join(MANIFEST_JSON));
+
+        let (manifest, old_manifest) =
+            match download(&manifest_url, path.as_deref(), &client).await? {
+                DownloadResponse::Body(response) => {
+                    let manifest = response
+                        .json::<Manifest>()
+                        .await
+                        .map_err(|error| FetchError::FileDecode {
+                            error: Box::new(error),
+                            path: None,
+                        })?;
+
+                    (manifest, old_manifest.as_ref())
                 }
-            }
-        });
-
-        let mut request = client.get(&manifest_url);
-        if let Some(date) = local_modified.and_then(http_date) {
-            debug!("requesting manifest modified since {date}");
-            request = request.header(IF_MODIFIED_SINCE, date);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?
-            .error_for_status()
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?;
-
-        let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
-            (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
-            (_, old) => (
-                response
-                    .json::<Manifest>()
-                    .await
-                    .map_err(|error| FetchError::FileDecode {
-                        error: Box::new(error),
-                        path: None,
-                    })?,
-                true,
-                old,
-            ),
-        };
-
-        let old_manifest = match (modified, old_manifest.as_ref()) {
-            // If it was modified and there was an old manifest, return the old manifest
-            (true, Some(manifest)) => Some(manifest),
-            // If it was modified but there was no old manifest, return None
-            (true, None) => None,
-            // If it was not modified, we promoted the old manifest; return it
-            (false, _) => Some(&manifest),
-        };
+                DownloadResponse::NotModified => match old_manifest {
+                    Some(old) => (old, None),
+                    None => unreachable!("this cannot happen because we have no old manifest"),
+                },
+            };
 
         manifest.introduce()?;
 
@@ -461,6 +430,52 @@ impl fmt::Display for PlanStep {
             }
         }
     }
+}
+
+async fn download(
+    url: &str,
+    local: Option<&Path>,
+    client: &reqwest::Client,
+) -> Result<DownloadResponse, FetchError> {
+    let modified =
+        local.and_then(
+            |path| match fs::metadata(path).and_then(|metadata| metadata.modified()) {
+                Ok(modified) => Some(modified),
+                Err(error) => {
+                    debug!(path = %path.display(), %error, "cannot read modification time");
+                    None
+                }
+            },
+        );
+
+    let mut request = client.get(url);
+    if let Some(date) = modified.and_then(http_date) {
+        debug!(date = %date, "requesting manifest modified");
+        request = request.header(IF_MODIFIED_SINCE, date);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|error| FetchError::HttpFetch {
+            error: Box::new(error),
+            url: url.to_owned(),
+        })?
+        .error_for_status()
+        .map_err(|error| FetchError::HttpFetch {
+            error: Box::new(error),
+            url: url.to_owned(),
+        })?;
+
+    match (response.status(), local) {
+        (StatusCode::NOT_MODIFIED, Some(_)) => Ok(DownloadResponse::NotModified),
+        (_, _) => Ok(DownloadResponse::Body(response)),
+    }
+}
+
+enum DownloadResponse {
+    Body(reqwest::Response),
+    NotModified,
 }
 
 /// Atomically write `data` to `path` via a temporary file and rename.
