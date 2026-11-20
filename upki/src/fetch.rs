@@ -6,7 +6,7 @@
 //! the local filesystem contents. Finally, the plan is executed. If that succeeds
 //! the remote server contents matches the local filesystem.
 
-use core::error::Error;
+use core::error::Error as StdError;
 use core::fmt;
 use core::time::Duration;
 use std::collections::HashSet;
@@ -25,10 +25,11 @@ use jiff::fmt::rfc2822::DateTimePrinter;
 use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
 use tempfile::NamedTempFile;
-use tracing::{debug, info};
+use tokio::time::sleep;
+use tracing::{debug, info, warn};
 
 use crate::data::{Manifest, ManifestFile};
-use crate::{FetchError, sha256};
+use crate::sha256;
 
 /// Everything `fetch()` needs to know about one cache directory.
 pub(crate) struct FetchContext<'a> {
@@ -78,59 +79,28 @@ impl FetchContext<'_> {
             }
         };
 
-        let local_modified = old_manifest.as_ref().and_then(|_| {
-            let path = self.cache_dir.join(MANIFEST_JSON);
-            match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
-                Ok(modified) => Some(modified),
-                Err(error) => {
-                    debug!("cannot read modification time of {path:?}: {error}");
-                    None
+        let path = old_manifest
+            .as_ref()
+            .map(|_| self.cache_dir.join(MANIFEST_JSON));
+
+        let (manifest, old_manifest) =
+            match download(&manifest_url, path.as_deref(), &client).await? {
+                DownloadResponse::Body(response) => {
+                    let manifest = response
+                        .json::<Manifest>()
+                        .await
+                        .map_err(|error| FetchError::FileDecode {
+                            error: Box::new(error),
+                            path: None,
+                        })?;
+
+                    (manifest, old_manifest.as_ref())
                 }
-            }
-        });
-
-        let mut request = client.get(&manifest_url);
-        if let Some(date) = local_modified.and_then(http_date) {
-            debug!("requesting manifest modified since {date}");
-            request = request.header(IF_MODIFIED_SINCE, date);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?
-            .error_for_status()
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?;
-
-        let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
-            (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
-            (_, old) => (
-                response
-                    .json::<Manifest>()
-                    .await
-                    .map_err(|error| FetchError::FileDecode {
-                        error: Box::new(error),
-                        path: None,
-                    })?,
-                true,
-                old,
-            ),
-        };
-
-        let old_manifest = match (modified, old_manifest.as_ref()) {
-            // If it was modified and there was an old manifest, return the old manifest
-            (true, Some(manifest)) => Some(manifest),
-            // If it was modified but there was no old manifest, return None
-            (true, None) => None,
-            // If it was not modified, we promoted the old manifest; return it
-            (false, _) => Some(&manifest),
-        };
+                DownloadResponse::NotModified => match old_manifest {
+                    Some(old) => (old, None),
+                    None => unreachable!("this cannot happen because we have no old manifest"),
+                },
+            };
 
         manifest.introduce()?;
 
@@ -189,7 +159,7 @@ pub(crate) trait PostProcess: Sync {
         &self,
         manifest: &Manifest,
         local_dir: &Path,
-    ) -> Result<Vec<u8>, Box<dyn Error + Send + Sync>>;
+    ) -> Result<Vec<u8>, Box<dyn StdError + Send + Sync>>;
 
     /// The derived file's name within the cache directory.
     fn file_name(&self) -> &'static str;
@@ -340,47 +310,54 @@ impl PlanStep {
                 remote_url,
                 local,
             } => {
-                debug!("downloading {:?}", file);
+                match download(&remote_url, Some(&local), client).await? {
+                    DownloadResponse::Body(response) => {
+                        let bytes = response
+                            .bytes()
+                            .await
+                            .map_err(|error| FetchError::HttpFetch {
+                                error: Box::new(error),
+                                url: remote_url.clone(),
+                            })?;
 
-                let response = client
-                    .get(&remote_url)
-                    .send()
-                    .await
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?
-                    .error_for_status()
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?;
+                        let temp =
+                            stage_file(&local, &bytes).map_err(|error| FetchError::FileWrite {
+                                error,
+                                path: local.clone(),
+                            })?;
 
-                let bytes = response
-                    .bytes()
-                    .await
-                    .map_err(|error| FetchError::HttpFetch {
-                        error: Box::new(error),
-                        url: remote_url.clone(),
-                    })?;
+                        let (size, digest) = temp
+                            .reopen()
+                            .and_then(hash_file)
+                            .map_err(|error| FetchError::FileRead {
+                                error,
+                                path: Some(temp.path().to_owned()),
+                            })?;
 
-                let temp = stage_file(&local, &bytes).map_err(|error| FetchError::FileWrite {
-                    error,
-                    path: local.clone(),
-                })?;
-                let (size, digest) = temp
-                    .reopen()
-                    .and_then(hash_file)
-                    .map_err(|error| FetchError::FileRead {
-                        error,
-                        path: Some(temp.path().to_owned()),
-                    })?;
-                if size != file.size as u64 || digest.as_ref() != file.hash {
-                    return Err(FetchError::HashMismatch(local));
+                        if size != file.size as u64 || digest.as_ref() != file.hash {
+                            return Err(FetchError::HashMismatch(local));
+                        }
+
+                        persist_file(temp, &local)
+                            .map_err(|error| FetchError::FileWrite { error, path: local })?;
+                    }
+                    DownloadResponse::NotModified => {
+                        let handle = File::open(&local).map_err(|error| FetchError::FileRead {
+                            error,
+                            path: Some(local.clone()),
+                        })?;
+
+                        let (size, digest) =
+                            hash_file(handle).map_err(|error| FetchError::FileRead {
+                                error,
+                                path: Some(local.clone()),
+                            })?;
+
+                        if size != file.size as u64 || digest.as_ref() != file.hash {
+                            return Err(FetchError::HashMismatch(local));
+                        }
+                    }
                 }
-
-                persist_file(temp, &local)
-                    .map_err(|error| FetchError::FileWrite { error, path: local })?;
 
                 debug!("download successful");
             }
@@ -463,6 +440,213 @@ impl fmt::Display for PlanStep {
     }
 }
 
+async fn download(
+    url: &str,
+    local: Option<&Path>,
+    client: &reqwest::Client,
+) -> Result<DownloadResponse, FetchError> {
+    let modified =
+        local.and_then(
+            |path| match fs::metadata(path).and_then(|metadata| metadata.modified()) {
+                Ok(modified) => Some(modified),
+                Err(error) => {
+                    debug!(path = %path.display(), %error, "cannot read modification time");
+                    None
+                }
+            },
+        );
+
+    let mut request = client.get(url);
+    if let Some(date) = modified.and_then(http_date) {
+        debug!(date = %date, "requesting manifest modified");
+        request = request.header(IF_MODIFIED_SINCE, date);
+    }
+    let request = request
+        .build()
+        .map_err(|error| FetchError::HttpFetch {
+            error: Box::new(error),
+            url: url.to_owned(),
+        })?;
+
+    let execute = async || {
+        debug!(local = ?local, "downloading");
+        client
+            .execute(request.try_clone().unwrap()) // There is no body
+            .await?
+            .error_for_status()
+    };
+
+    let result = match execute().await {
+        Ok(response) => Ok(response),
+        Err(error) => {
+            warn!(%error, delay = ?RETRY_DELAY, "download failed, retrying");
+            sleep(RETRY_DELAY).await;
+            execute().await
+        }
+    };
+
+    let response = match result {
+        Ok(response) => response,
+        Err(error) => {
+            return Err(FetchError::HttpFetch {
+                error: Box::new(error),
+                url: url.to_owned(),
+            });
+        }
+    };
+
+    match (response.status(), local) {
+        (StatusCode::NOT_MODIFIED, Some(_)) => Ok(DownloadResponse::NotModified),
+        (_, _) => Ok(DownloadResponse::Body(response)),
+    }
+}
+
+enum DownloadResponse {
+    Body(reqwest::Response),
+    NotModified,
+}
+
+/// Fetch errors
+#[cfg(feature = "__fetch")]
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum FetchError {
+    /// Failed to create a directory.
+    DirectoryCreate {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the directory being created.
+        path: PathBuf,
+    },
+    /// Failed to read a directory.
+    DirectoryRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the directory being read.
+        path: PathBuf,
+    },
+    /// Failed to decode a file.
+    FileDecode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the file.
+        path: Option<PathBuf>,
+    },
+    /// Failed to read a file.
+    FileRead {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file.
+        path: Option<PathBuf>,
+    },
+    /// Failed to remove a file.
+    FileRemove {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being removed.
+        path: PathBuf,
+    },
+    /// Failed to write a file.
+    FileWrite {
+        /// Underlying error.
+        error: io::Error,
+        /// Path to the file being written.
+        path: PathBuf,
+    },
+    /// A downloaded file did not match the expected hash.
+    HashMismatch(PathBuf),
+    /// Failed to fetch a file over HTTP.
+    HttpFetch {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// URL being accessed.
+        url: String,
+    },
+    /// A timestamp could not be parsed.
+    InvalidTimestamp {
+        /// Input value that failed to parse as a timestamp.
+        input: String,
+        /// Context in which the timestamp was being parsed.
+        context: &'static str,
+    },
+    /// Failed to encode a manifest file.
+    ManifestEncode {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the manifest file.
+        path: PathBuf,
+    },
+    /// Number of bytes that need to be downloaded to update the local cache.
+    Outdated(usize),
+    /// Failed to build an index from the downloaded cache contents.
+    IndexBuild {
+        /// Underlying error.
+        error: Box<dyn StdError + Send + Sync>,
+        /// Path to the index that could not be built.
+        path: PathBuf,
+    },
+    /// The on-disk cache failed validation.
+    Verification(Box<dyn StdError + Send + Sync>),
+}
+
+#[cfg(feature = "__fetch")]
+impl fmt::Display for FetchError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DirectoryCreate { path, .. } => {
+                write!(f, "cannot create directory {path:?}")
+            }
+            Self::DirectoryRead { path, .. } => {
+                write!(f, "cannot read directory {path:?}")
+            }
+            Self::FileDecode { path, .. } => match path {
+                Some(path) => write!(f, "cannot decode file {path:?}"),
+                None => write!(f, "cannot decode file"),
+            },
+            Self::FileRead { path, .. } => match path {
+                Some(path) => write!(f, "cannot read file {path:?}"),
+                None => write!(f, "cannot read file"),
+            },
+            Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
+            Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
+            Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
+            Self::InvalidTimestamp { input, context } => {
+                write!(f, "invalid timestamp for {context}: '{input}'")
+            }
+            Self::ManifestEncode { path, .. } => {
+                write!(f, "cannot encode manifest file at {path:?}")
+            }
+            Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
+            Self::IndexBuild { path, .. } => {
+                write!(f, "cannot build index at {path:?}")
+            }
+            Self::Verification(_) => write!(f, "cache verification failed"),
+            Self::FileRemove { path, .. } => write!(f, "cannot remove file {path:?}"),
+        }
+    }
+}
+
+#[cfg(feature = "__fetch")]
+impl StdError for FetchError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            Self::DirectoryCreate { error, .. } => Some(error),
+            Self::DirectoryRead { error, .. } => Some(error),
+            Self::FileDecode { error, .. } => Some(&**error),
+            Self::FileRead { error, .. } => Some(error),
+            Self::FileWrite { error, .. } => Some(error),
+            Self::HashMismatch(_) => None,
+            Self::HttpFetch { error, .. } => Some(&**error),
+            Self::InvalidTimestamp { .. } => None,
+            Self::ManifestEncode { error, .. } => Some(&**error),
+            Self::Outdated(_) => None,
+            Self::IndexBuild { error, .. } => Some(&**error),
+            Self::Verification(error) => Some(&**error),
+            Self::FileRemove { error, .. } => Some(error),
+        }
+    }
+}
+
 /// Atomically write `data` to `path` via a temporary file and rename.
 fn atomic_write(path: &Path, data: &[u8]) -> Result<(), io::Error> {
     persist_file(stage_file(path, data)?, path)
@@ -526,6 +710,7 @@ fn hash_file(mut file: File) -> Result<(u64, sha256::Digest), io::Error> {
 const HTTP_DATE: DateTimePrinter = DateTimePrinter::new();
 const MANIFEST_JSON: &str = "manifest.json";
 const REQUEST_TIMEOUT: u64 = 30;
+const RETRY_DELAY: Duration = Duration::from_millis(300);
 
 #[cfg(test)]
 mod tests {
