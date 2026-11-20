@@ -15,7 +15,7 @@ fetch-url = "https://example.com/"
 `cache-dir` points `upki` at where to find its data files.  These should be
 durable, but losing them only means more network traffic on the next `upki fetch` run.
 
-`[revocation].fetch-url` is a HTTPS webserver where the data files should be made
+`[revocation].fetch-url` is an HTTPS webserver where the data files should be made
 available.  Notes on this:
 
 - `upki` does not communicate with any server other than the configured one.
