@@ -22,8 +22,8 @@ use std::time::SystemTime;
 
 use jiff::Timestamp;
 use jiff::fmt::rfc2822::DateTimePrinter;
-use reqwest::StatusCode;
 use reqwest::header::IF_MODIFIED_SINCE;
+use reqwest::{Response, StatusCode};
 use tempfile::NamedTempFile;
 use tracing::{debug, info};
 
@@ -78,36 +78,11 @@ impl FetchContext<'_> {
             }
         };
 
-        let local_modified = old_manifest.as_ref().and_then(|_| {
-            let path = self.cache_dir.join(MANIFEST_JSON);
-            match fs::metadata(&path).and_then(|metadata| metadata.modified()) {
-                Ok(modified) => Some(modified),
-                Err(error) => {
-                    debug!("cannot read modification time of {path:?}: {error}");
-                    None
-                }
-            }
-        });
+        let path = old_manifest
+            .as_ref()
+            .map(|_| self.cache_dir.join(MANIFEST_JSON));
 
-        let mut request = client.get(&manifest_url);
-        if let Some(date) = local_modified.and_then(http_date) {
-            debug!("requesting manifest modified since {date}");
-            request = request.header(IF_MODIFIED_SINCE, date);
-        }
-
-        let response = request
-            .send()
-            .await
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?
-            .error_for_status()
-            .map_err(|error| FetchError::HttpFetch {
-                error: Box::new(error),
-                url: manifest_url.clone(),
-            })?;
-
+        let response = download(&manifest_url, path.as_deref(), &client).await?;
         let (manifest, modified, old_manifest) = match (response.status(), old_manifest) {
             (StatusCode::NOT_MODIFIED, Some(manifest)) => (manifest, false, None),
             (_, old) => (
@@ -461,6 +436,44 @@ impl fmt::Display for PlanStep {
             }
         }
     }
+}
+
+async fn download(
+    url: &str,
+    local: Option<&Path>,
+    client: &reqwest::Client,
+) -> Result<Response, FetchError> {
+    let modified =
+        local.and_then(
+            |path| match fs::metadata(path).and_then(|metadata| metadata.modified()) {
+                Ok(modified) => Some(modified),
+                Err(error) => {
+                    debug!(path = %path.display(), %error, "cannot read modification time");
+                    None
+                }
+            },
+        );
+
+    let mut request = client.get(url);
+    if let Some(date) = modified.and_then(http_date) {
+        debug!(date = %date, "requesting manifest modified");
+        request = request.header(IF_MODIFIED_SINCE, date);
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|error| FetchError::HttpFetch {
+            error: Box::new(error),
+            url: url.to_owned(),
+        })?
+        .error_for_status()
+        .map_err(|error| FetchError::HttpFetch {
+            error: Box::new(error),
+            url: url.to_owned(),
+        })?;
+
+    Ok(response)
 }
 
 /// Atomically write `data` to `path` via a temporary file and rename.
