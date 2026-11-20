@@ -20,7 +20,7 @@ use tracing::info;
 use webpki::sct::Error::UnsupportedSctVersion;
 
 #[cfg(feature = "__fetch")]
-use crate::FetchError;
+use crate::fetch::FetchError;
 #[cfg(feature = "__fetch")]
 use crate::fetch::{FetchContext, Plan};
 use crate::{Config, sha256};

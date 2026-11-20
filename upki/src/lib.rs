@@ -18,6 +18,8 @@ pub mod data;
 /// Synchronising a local cache directory with a remote mirror.
 #[cfg(feature = "__fetch")]
 pub(crate) mod fetch;
+#[cfg(feature = "__fetch")]
+pub use fetch::FetchError;
 
 /// Determining revocation status of publicly trusted certificates.
 pub mod revocation;
@@ -261,147 +263,6 @@ impl fmt::Display for Error {
 impl From<revocation::Error> for Error {
     fn from(value: revocation::Error) -> Self {
         Self::Revocation(value)
-    }
-}
-
-/// Fetch errors
-#[cfg(feature = "__fetch")]
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum FetchError {
-    /// Failed to create a directory.
-    DirectoryCreate {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the directory being created.
-        path: PathBuf,
-    },
-    /// Failed to read a directory.
-    DirectoryRead {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the directory being read.
-        path: PathBuf,
-    },
-    /// Failed to decode a file.
-    FileDecode {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// Path to the file.
-        path: Option<PathBuf>,
-    },
-    /// Failed to read a file.
-    FileRead {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file.
-        path: Option<PathBuf>,
-    },
-    /// Failed to remove a file.
-    FileRemove {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file being removed.
-        path: PathBuf,
-    },
-    /// Failed to write a file.
-    FileWrite {
-        /// Underlying error.
-        error: io::Error,
-        /// Path to the file being written.
-        path: PathBuf,
-    },
-    /// A downloaded file did not match the expected hash.
-    HashMismatch(PathBuf),
-    /// Failed to fetch a file over HTTP.
-    HttpFetch {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// URL being accessed.
-        url: String,
-    },
-    /// A timestamp could not be parsed.
-    InvalidTimestamp {
-        /// Input value that failed to parse as a timestamp.
-        input: String,
-        /// Context in which the timestamp was being parsed.
-        context: &'static str,
-    },
-    /// Failed to encode a manifest file.
-    ManifestEncode {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// Path to the manifest file.
-        path: PathBuf,
-    },
-    /// Number of bytes that need to be downloaded to update the local cache.
-    Outdated(usize),
-    /// Failed to build an index from the downloaded cache contents.
-    IndexBuild {
-        /// Underlying error.
-        error: Box<dyn StdError + Send + Sync>,
-        /// Path to the index that could not be built.
-        path: PathBuf,
-    },
-    /// The on-disk cache failed validation.
-    Verification(Box<dyn StdError + Send + Sync>),
-}
-
-#[cfg(feature = "__fetch")]
-impl fmt::Display for FetchError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::DirectoryCreate { path, .. } => {
-                write!(f, "cannot create directory {path:?}")
-            }
-            Self::DirectoryRead { path, .. } => {
-                write!(f, "cannot read directory {path:?}")
-            }
-            Self::FileDecode { path, .. } => match path {
-                Some(path) => write!(f, "cannot decode file {path:?}"),
-                None => write!(f, "cannot decode file"),
-            },
-            Self::FileRead { path, .. } => match path {
-                Some(path) => write!(f, "cannot read file {path:?}"),
-                None => write!(f, "cannot read file"),
-            },
-            Self::FileWrite { path, .. } => write!(f, "cannot write file {path:?}"),
-            Self::HashMismatch(path) => write!(f, "hash mismatch for file {path:?}"),
-            Self::HttpFetch { url, .. } => write!(f, "HTTP fetch error for URL {url}"),
-            Self::InvalidTimestamp { input, context } => {
-                write!(f, "invalid timestamp for {context}: '{input}'")
-            }
-            Self::ManifestEncode { path, .. } => {
-                write!(f, "cannot encode manifest file at {path:?}")
-            }
-            Self::Outdated(bytes) => write!(f, "cache is outdated, {bytes} bytes need downloading"),
-            Self::IndexBuild { path, .. } => {
-                write!(f, "cannot build index at {path:?}")
-            }
-            Self::Verification(_) => write!(f, "cache verification failed"),
-            Self::FileRemove { path, .. } => write!(f, "cannot remove file {path:?}"),
-        }
-    }
-}
-
-#[cfg(feature = "__fetch")]
-impl StdError for FetchError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            Self::DirectoryCreate { error, .. } => Some(error),
-            Self::DirectoryRead { error, .. } => Some(error),
-            Self::FileDecode { error, .. } => Some(&**error),
-            Self::FileRead { error, .. } => Some(error),
-            Self::FileWrite { error, .. } => Some(error),
-            Self::HashMismatch(_) => None,
-            Self::HttpFetch { error, .. } => Some(&**error),
-            Self::InvalidTimestamp { .. } => None,
-            Self::ManifestEncode { error, .. } => Some(&**error),
-            Self::Outdated(_) => None,
-            Self::IndexBuild { error, .. } => Some(&**error),
-            Self::Verification(error) => Some(&**error),
-            Self::FileRemove { error, .. } => Some(error),
-        }
     }
 }
 

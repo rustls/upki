@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 
 #[cfg(feature = "__fetch")]
-use crate::FetchError;
+use crate::fetch::FetchError;
 
 /// The structure contained in a manifest.json
 ///
