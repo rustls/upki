@@ -36,6 +36,7 @@ jobs:
           mv tmp/manifest.json.new tmp/manifest.json
 
           cargo run --locked --release --bin intermediates -- tmp/intermediates/ --manifest-comment="$GITHUB_REPOSITORY run $GITHUB_RUN_ID"
+          cp site/* tmp/
 
       - name: Package and upload artifact
         uses: actions/upload-pages-artifact@v5
