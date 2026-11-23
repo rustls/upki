@@ -884,12 +884,12 @@
                 Private, offline revocation checking built on Mozilla's CRLite (Clubcard) data, kept
                 fresh with <code>upki fetch</code>
               </li>
-              <li>A CLI for monitoring, testing and alerting</li>
-              <li>A stable C API (<code>libupki</code>) for languages with C FFI</li>
-              <li><code>upki-openssl</code>, a verification callback for OpenSSL clients</li>
-              <li><code>rustls-upki</code>, a revocation-checking verifier for rustls</li>
-              <li>A well-defined cache format</li>
-              <li><code>upki-mirror</code> tooling for hosting your own data cache</li>
+              <li>A <a href="https://crates.io/crates/upki-cli">CLI</a> for monitoring, testing and alerting</li>
+              <li>A stable <a href="https://github.com/rustls/upki/blob/main/upki/upki.h">C API</a> (<code>libupki</code>) for languages with C FFI</li>
+              <li><code>upki-openssl</code>, <a href="https://github.com/rustls/upki/blob/main/upki-openssl/upki-openssl.h">integration</a> for OpenSSL clients</li>
+              <li><a href="https://crates.io/crates/rustls-upki"><code>rustls-upki</code></a>, a revocation-checking verifier for rustls</li>
+              <li>A <a href="https://c2sp.org/upki-revocation@v1.0.0">well-defined</a> cache format</li>
+              <li><a href="https://github.com/rustls/upki/tree/main/upki-mirror"><code>upki-mirror</code></a> tooling for hosting your own data cache</li>
             </ul>
           </div>
           <div>
@@ -897,18 +897,16 @@
             <ul class="list blue">
               <li>
                 <b>Ubuntu</b> 26.10 ships basic upki support. Canonical funded the initial push
-                to get upki started and integrated on Ubuntu.
+                to start upki and integrate it.
               </li>
               <li>
                 <b>Go</b>: proposal
                 <a href="https://github.com/golang/go/issues/82402">#82402</a> would add default-on
-                upki revocation checking to <code>crypto/tls</code>.
+                upki revocation checking to <code>crypto/tls</code> in Go 1.28.
               </li>
               <li>
                 <b>OpenSSL</b>: the Large Businesses community
-                <a href="https://openssl-communities.org/d/14DpNWHq/better-revocation-in-tls"
-                  >voted in favor</a
-                >
+                <a href="https://openssl-communities.org/d/14DpNWHq/better-revocation-in-tls">voted in favor</a>
                 of prioritizing upki support in OpenSSL.
               </li>
             </ul>
