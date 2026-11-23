@@ -24,7 +24,8 @@ async fn main() -> Result<ExitCode, Report> {
         .with(
             tracing_subscriber::fmt::layer()
                 .compact()
-                .with_ansi(stderr().is_terminal()),
+                .with_ansi(stderr().is_terminal())
+                .without_time(),
         )
         .with(
             EnvFilter::builder()
