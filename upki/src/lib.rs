@@ -40,7 +40,7 @@ pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub struct Config {
     /// Where to store cache files.
-    cache_dir: PathBuf,
+    pub cache_dir: PathBuf,
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
