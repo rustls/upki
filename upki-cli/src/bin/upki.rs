@@ -34,7 +34,7 @@ async fn main() -> Result<ExitCode, Report> {
                 .with_default_directive(
                     match args.verbose {
                         true => LevelFilter::TRACE,
-                        false => LevelFilter::ERROR,
+                        false => LevelFilter::INFO,
                     }
                     .into(),
                 )
