@@ -636,8 +636,11 @@
         <div>
           <h2>Problem statement</h2>
           <p>
-            Most root stores are maintained on the assumption that clients also apply their other
-            signals: revocation data for end entities, intermediates and roots (like
+            Non-browser applications have historically relied on a slowly changing set of
+            trust roots maintained by the operating system or platform vendors. These trust roots
+            are often based on browser root programs, but lack the data that allow browsers to make
+            fine-grained trust decisions: revocation data for end entities, intermediates and
+            roots (like
             <a
               href="https://blog.mozilla.org/security/2020/01/09/crlite-part-1-all-web-pki-revocations-compressed/"
               >CRLite</a
@@ -646,18 +649,15 @@
             <a
               href="https://blog.mozilla.org/security/2015/03/03/revoking-intermediate-certificates-introducing-onecrl/"
               >OneCRL</a
-            >), distrust dates and Certificate Transparency policy. Outside the browser, tools used
-            on Linux (and many other Unix-like systems) just trust the packaged trust roots. They
-            accept revoked certificates, and only allow coarse-grained trust decisions. By contrast,
-            browsers can gradually enforce more fine-grained trust decisions over time or limited to
-            particular domains.
+            >), distrust dates and Certificate Transparency policy.
           </p>
           <p>
             The
             <a href="https://emudhra.we-have-a-problem.com/">October 2026 eMudhra incident</a>
             showed the cost. Browsers blocked the affected intermediates quickly, while other clients were unable
             to restrict only the affected intermediates. Instead, they had to wait for platform trust store
-            updates to remove the parent root certificates.
+            updates to remove the parent root certificates and spent significant time and effort
+            to mitigate the impact on their applications across different platforms and environments.
           </p>
           <p>
             upki ships these signals as a compact local cache that's updated automatically,
