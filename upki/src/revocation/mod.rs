@@ -16,7 +16,7 @@ use index::RevocationIndexer;
 use rustls_pki_types::{CertificateDer, TrustAnchor};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
-use tracing::info;
+use tracing::debug;
 use webpki::sct::Error::UnsupportedSctVersion;
 
 #[cfg(feature = "__fetch")]
@@ -38,7 +38,7 @@ pub use crate::data::{Manifest, ManifestFile};
 #[cfg(feature = "__fetch")]
 pub(crate) async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
     let cache_dir = config.revocation_cache_dir();
-    info!(
+    debug!(
         "fetching {} into {:?}...",
         &config.revocation.fetch_url, &cache_dir,
     );

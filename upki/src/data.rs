@@ -9,7 +9,7 @@ use std::path::Path;
 use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "__fetch")]
-use tracing::info;
+use tracing::debug;
 
 #[cfg(feature = "__fetch")]
 use crate::fetch::FetchError;
@@ -67,7 +67,7 @@ impl Manifest {
             });
         };
 
-        info!(
+        debug!(
             comment = self.comment,
             date = %dt,
             "parsed manifest"
