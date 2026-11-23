@@ -50,6 +50,7 @@ fn config_unknown_fields() {
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=tests/data/config_unknown_fields/config.toml
     Error: failed to parse config file at tests/data/config_unknown_fields/config.toml
 
     Caused by:
@@ -73,13 +74,14 @@ fn show_config_path_fixpoint() {
             .arg("--config-file")
             .arg("/home/example/not-exist/yo.txt")
             .arg("show-config-path"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
     /home/example/not-exist/yo.txt
 
     ----- stderr -----
+     INFO upki: no configuration found, using defaults
     ");
 }
 
@@ -101,6 +103,7 @@ fn show_config_fixpoint() {
     fetch-url = ""
 
     ----- stderr -----
+     INFO upki: using configuration path=tests/data/verify_non_existent_dir/config.toml
     "#);
 }
 
@@ -118,6 +121,7 @@ fn verify_of_non_existent_dir() {
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=tests/data/verify_non_existent_dir/config.toml
     Error: cannot read file "not-exist/revocation/manifest.json"
 
     Caused by:
@@ -136,12 +140,13 @@ fn verify_of_empty_manifest() {
             .arg("--config-file")
             .arg("tests/data/verify_of_empty_manifest/config.toml")
             .arg("verify"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=tests/data/verify_of_empty_manifest/config.toml
     ");
 }
 
@@ -157,12 +162,14 @@ fn fetch_of_empty_manifest() {
             .arg("--config-file")
             .arg(config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -260,6 +267,8 @@ fn fetch_fails_when_index_cannot_be_built() {
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     Error: cannot build index at "[TEMPDIR]/revocation/index.bin"
 
     Caused by:
@@ -304,6 +313,8 @@ fn hash_mismatch_does_not_replace_existing_filter() {
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     Error: hash mismatch for file "[TEMPDIR]/revocation/replace.filter"
 
     Location:
@@ -323,12 +334,14 @@ fn full_fetch() {
             .arg("--config-file")
             .arg(config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -361,12 +374,14 @@ fn full_fetch_and_incremental_update() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -396,12 +411,14 @@ fn full_fetch_and_incremental_update() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -430,12 +447,14 @@ fn full_fetch_and_incremental_update() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -467,12 +486,14 @@ fn typical_incremental_fetch() {
             .arg("--config-file")
             .arg(config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
 
     // only fetched the neccessary files
@@ -508,12 +529,14 @@ fn fetch_not_modified() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -533,12 +556,14 @@ fn fetch_not_modified() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
     assert_snapshot!(
         server.into_log(),
@@ -581,12 +606,14 @@ fn fetch_with_stale_local_manifest() {
             .arg("--config-file")
             .arg(&config_file)
             .arg("fetch"),
-        @r"
+        @"
     success: true
     exit_code: 0
     ----- stdout -----
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     ");
 
     // the conditional request is answered in full, and the missing filter is fetched
@@ -631,6 +658,8 @@ fn typical_incremental_fetch_dry_run() {
     - save new manifest into "[TEMPDIR]/revocation"
 
     ----- stderr -----
+     INFO upki: using configuration path=[TEMPDIR]/config.toml
+     INFO upki: fetching updates cache=[TEMPDIR]
     "#);
 
     // fetched just the manifest
