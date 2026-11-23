@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use eyre::{Context, Report};
 use rustls_pki_types::CertificateDer;
 use rustls_pki_types::pem::PemObject;
+use tracing::info;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -44,6 +45,11 @@ async fn main() -> Result<ExitCode, Report> {
     let config_path =
         ConfigPath::new(args.config_file).wrap_err("cannot find configuration path")?;
 
+    match config_path.as_ref().exists() {
+        true => info!(path = %config_path.as_ref().display(), "using configuration"),
+        false => info!("no configuration found, using defaults"),
+    }
+
     if let Command::ShowConfigPath = args.command {
         println!("{}", config_path.as_ref().display());
         return Ok(ExitCode::SUCCESS);
@@ -54,6 +60,7 @@ async fn main() -> Result<ExitCode, Report> {
     Ok(match args.command {
         #[cfg(feature = "__fetch")]
         Command::Fetch { dry_run } => {
+            info!(cache = %config.cache_dir.display(), "fetching updates");
             fetch(dry_run, &config).await?;
             ExitCode::SUCCESS
         }
