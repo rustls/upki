@@ -119,21 +119,20 @@ impl RevocationCheckInput {
     /// Construct a `RevocationCheckInput` from a sequence of DER-encoded certificates.
     ///
     /// The first element in `certificates` **must** be the end-entity certificate.  The
-    /// end-entity certificate's issuer **must** be present in the other certificates
-    /// (but does not need to be in any specific position).
+    /// end-entity certificate's issuer **must** be present in any of the certificates.
     ///
     /// Note this interface **only** checks the end-entity certificate for revocation.  It does
     /// **not** check any of the certificates for validity: it assumes the caller has done any
     /// required checks before calling this interface (path building, naming validation,
     /// expiry checking, etc.).
     pub fn from_certificates(certificates: &[CertificateDer<'_>]) -> Result<Self, Error> {
-        let (end_entity, rest) = certificates
+        let (end_entity_der, rest) = certificates
             .split_first()
             .ok_or(Error::TooFewCertificates)?;
-        let end_entity = webpki::EndEntityCert::try_from(end_entity)
+        let end_entity = webpki::EndEntityCert::try_from(end_entity_der)
             .map_err(|error| Error::InvalidEndEntityCertificate(Box::new(error)))?;
 
-        let issuer = find_issuer(end_entity.issuer(), rest.iter())?;
+        let issuer = find_issuer(end_entity.issuer(), rest.iter().chain([end_entity_der]))?;
         let issuer_spki_hash = IssuerSpkiHash(
             sha256::Digest::from(&[webpki::spki_for_anchor(&issuer).as_ref()][..]).0,
         );
@@ -395,7 +394,7 @@ pub enum Error {
     },
     /// No issuer found for the end-entity certificate in the provided chain.
     NoIssuer,
-    /// Certificate chains must contain at least 2 certificates.
+    /// Certificate chains must contain at least one certificate.
     TooFewCertificates,
 }
 
