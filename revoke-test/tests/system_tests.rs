@@ -119,6 +119,32 @@ fn openssl_allows_missing_revocation_data() {
     });
 }
 
+/// A self-signed certificate (where the issuer is also the leaf certificate)
+/// should be allowed as not covered.
+#[cfg(not(windows))]
+#[test]
+fn openssl_allows_self_issued_cert() {
+    let cache_dir = "tmp/openssl-self-signed-cert";
+    let config_path = empty_cache_config(cache_dir);
+    let revocation_dir = Path::new(cache_dir).join("revocation");
+    fs::create_dir_all(&revocation_dir).unwrap();
+    fs::write(revocation_dir.join("index.bin"), b"upkiidx1\0\0\0\0\0\0").unwrap();
+
+    let site: RevocationTestSite = serde_json::from_reader(
+        File::open("./self-signed.json").expect("cannot find revoke-test/self-signed.json"),
+    )
+    .expect("cannot parse self-signed.json");
+    let detail = site
+        .detail
+        .expect("detail missing in self-signed.json");
+    assert!(detail.intermediates.is_empty());
+
+    assert_eq!(
+        openssl::verify(&detail, &config_path),
+        (1, openssl::UNTOUCHED_ERROR)
+    );
+}
+
 /// Revocation data that is present but damaged must still fail verification.
 #[cfg(not(windows))]
 #[test]

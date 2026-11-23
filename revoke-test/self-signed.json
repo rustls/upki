@@ -1,0 +1,13 @@
+{
+  "_comment": "Generated self-signed end-entity certificate (CA:FALSE), valid from 2026-11-24 07:44:56 UTC through 2036-11-21 07:44:56 UTC. Subject/SAN: self-signed.upki.test.",
+  "ca_sha256_fingerprint": "de14d43e51779b9e67f70092f3af0e5846cde7fe6892d5ec3fed7587a7787eaa",
+  "ca_label": "UPKI self-signed test certificate",
+  "test_website_revoked": "https://self-signed.upki.test",
+  "detail": {
+    "end_entity_cert": "MIIDZzCCAk+gAwIBAgIUPQ7juEKgh2yq+h8OViMMf6aPpnUwDQYJKoZIhvcNAQELBQAwIDEeMBwGA1UEAwwVc2VsZi1zaWduZWQudXBraS50ZXN0MB4XDTI2MTEyNDA3NDQ1NloXDTM2MTEyMTA3NDQ1NlowIDEeMBwGA1UEAwwVc2VsZi1zaWduZWQudXBraS50ZXN0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu8JvCxHoge+rFAXDec1h7m/pyIKpJuevt0ovohDG3ek3tCRghPOuUrI/337vV0NxAWScWdHVu7CV40gh2ZpvpoJN93Zz4VT6LJwWCXEglx+H8a4FBLSe8QRq3OXQeDyNM03QODRBAd/V07TMUOWdjEsD5s8rnyve1JNMF/wUdZ38VHp1pLUh7RMd288BhdPfq3IEFUaymr5iJNZFlg0Ml2VMwaIr1f28+YXJ0QCALTnicMhRMWs+Vd0e9CmLudPHeBIwI1fN10mdKZX3cakllx91s3ExXfetuWtyQiSIZxM+jDsPcThrSvHtEa3yXlyIa8mAyVYIhZA/ZK93n3Aj6wIDAQABo4GYMIGVMB0GA1UdDgQWBBQ0oALNTXx3MbVuNDH6MbABQvBBVDAfBgNVHSMEGDAWgBQ0oALNTXx3MbVuNDH6MbABQvBBVDAgBgNVHREEGTAXghVzZWxmLXNpZ25lZC51cGtpLnRlc3QwDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCBaAwEwYDVR0lBAwwCgYIKwYBBQUHAwEwDQYJKoZIhvcNAQELBQADggEBADQIvcB0vG7epu0U/OQi+PiTgwthKX9JgWD2mp7R5bCHGUo++WIhsGz7YtTA3B+Kee8f80TQ+qfK0gzM2mWVRL48h174RJoFm2AYv6pI6M/rLwt3tAk8njPveuFiN99+A4ofBPRo09Vn40HZanqG/zJAairhgaS+G+vjvJ68AL2h9UmamwHVIqbfuA310JYKNa4HWgQ7JL++/Ks5rbJn8t7BpLLzpmFuFa7mf4kh/rE2wyBg+b9K+OVDUsrMr3YY6wrwvjgS9Q76MQvqM9Pgu2tSYYGdBlzcJTbkh8y9h9wT3DU1DCFkmgiZbjA67JS9+NVoKlSQ9IEXAxUkLRAvJ8s=",
+    "intermediates": [],
+    "serial": "PQ7juEKgh2yq+h8OViMMf6aPpnU=",
+    "issuer_spki_sha256": "kmdcnJgFC2Yid7OeWSf5LBq+WDq/GoyIvExHG3w04Go=",
+    "scts": []
+  }
+}
