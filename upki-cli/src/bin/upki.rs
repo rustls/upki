@@ -1,6 +1,6 @@
 //! upki command-line entrypoint.
 
-use std::io::{BufReader, stdin};
+use std::io::{BufReader, IsTerminal, stderr, stdin};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -21,7 +21,11 @@ use upki::{Config, ConfigPath};
 async fn main() -> Result<ExitCode, Report> {
     let args = Args::parse();
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().compact())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .compact()
+                .with_ansi(stderr().is_terminal()),
+        )
         .with(
             EnvFilter::builder()
                 .with_default_directive(
