@@ -26,7 +26,7 @@ use reqwest::header::IF_MODIFIED_SINCE;
 use reqwest::{Response, StatusCode};
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::data::{Manifest, ManifestFile};
 use crate::sha256;
@@ -132,7 +132,7 @@ impl FetchContext<'_> {
             return Ok(());
         }
 
-        info!(
+        debug!(
             "{} steps required ({} bytes to download).",
             plan.steps.len(),
             plan.download_bytes()
@@ -142,7 +142,7 @@ impl FetchContext<'_> {
             step.execute(&client).await?;
         }
 
-        info!("success");
+        debug!("success");
         Ok(())
     }
 
