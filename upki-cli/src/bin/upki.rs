@@ -1,5 +1,6 @@
 //! upki command-line entrypoint.
 
+use std::env;
 use std::io::{BufReader, IsTerminal, stderr, stdin};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -25,7 +26,10 @@ async fn main() -> Result<ExitCode, Report> {
         .with(
             tracing_subscriber::fmt::layer()
                 .compact()
-                .with_ansi(stderr().is_terminal())
+                .with_ansi(match env::var_os("NO_COLOR") {
+                    Some(val) => !val.is_empty(),
+                    None => stderr().is_terminal(),
+                })
                 .with_writer(stderr)
                 .without_time(),
         )
