@@ -30,7 +30,7 @@ fn version() {
     success: true
     exit_code: 0
     ----- stdout -----
-    upki 1.0.3
+    upki 1.0.4
 
     ----- stderr -----
     "###);
