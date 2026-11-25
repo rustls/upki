@@ -25,6 +25,10 @@ pub use fetch::FetchError;
 pub mod revocation;
 use crate::revocation::RevocationConfig;
 
+/// Fetching intermediate certificates to assist chain building.
+pub mod intermediates;
+use crate::intermediates::IntermediatesConfig;
+
 /// Foreign function interface.
 #[cfg(feature = "capi")]
 pub mod ffi;
@@ -32,7 +36,8 @@ pub mod ffi;
 /// Update the local caches by fetching new data from the network.
 #[cfg(feature = "__fetch")]
 pub async fn fetch(dry_run: bool, config: &Config) -> Result<(), FetchError> {
-    revocation::fetch(dry_run, config).await
+    revocation::fetch(dry_run, config).await?;
+    intermediates::fetch(dry_run, config).await
 }
 
 /// `upki` configuration.
@@ -44,6 +49,15 @@ pub struct Config {
 
     /// Configuration for crlite-style revocation.
     pub revocation: RevocationConfig,
+
+    /// Configuration for intermediate preloading.
+    ///
+    /// This is optional, and if absent intermediates are not fetched.
+    ///
+    /// If the configuration section is provided but empty (ie, just `[intermediates]\n`), then it
+    /// is fetched using the default URL.
+    #[serde(default)]
+    pub intermediates: Option<IntermediatesConfig>,
 }
 
 impl Config {
@@ -86,11 +100,17 @@ impl Config {
                 }
             },
             revocation: RevocationConfig::default(),
+            intermediates: None,
         })
     }
 
     pub(crate) fn revocation_cache_dir(&self) -> PathBuf {
         self.cache_dir.join("revocation")
+    }
+
+    #[cfg(feature = "__fetch")]
+    pub(crate) fn intermediates_cache_dir(&self) -> PathBuf {
+        self.cache_dir.join("intermediates")
     }
 }
 

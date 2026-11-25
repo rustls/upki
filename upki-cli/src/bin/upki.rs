@@ -16,6 +16,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 #[cfg(feature = "__fetch")]
 use upki::fetch;
+#[cfg(feature = "__fetch")]
+use upki::intermediates;
 use upki::revocation::{RevocationCheckInput, Store};
 use upki::{Config, ConfigPath};
 
@@ -71,6 +73,7 @@ async fn main() -> Result<ExitCode, Report> {
         #[cfg(feature = "__fetch")]
         Command::Verify => {
             Store::from_config(&config).verify()?;
+            intermediates::verify(&config)?;
             ExitCode::SUCCESS
         }
         Command::ShowConfigPath => unreachable!(),
