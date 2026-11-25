@@ -1,6 +1,6 @@
 [package]
 name = "upki-cli"
-version = "1.0.3"
+version = "1.0.4"
 rust-version.workspace = true
 edition.workspace = true
 repository.workspace = true
