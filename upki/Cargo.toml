@@ -12,7 +12,7 @@ default = []
 capi = []
 fetch = ["reqwest/default-tls", "__fetch"]
 fetch-native-tls = ["reqwest/native-tls", "__fetch"]
-__fetch = ["dep:jiff", "dep:reqwest", "dep:serde_json", "dep:tempfile", "dep:tokio"]
+__fetch = ["dep:jiff", "dep:reqwest", "dep:serde_json", "dep:tempfile", "dep:tokio", "dep:tracing"]
 
 [dependencies]
 base64.workspace = true
@@ -28,7 +28,7 @@ serde_json = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["time"], optional = true }
 toml.workspace = true
-tracing.workspace = true
+tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
 cbindgen.workspace = true
