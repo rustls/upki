@@ -72,7 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: EmbarkStudios/cargo-deny-action@v2.1.2
+      - uses: EmbarkStudios/cargo-deny-action@v2.1.3
 
   semver:
     runs-on: ubuntu-latest
